@@ -30,7 +30,38 @@ def configuration(path):
     return server, str(ip)
 
 def execute(args, input_text=None):
+    # Keep captured output for JSON parsing. On failure, main() displays the
+    # actionable stderr instead of Python's unhelpful exception repr.
     return subprocess.run(["hcloud", *args], input=input_text, capture_output=True, text=True, check=True).stdout
+
+
+def find_resource(kind, name):
+    """Read-only lookup for a named existing server or firewall."""
+    listing = json.loads(execute([kind, "list", "-o", "json"]))
+    records = listing if isinstance(listing, list) else listing.get(kind + "s", [])
+    if not isinstance(records, list):
+        raise RuntimeError(f"Unexpected hcloud {kind} list output; refusing to provision")
+    return next((item for item in records if item.get("name") == name), None)
+
+
+def validate_reusable_firewall(name, source):
+    """Never reuse a firewall unless it has exactly our expected SSH rule.
+
+    It must also be unattached to other resources. A failed previous apply
+    commonly leaves this unused firewall behind.
+    """
+    result = json.loads(execute(["firewall", "describe", name, "-o", "json"]))
+    fw = result.get("firewall", result)
+    rules = fw.get("rules", [])
+    expected = {"direction": "in", "protocol": "tcp",
+                "port": "22", "source_ips": [source]}
+    if (len(rules) != 1 or
+            {key: rules[0].get(key) for key in expected} != expected or
+            fw.get("applied_to")):
+        raise RuntimeError(
+            f"Existing firewall {name!r} is not an unattached, exact SSH-only match. "
+            "Inspect it using 'hcloud firewall describe' and resolve manually."
+        )
 
 def main(argv=None):
     p = argparse.ArgumentParser(description="Provision an SSH-restricted, billable Hetzner bootstrap server")
@@ -58,21 +89,40 @@ def main(argv=None):
             print(execute(["server","describe",name,"-o","json"]))
             return 0
         execute(["ssh-key","describe",server["ssh_key"],"-o","json"])
-        for kind, item in (("server",name),("firewall",fw)):
-            listing = json.loads(execute([kind,"list","-o","json"]))
-            records = listing if isinstance(listing, list) else listing.get(kind+"s", [])
-            if any(entry.get("name") == item for entry in records):
-                raise RuntimeError(f"Existing {kind} named {item}; refusing to modify")
+        if find_resource("server", name):
+            raise RuntimeError(
+                f"Server {name!r} already exists. Check 'hcloud server list' "
+                "before retrying to avoid duplicate charges."
+            )
+        firewall_exists = find_resource("firewall", fw) is not None
+        if firewall_exists:
+            validate_reusable_firewall(fw, address)
+            print(f"Pre-existing SSH-only firewall {fw} verified; safe to reuse.")
         if args.action == "check":
             print("Preflight passed. No infrastructure created.")
             return 0
         if not args.approve_cost:
             raise RuntimeError("Creating billable resources requires --approve-cost")
-        execute(["firewall","create","--name",fw,"--rules-file","-"], rules)
-        print(execute(create))
+        if not firewall_exists:
+            execute(["firewall","create","--name",fw,"--rules-file","-"], rules)
+            print(f"Created SSH-only firewall: {fw}")
+        try:
+            print(execute(create))
+        except subprocess.CalledProcessError:
+            print(
+                "cloud: Server creation failed. The firewall may remain. "
+                "Run 'hcloud server list' and 'hcloud firewall list' "
+                "before any retry.", file=sys.stderr
+            )
+            raise
         print("Ubuntu bootstrap created and billing started. NixOS is NOT yet installed.")
         return 0
-    except (OSError, KeyError, ValueError, RuntimeError, subprocess.CalledProcessError) as e:
+    except subprocess.CalledProcessError as e:
+        details = (e.stderr or e.stdout or "").strip()
+        print(f"cloud: hcloud failed (exit {e.returncode}): "
+              f"{details or 'no error details returned'}", file=sys.stderr)
+        return 2
+    except (OSError, KeyError, TypeError, ValueError, RuntimeError) as e:
         print(f"cloud: {e}", file=sys.stderr)
         return 2
 
