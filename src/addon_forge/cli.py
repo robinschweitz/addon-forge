@@ -23,6 +23,8 @@ def make_parser():
     client = sub.add_parser("client")
     client_sub = client.add_subparsers(dest="action", required=True)
     client_sub.add_parser("start")
+    video = client_sub.add_parser("windowed", help="Configure test client video settings while WoW is closed")
+    video.add_argument("--resolution", default="1280x720")
     cmd = client_sub.add_parser("command")
     cmd.add_argument("text")
     shot = client_sub.add_parser("screenshot")
@@ -139,6 +141,12 @@ def main(argv=None) -> int:
         if args.command == "deploy":
             from .deploy import deploy
             print(deploy(args.addon, cfg.wow_dir))
+            return 0
+        if args.command == "client" and args.action == "windowed":
+            from .client_settings import configure_windowed
+            path, backup = configure_windowed(cfg.wow_dir, resolution=args.resolution)
+            print(f"Windowed configuration: {path} | backup: {backup or 'no existing config'}")
+            print("Start the test client again to apply the settings.")
             return 0
         if args.command == "client":
             from .client import ClientController
