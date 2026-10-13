@@ -5,9 +5,10 @@ import shutil
 import subprocess
 
 from .config import Config
+import sys
 
 
-class ClientController:
+class LinuxClientController:
     def __init__(self, cfg: Config):
         self.cfg = cfg
 
@@ -55,3 +56,10 @@ class ClientController:
         output.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run(["import", "-window", self.window_id(), str(output)], check=True)
         return output
+
+
+# Preserve the existing Linux/Wine backend; select Win32 on native Windows.
+if sys.platform == "win32":
+    from .windows_client import WindowsClientController as ClientController
+else:
+    ClientController = LinuxClientController

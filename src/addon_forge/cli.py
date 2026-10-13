@@ -69,9 +69,18 @@ def main(argv=None) -> int:
             return 0 if result["status"] == "passed" else 1
         cfg = load_config(args.config)
         if args.command == "doctor":
-            for key, binary in [("Python", "python3"), ("Wine", "wine"), ("X11 automation", "xdotool"),
-                                ("Lua 5.1 compiler", "luac5.1"), ("Screenshot", "import"), ("Docker", "docker")]:
+            requirements = ([("Python", "python"), ("Docker", "docker")]
+                            if sys.platform == "win32" else
+                            [("Python", "python3"), ("Wine", "wine"), ("X11 automation", "xdotool"),
+                             ("Lua 5.1 compiler", "luac5.1"), ("Screenshot", "import"), ("Docker", "docker")])
+            for key, binary in requirements:
                 print(f"{key:20} {shutil.which(binary) or 'NOT FOUND'}")
+            if sys.platform == "win32":
+                try:
+                    from PIL import ImageGrab  # noqa: F401
+                    print("Windows screenshots  Pillow available")
+                except ImportError:
+                    print("Windows screenshots  NOT FOUND (pip install addon-forge[windows])")
             print(f"WoW directory: {cfg.wow_dir} | exists: {cfg.wow_dir.is_dir()}")
             print(f"Realm source: {cfg.realm_dir or 'not configured'}")
             return 0

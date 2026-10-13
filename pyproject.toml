@@ -11,6 +11,9 @@ requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = []
 
+[project.optional-dependencies]
+windows = ["Pillow>=10"]
+
 [project.scripts]
 forge = "addon_forge.cli:main"
 
