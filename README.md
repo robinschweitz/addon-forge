@@ -41,7 +41,7 @@ The single main Nix configuration file is **`flake.nix`**. It defines:
 - `nix flake check`: Python tests.
 - `nixosModules.default`: opt-in NixOS workstation prerequisites for Docker/Wine/test control.
 
-**Reproducibility note:** Nix fetches the declared nixpkgs branch for the initial build. Run `nix flake lock` and commit the generated **`flake.lock`** to freeze exact dependency revisions; it is not included in this initial source snapshot because Nix was unavailable in the build environment. The AzerothCore checkout, proprietary game client, extracted game assets, local realm DB, credentials, and GPU configuration are deliberately external and are **not yet reproducible from the flake alone**.
+**Reproducibility note:** The committed **`flake.lock`** pins an exact nixpkgs revision, verified by CI. Update it intentionally using `nix flake update` and commit the result. The proprietary WoW client, game data, local realm DB, credentials, GPU setup, and upstream OCI container image tags are not yet reproducible from the flake alone.
 
 To add the NixOS module to **your existing system flake** (do not replace your hardware configuration):
 
@@ -139,7 +139,7 @@ For the downloadable `addon-forge.git.bundle`, first run `git clone addon-forge.
 - [x] In-game bridge, SavedVariables parser, report correlation
 - [x] AI create/repair logic and rollback
 - [x] Nix flake for development shell/package/NixOS module
-- [ ] Verify Nix evaluation on a NixOS host and generate `flake.lock`
+- [x] Evaluate the NixOS module and boot a lightweight NixOS test VM in CI; commit `flake.lock`
 - [ ] Verify real Wine + WoW 3.3.5a client round trip
 - [ ] Test realm fixtures and controlled real combat event tests
 - [ ] Client readiness detection and automated account/character login

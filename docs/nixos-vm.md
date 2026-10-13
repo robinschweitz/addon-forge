@@ -7,7 +7,7 @@ Addon Forge's flake has a complete `nixosConfigurations.forge-vm` output. It is 
 ```sh
 git clone https://github.com/robinschweitz/addon-forge.git
 cd addon-forge
-nix flake lock   # if no flake.lock exists; commit it to pin nixpkgs
+nix flake metadata   # uses the committed flake.lock
 nix build .#nixosConfigurations.forge-vm.config.system.build.vm
 ./result/bin/run-forge-vm-vm
 ```
@@ -93,7 +93,7 @@ The module assumes the `user` already exists, installs the CLI/desktop prerequis
 
 ## Reproducibility boundaries
 
-- The Nix flake pins Nix dependencies **only after `flake.lock` is generated and committed**.
+- The committed `flake.lock` pins the exact nixpkgs revision for reproducible Nix dependencies.
 - The default AzerothCore Docker images currently use the upstream `:master` tag, which **is mutable**. For reproducible realm binaries, override `services.addon-forge.realm.images.{database,authserver,worldserver,dbImport,clientData}` using `image@sha256:...` values that are mutually compatible, and commit your chosen digests. Version drift between an upstream DB schema and binaries may require restoring a compatible snapshot.
 - Database state and client files live outside the Nix store. Back them up or reset them as test fixtures; NixOS rebuilds do not erase the world database.
 - NixOS cannot redistribute proprietary game clients. AzerothCore's pre-extracted client-data OCI image is obtained separately from upstream, and you should verify that using it fits your licensing and development environment.
@@ -117,4 +117,4 @@ The heavy `AzerothCore live integration (opt in)` workflow runs **only** on a ru
 
 The fast PR VM test intentionally disables auto-starting the image-download-heavy realm unit; it still checks the service definition and its non-secret Compose template. In-client addon tests need a licensed 3.3.5a client, Wine GPU validation and automated login, so **those are not currently covered by GitHub Actions**.
 
-The workflow warns until a committed `flake.lock` exists. Generate it on a Nix-enabled machine (`nix flake lock && git add flake.lock`) to pin exact nixpkgs inputs; then future CI verifies the lockfile can be used without rewrites. OCI images are still unpinned until digests are selected.
+The CI verifies the committed `flake.lock` is used without rewriting it. To update dependencies, run `nix flake update` and commit the changed lock file. OCI images are still unpinned until digests are selected.
