@@ -87,8 +87,8 @@ def main(argv=None) -> int:
             from .local_realm import setup, operate
             realm = args.realm_dir or (Path.cwd().parent / "azerothcore-wotlk")
             if args.action == "setup":
-                if not args.source_wow or not args.test_wow:
-                    raise ValueError("Supply --source-wow and --test-wow for local-realm setup")
+                if not args.test_wow:
+                    raise ValueError("Supply --test-wow for local-realm setup")
                 setup(args.source_wow, args.test_wow, realm, args.locale,
                       Path("forge.local.toml"), approve=args.approve_local_setup,
                       adopt_existing=args.adopt_existing_test_wow)
