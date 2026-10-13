@@ -22,7 +22,7 @@ from .runner import run_smoke
 NAME = re.compile(r"[A-Za-z]{2,12}\Z")
 
 
-def _fixture_env(password: str, port: int, target: str, folder: Path) -> dict:
+def _fixture_env(password: str, port: int, target: str, folder: Path, peers: int = 1) -> dict:
     env = dict(os.environ)
     env.pop("E2E_ALLOW_SOFT_PASS", None)
     env.update({
@@ -31,6 +31,7 @@ def _fixture_env(password: str, port: int, target: str, folder: Path) -> dict:
         "E2E_CHAR_DSN": f"root:{password}@tcp(127.0.0.1:{port})/acore_characters",
         "E2E_WORLD_DSN": f"root:{password}@tcp(127.0.0.1:{port})/acore_world",
         "FORGE_TARGET_CHARACTER": target,
+        "FORGE_PEER_COUNT": str(peers),
         "FORGE_PEER_READY": str(folder / "ready.json"),
         "FORGE_PEER_RELEASE": str(folder / "release"),
     })
@@ -38,14 +39,23 @@ def _fixture_env(password: str, port: int, target: str, folder: Path) -> dict:
 
 
 def peer_scenario(cfg: Config, *, character: str,
-                  approve: bool = False, timeout: int = 100) -> dict:
+                  approve: bool = False, timeout: int = 100,
+                  peers: int = 1, suite: str = "peer",
+                  required_tests: tuple[str, ...] = ("peer_target_visible",)) -> dict:
     if not NAME.fullmatch(character):
         raise ValueError("Use a 2-12-letter local graphical test character name.")
+    if peers < 1 or peers > 4:
+        raise ValueError("peers must be between 1 and 4")
+    if not suite.isalnum() or not required_tests:
+        raise ValueError("Invalid suite or required tests")
     if not cfg.realm_dir:
         raise RuntimeError("Set [realm] source_dir in forge.local.toml.")
     plan = {
         "scenario": "peer-target",
         "character": character,
+        "peers": peers,
+        "suite": suite,
+        "required_tests": list(required_tests),
         "steps": [
             "Create and log in a temporary AzerothGhost warrior",
             "Teleport the peer to the already in-world graphical test character",
@@ -69,7 +79,7 @@ def peer_scenario(cfg: Config, *, character: str,
         raise RuntimeError("Missing pinned agent_scenarios/go.mod")
     with tempfile.TemporaryDirectory(prefix="forge-peer-") as temp_dir:
         folder = Path(temp_dir)
-        env = _fixture_env(password, port, character, folder)
+        env = _fixture_env(password, port, character, folder, peers=peers)
         args = [
             "go", "test", "-tags=e2e", "-run", "^TestPeerTargetFixture$",
             "-count=1", "-v", "-timeout", "130s", "-parallel", "1", "-p", "1",
@@ -94,12 +104,15 @@ def peer_scenario(cfg: Config, *, character: str,
                 name = meta.get("name", "")
                 if meta.get("status") != "ready" or not NAME.fullmatch(name):
                     raise RuntimeError("Peer fixture produced an invalid identity.")
+                names = meta.get("names", [])
+                if len(names) != peers or any(not NAME.fullmatch(item) for item in names):
+                    raise RuntimeError("Peer fixture did not create the requested player count.")
                 client = ClientController(cfg)
                 client.command("/targetexact " + name)
                 client.command("/forge expect " + name)
-                result = run_smoke(cfg, suite="peer", required_tests=("peer_target_visible",))
+                result = run_smoke(cfg, suite=suite, required_tests=required_tests)
                 return {
-                    "status": result.status, "peer_name": name,
+                    "status": result.status, "peer_name": name, "peer_names": names,
                     "report": result.__dict__, "note": (
                         "One verified real protocol peer + one client-side target assertion; "
                         "not proof of all addon functionality.")
