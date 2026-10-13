@@ -11,6 +11,7 @@ spec.loader.exec_module(installer)
 def test_install_disallows_missing_confirmations(monkeypatch, tmp_path, capsys):
     key = tmp_path / "id_ed25519.pub"
     key.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICLexample developer@host\n")
+    monkeypatch.setattr(installer, "supported_install_platform", lambda: True)
     monkeypatch.setattr(installer.shutil, "which", lambda x: "/bin/" + x)
     monkeypatch.setattr(installer, "get_server", lambda n: {
         "id": 170096651, "status": "running",
@@ -27,6 +28,7 @@ def test_install_disallows_missing_confirmations(monkeypatch, tmp_path, capsys):
 def test_read_only_preflight(monkeypatch, tmp_path):
     key = tmp_path / "id_ed25519.pub"
     key.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICLexample developer@host\n")
+    monkeypatch.setattr(installer, "supported_install_platform", lambda: True)
     monkeypatch.setattr(installer.shutil, "which", lambda x: "/bin/" + x)
     monkeypatch.setattr(installer, "get_server", lambda n: {
         "id": 170096651, "status": "running",
