@@ -8,6 +8,8 @@ import pytest
 from addon_forge import local_realm as realm
 from addon_forge import db_guard
 
+ORIGINAL_BLOCK = db_guard.block_unknown_database_volume
+
 
 @pytest.fixture(autouse=True)
 def stub_new_database_volume_inspection(monkeypatch):
@@ -253,6 +255,7 @@ def test_resume_uses_no_build_and_preserves_volumes(tmp_path, monkeypatch):
     monkeypatch.setattr(realm, "check_tools", lambda: None)
     monkeypatch.setattr(realm, "check_compose", lambda path: None)
     monkeypatch.setattr(realm, "_run", lambda command, **kw: calls.append(command))
+    monkeypatch.setattr(db_guard, "verify_database_healthy", lambda path: None)
     realm.start_existing(root, db_port=13306, approve_port_change=True)
     assert ["docker", "compose", "up", "-d", "--no-build"] in calls
     assert not any("--build" in cmd for cmd in calls)
@@ -271,7 +274,7 @@ def test_unknown_database_volume_blocks_password_creation(tmp_path, monkeypatch)
         pytest.fail(f"Unexpected Docker call: {argv}")
     monkeypatch.setattr(db_guard, "_capture", docker)
     with pytest.raises(RuntimeError, match="Existing MySQL volume"):
-        db_guard.block_unknown_database_volume(root)
+        ORIGINAL_BLOCK(root)
     assert not (root / ".env").exists()
 
 
