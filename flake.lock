@@ -15,7 +15,9 @@
         "type": "github"
       },
       "inputs": {
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": [
+          "nixpkgs"
+        ]
       }
     },
     "nixpkgs": {
