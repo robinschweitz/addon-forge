@@ -31,6 +31,7 @@
           python.pkgs.wheel
           lua5_1
           git
+          gh
           docker-client
           docker-compose
           wineWowPackages.stable

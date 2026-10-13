@@ -21,7 +21,7 @@ python -m addon_forge.cli check examples/ForgeExample
 
 The single main Nix configuration file is **`flake.nix`**. It defines:
 
-- `nix develop`: Python, pytest, Lua 5.1, Wine, xdotool, ImageMagick, Docker CLI/Compose.
+- `nix develop`: Python, pytest, Lua 5.1, Wine, xdotool, ImageMagick, GitHub CLI, Docker CLI/Compose.
 - `nix build`: packaged `forge` CLI.
 - `nix run -- --help`: run the CLI.
 - `nix flake check`: Python tests.
@@ -107,6 +107,16 @@ forge test --suite smoke --require-test example_frame_visible
 forge ai create NAME 'DESCRIPTION'
 forge ai repair PATH_TO_ADDON [--in-client] [--max-attempts 3]
 ```
+
+## Publish to GitHub
+
+New GitHub repository creation is not available through the connected integration in this environment. From a Git-enabled project checkout on your computer, after `gh auth login`, run:
+
+```bash
+gh repo create addon-forge --private --source=. --remote=origin --push
+```
+
+For the downloadable `addon-forge.git.bundle`, first run `git clone addon-forge.git.bundle addon-forge` and enter the cloned directory; the history and `main` branch are already included. GitHub repository creation is a separate explicit user action.
 
 ## Roadmap
 
