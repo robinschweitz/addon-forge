@@ -75,6 +75,41 @@ def verify_test_copy(target: Path, source: Path) -> bool:
     return True
 
 
+
+def adopt_existing_test_copy(source: Path, target: Path) -> None:
+    """Explicitly register an already-copied WoW directory as Forge-only.
+
+    Never remove copied account data. Move the copied WTF directory aside so
+    the new test client does not reuse existing Rising Gods credentials.
+    """
+    if verify_test_copy(target, source):
+        print(f"Reusing previously registered Forge test client: {target}")
+        return
+    if not target.is_dir() or target.is_symlink() or (
+            hasattr(target, "is_junction") and target.is_junction()):
+        raise RuntimeError("Adoption requires a real existing WoW test directory")
+    if not any((target / exe).is_file() for exe in ("Wow.exe", "WoW.exe")):
+        raise RuntimeError(f"Adoption requires Wow.exe/ WoW.exe inside {target}")
+    # Refuse paths that could escape the chosen test directory when used later.
+    _check_symlinks(target)
+    wtf = target / "WTF"
+    saved = target / ".forge-original-WTF-backup"
+    if wtf.exists() and saved.exists():
+        raise RuntimeError(
+            "Found both WTF and .forge-original-WTF-backup in test copy. "
+            "Resolve this manually before adoption; no files were changed."
+        )
+    if wtf.exists():
+        if not wtf.is_dir():
+            raise RuntimeError("Existing WTF is not a directory")
+        wtf.rename(saved)
+        print(f"Set aside copied game accounts/settings (not deleted): {saved}")
+    (target / MARKER).write_text(json.dumps({"source": str(source),
+                                             "adopted": True}),
+                                encoding="utf-8")
+    print(f"Registered existing WoW folder for Forge testing: {target}")
+
+
 def _check_symlinks(source: Path):
     # Refuse Windows junctions/symlinks too: copytree must not leave the WoW tree.
     for directory, folders, files in os.walk(source, followlinks=False):
@@ -243,7 +278,8 @@ def local_config_file(config_path: Path, target: Path, realm: Path) -> None:
 
 
 def setup(source: Path, target: Path, realm: Path, locale: str | None,
-          config_path: Path, *, approve: bool = False) -> None:
+          config_path: Path, *, approve: bool = False,
+          adopt_existing: bool = False) -> None:
     source, target, realm = paths(source, target, realm)
     config_path = config_path.expanduser().resolve()
     print(f"Original WoW (untouched): {source}")
@@ -252,13 +288,37 @@ def setup(source: Path, target: Path, realm: Path, locale: str | None,
     print(f"Forge test configuration: {config_path}")
     if config_path.name == "forge.toml":
         raise ValueError("Use forge.local.toml; refusing to overwrite your existing forge.toml")
+    if target.exists() and not (target / MARKER).is_file():
+        if not adopt_existing:
+            print("Existing test WoW folder has no Forge marker; will refuse to "
+                  "modify it unless --adopt-existing-test-wow is provided.")
+        else:
+            print("Existing test WoW copy will be explicitly adopted, not copied. "
+                  "Copied WTF settings will be moved aside without deletion.")
+    elif target.exists():
+        print("Previously registered Forge WoW test copy will be reused.")
+    else:
+        print("A new isolated WoW test copy will be created.")
+    if realm.exists():
+        print("Existing AzerothCore checkout will be verified and reused.")
+    else:
+        print("Official AzerothCore will be cloned.")
     if not approve:
         print("Plan only. Run 'forge local-realm setup ... --approve-local-setup' "
-              "to clone files, download/build Docker images and start local containers.")
+              "to clone/copy files, download/build Docker images and start local containers.")
         return
     check_tools()
-    # Refuse to mutate arbitrary pre-existing client directories.
-    verify_test_copy(target, source)
+    if target.exists() and not (target / MARKER).is_file():
+        if not adopt_existing:
+            raise RuntimeError(
+                "Refusing to modify an existing unregistered WoW directory. "
+                "Use --adopt-existing-test-wow only after verifying this is "
+                "a separate COPY, not your Rising Gods original."
+            )
+        # Do this before modifying the AzerothCore checkout or Docker.
+        adopt_existing_test_copy(source, target)
+    else:
+        verify_test_copy(target, source)
     clone_azerothcore(realm)
     ensure_local_env(realm)
     check_compose(realm)
