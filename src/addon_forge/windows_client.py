@@ -9,6 +9,7 @@ from __future__ import annotations
 import ctypes
 from ctypes import wintypes
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -61,8 +62,12 @@ def _same_executable(actual: str, expected: Path) -> bool:
 
 
 def validate_chat_command(command: str) -> None:
-    if not isinstance(command, str) or not (command == "/reload" or command.startswith("/forge ")):
-        raise ValueError("Automated controller permits only /reload and /forge commands")
+    if not isinstance(command, str) or not (
+        command == "/reload"
+        or command.startswith("/forge ")
+        or re.fullmatch(r"/targetexact [A-Za-z]{2,12}", command)
+    ):
+        raise ValueError("Automated controller permits only /reload, /forge and fixed-name /targetexact commands")
     # Avoid keystrokes that could leave chat, trigger other actions or paste controls.
     if len(command) > 180 or any(ord(c) < 32 or ord(c) > 126 for c in command):
         raise ValueError("Only single-line printable ASCII commands up to 180 characters are permitted")
