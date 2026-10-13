@@ -39,7 +39,8 @@ def make_parser():
     realmlist = sub.add_parser("realmlist", help="Back up and point WoW at SSH-tunneled local realm")
     realmlist.add_argument("--locale")
     local = sub.add_parser("local-realm", help="Set up a separate local AzerothCore test realm")
-    local.add_argument("action", choices=["setup", "start", "status", "logs", "console", "stop"])
+    local.add_argument("action", choices=["setup", "start", "status", "logs", "console", "stop", "create-account"])
+    local.add_argument("--account-name", help="Local realm account name (password prompted securely)")
     local.add_argument("--source-wow", type=Path, help="Original WoW client directory (read-only)")
     local.add_argument("--test-wow", type=Path, help="New isolated WoW test copy")
     local.add_argument("--realm-dir", type=Path, help="AzerothCore checkout directory")
@@ -88,6 +89,17 @@ def main(argv=None) -> int:
         if args.command == "local-realm":
             from .local_realm import setup, operate, start_existing
             realm = args.realm_dir or (Path.cwd().parent / "azerothcore-wotlk")
+            if args.action == "create-account":
+                from .local_account import create_test_account
+                if not args.account_name:
+                    raise ValueError("Supply --account-name (password is prompted privately)")
+                from .local_realm import verify_azerothcore_checkout, check_tools, check_compose
+                if not verify_azerothcore_checkout(realm):
+                    raise RuntimeError("No official AzerothCore checkout found")
+                check_tools()
+                check_compose(realm)
+                create_test_account(args.account_name)
+                return 0
             if args.action == "setup":
                 if not args.test_wow:
                     raise ValueError("Supply --test-wow for local-realm setup")
