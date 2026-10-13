@@ -10,3 +10,6 @@ forge.toml
 .forge-runs/
 projects/
 *.zip
+
+# Local Hetzner account/project configuration
+cloud/hetzner.toml

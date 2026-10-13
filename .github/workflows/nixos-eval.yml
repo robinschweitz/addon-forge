@@ -32,6 +32,7 @@ jobs:
         run: |
           nix flake check --no-build --show-trace
           nix eval --raw .#nixosConfigurations.forge-vm.config.system.build.vm.drvPath
+          nix eval --raw .#nixosConfigurations.forge-cloud.config.system.build.toplevel.drvPath
           nix eval --raw .#packages.x86_64-linux.default.drvPath
           nix eval --raw .#apps.x86_64-linux.setup.program
           python3 -m py_compile scripts/setup_wizard.py
