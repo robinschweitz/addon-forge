@@ -2,8 +2,10 @@
   description = "Addon Forge: reproducible Linux toolchain for WoW 3.3.5a addon development";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+  inputs.disko.url = "github:nix-community/disko";
+  inputs.disko.inputs.nixpkgs.follows = "nixpkgs";
 
-  outputs = { self, nixpkgs }:
+  outputs = { self, nixpkgs, disko }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
@@ -56,6 +58,21 @@
       nixosModules.default = import ./nix/modules/workstation.nix { inherit forgePackage; };
       # Realm-only profile to import into a separately installed, SSH-keyed cloud NixOS host.
       nixosModules.cloudRealm = import ./nix/hosts/forge-cloud.nix;
+      nixosConfigurations.forge-cloud = nixpkgs.lib.nixosSystem {
+        inherit system;
+        modules = [
+          disko.nixosModules.disko
+          self.nixosModules.default
+          self.nixosModules.cloudRealm
+          ./nix/hosts/forge-cloud-install.nix
+          ./nix/disko/hetzner-cloud.nix
+        ];
+      };
+      # Store-evaluated, unprivileged cloud configuration check. No server involved.
+      checks.${system}.cloud-eval = pkgs.runCommand "addon-forge-cloud-eval" {} ''
+        test -n "${self.nixosConfigurations.forge-cloud.config.system.build.toplevel.drvPath}"
+        touch "$out"
+      '';
       # A complete disposable VM, including the loopback-only AzerothCore test realm.
       # nix build .#nixosConfigurations.forge-vm.config.system.build.vm
       nixosConfigurations.forge-vm = nixpkgs.lib.nixosSystem {
