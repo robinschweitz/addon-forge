@@ -60,7 +60,7 @@
         cat > credentials.env <<'EOF'
         FORGE_DB_PASSWORD=ci-placeholder-not-a-secret
         EOF
-        docker compose --env-file credentials.env \
+        docker-compose --env-file credentials.env \
           -f ${self.nixosConfigurations.forge-vm.config.environment.etc."addon-forge/realm-compose.json".source} \
           config --format json > rendered.json
         python ${self}/scripts/ci/check_compose.py rendered.json
@@ -78,6 +78,7 @@
           services.addon-forge = {
             enable = true;
             user = "forge";
+            client.enable = false; # Test module wiring without compiling Wine.
             realm.enable = true;
           };
           systemd.services.addon-forge-realm.wantedBy = lib.mkForce [ ];

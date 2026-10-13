@@ -80,7 +80,7 @@ let
   composeArgs = ''--project-name addon-forge --env-file ${state}/.env -f ${state}/compose.yaml'';
   realmTool = pkgs.writeShellApplication {
     name = "forge-realm";
-    runtimeInputs = [ pkgs.docker pkgs.coreutils ];
+    runtimeInputs = [ pkgs.docker-compose pkgs.coreutils ];
     text = ''
       set -euo pipefail
       if [[ ! -r ${state}/.env || ! -f ${state}/compose.yaml ]]; then
@@ -88,13 +88,13 @@ let
         exit 2
       fi
       case "''${1:-}" in
-        status) exec docker compose ${composeArgs} ps ;;
-        logs) shift; exec docker compose ${composeArgs} logs --tail=100 "$@" ;;
-        up) exec docker compose ${composeArgs} up -d ;;
-        down) exec docker compose ${composeArgs} down ;;
+        status) exec docker-compose ${composeArgs} ps ;;
+        logs) shift; exec docker-compose ${composeArgs} logs --tail=100 "$@" ;;
+        up) exec docker-compose ${composeArgs} up -d ;;
+        down) exec docker-compose ${composeArgs} down ;;
         console)
           echo "Detach without stopping the server: Ctrl-P, Ctrl-Q" >&2
-          exec docker compose ${composeArgs} attach ac-worldserver
+          exec docker-compose ${composeArgs} attach ac-worldserver
           ;;
         *) echo "Usage: forge-realm {status|logs [service]|up|down|console}" >&2; exit 2 ;;
       esac
@@ -107,6 +107,13 @@ in {
       type = types.str;
       default = "forge";
       description = "Existing non-root developer account to add to the docker group (root-equivalent).";
+    };
+    client = {
+      enable = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Install Wine, X11 automation and screenshot tools; disable for headless VM tests.";
+      };
     };
     realm = {
       enable = mkEnableOption "locally managed AzerothCore test realm";
@@ -133,8 +140,9 @@ in {
     users.users.${cfg.user}.extraGroups = [ "docker" ];
     environment.systemPackages = with pkgs; [
       forgePackage git lua5_1 docker docker-compose
+    ] ++ lib.optionals cfg.client.enable (with pkgs; [
       xdotool imagemagick wineWowPackages.stable
-    ] ++ lib.optionals realm.enable [ realmTool ];
+    ]) ++ lib.optionals realm.enable [ realmTool ];
 
     # The realm is local to the VM: do not expose the game service to the LAN.
     # Additional access requires an explicit networking/authentication design.
@@ -144,7 +152,7 @@ in {
       wants = [ "network-online.target" ];
       requires = [ "docker.service" ];
       after = [ "docker.service" "network-online.target" ];
-      path = [ pkgs.docker pkgs.coreutils pkgs.openssl ];
+      path = [ pkgs.docker-compose pkgs.coreutils pkgs.openssl ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -161,11 +169,11 @@ in {
           mv ${state}/.env.tmp ${state}/.env
         fi
         install -m 0640 -o root -g docker ${composeFile} ${state}/compose.yaml
-        docker compose ${composeArgs} up -d
+        docker-compose ${composeArgs} up -d
       '';
       preStop = ''
         if [[ -r ${state}/.env ]]; then
-          docker compose ${composeArgs} down
+          docker-compose ${composeArgs} down
         fi
       '';
     };
