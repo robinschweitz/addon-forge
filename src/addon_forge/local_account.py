@@ -27,8 +27,8 @@ def create_test_account(account: str, *, input_password=None, attach=None) -> No
         command = f"account create {account.upper()} {password}\n".encode("ascii")
         operation = attach or subprocess.run
         result = operation(
-            ["docker", "attach", "--no-stdin=false",
-             "--sig-proxy=false", "ac-worldserver"],
+            ["docker", "attach", "--sig-proxy=false",
+             "--detach-keys=ctrl-p,ctrl-q", "ac-worldserver"],
             input=command + b"\x10\x11", capture_output=True, timeout=12,
             check=False,
         )
