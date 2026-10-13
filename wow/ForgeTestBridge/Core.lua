@@ -65,7 +65,11 @@ end
 SLASH_FORGETEST1 = "/forge"
 SlashCmdList["FORGETEST"] = function(msg)
     local suite, id = string.match(msg or "", "^run%s+(%w+)%s+(%w+)%s*$")
-    if suite and id then
+    local expected = string.match(msg or "", "^expect%s+(%a+)%s*$")
+    if expected then
+        Bridge.expectedPeer = expected
+        DEFAULT_CHAT_FRAME:AddMessage("Forge expected peer: " .. expected)
+    elseif suite and id then
         runSuite(suite, id)
     else
         DEFAULT_CHAT_FRAME:AddMessage("Usage: /forge run smoke RUN_ID, then /reload")
@@ -84,4 +88,14 @@ end)
 Bridge:RegisterTest("smoke", "bridge_loaded", function()
     Bridge:Assert(type(CreateFrame) == "function", "CreateFrame API is unavailable")
     Bridge:Assert(type(UnitName("player")) == "string", "Player is not in the world")
+end)
+
+-- Client-side oracle for a synchronized protocol peer, not a mock Unit API.
+Bridge:RegisterTest("peer", "peer_target_visible", function()
+    Bridge:Assert(type(Bridge.expectedPeer) == "string", "No expected peer configured")
+    Bridge:Assert(UnitExists("target"), "Expected peer is not targeted")
+    local actual = UnitName("target")
+    Bridge:Assert(actual == Bridge.expectedPeer,
+        "Wrong peer selected: " .. tostring(actual) .. " expected " .. Bridge.expectedPeer)
+    Bridge:Assert(UnitIsPlayer("target"), "Target is not a player")
 end)
