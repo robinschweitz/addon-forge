@@ -6,6 +6,14 @@ from types import SimpleNamespace
 import pytest
 
 from addon_forge import local_realm as realm
+from addon_forge import db_guard
+
+
+@pytest.fixture(autouse=True)
+def stub_new_database_volume_inspection(monkeypatch):
+    # Existing local realm unit tests exercise config creation without Docker;
+    # db_guard is tested separately below.
+    monkeypatch.setattr(db_guard, "block_unknown_database_volume", lambda root: None)
 
 
 def fixture_paths(tmp_path):
@@ -248,3 +256,69 @@ def test_resume_uses_no_build_and_preserves_volumes(tmp_path, monkeypatch):
     realm.start_existing(root, db_port=13306, approve_port_change=True)
     assert ["docker", "compose", "up", "-d", "--no-build"] in calls
     assert not any("--build" in cmd for cmd in calls)
+
+def test_unknown_database_volume_blocks_password_creation(tmp_path, monkeypatch):
+    root = tmp_path / "ac"
+    root.mkdir()
+    config = {"services": {"ac-database": {"volumes": [
+        {"type": "volume", "source": "ac-database", "target": "/var/lib/mysql"}]}},
+        "volumes": {"ac-database": {"name": "existing-db"}}}
+    def docker(argv, **kwargs):
+        if argv[1:3] == ["compose", "config"]:
+            return SimpleNamespace(returncode=0, stdout=json.dumps(config))
+        if argv[1:3] == ["volume", "inspect"]:
+            return SimpleNamespace(returncode=0, stdout='[{}]')
+        pytest.fail(f"Unexpected Docker call: {argv}")
+    monkeypatch.setattr(db_guard, "_capture", docker)
+    with pytest.raises(RuntimeError, match="Existing MySQL volume"):
+        db_guard.block_unknown_database_volume(root)
+    assert not (root / ".env").exists()
+
+
+def test_new_database_volume_allows_password_creation(tmp_path, monkeypatch):
+    root = tmp_path / "ac"
+    root.mkdir()
+    config = {"services": {"ac-database": {"volumes": [
+        {"type": "volume", "source": "ac-database", "target": "/var/lib/mysql"}]}},
+        "volumes": {"ac-database": {"name": "fresh-db"}}}
+    def docker(argv, **kwargs):
+        if argv[1:3] == ["compose", "config"]:
+            return SimpleNamespace(returncode=0, stdout=json.dumps(config))
+        if argv[1:3] == ["volume", "inspect"]:
+            return SimpleNamespace(returncode=1, stdout="")
+        if argv[1:3] == ["volume", "ls"]:
+            return SimpleNamespace(returncode=0, stdout="")
+        pytest.fail(f"Unexpected Docker call: {argv}")
+    monkeypatch.setattr(db_guard, "_capture", docker)
+    db_guard.block_unknown_database_volume(root)
+
+
+def test_db_health_authentication_mismatch_fails_without_passwords(tmp_path, monkeypatch):
+    outputs = iter([
+        {"Status": "starting", "Log": []},
+        {"Status": "unhealthy", "Log": [{
+            "ExitCode": 1,
+            "Output": "ERROR 1045 (28000): Access denied for user 'root'@'localhost'"}]}
+    ])
+    def docker(argv, **kwargs):
+        if argv[1:3] == ["compose", "up"]:
+            return SimpleNamespace(returncode=0, stdout="")
+        if argv[1] == "inspect":
+            return SimpleNamespace(returncode=0, stdout=json.dumps(next(outputs)))
+        pytest.fail(f"Unexpected Docker call: {argv}")
+    monkeypatch.setattr(db_guard, "_capture", docker)
+    monkeypatch.setattr(db_guard.time, "sleep", lambda seconds: None)
+    with pytest.raises(RuntimeError, match="ERROR 1045"):
+        db_guard.verify_database_healthy(tmp_path, attempts=2)
+
+
+def test_db_health_success(tmp_path, monkeypatch):
+    calls = []
+    def docker(argv, **kwargs):
+        calls.append(argv)
+        if argv[1] == "inspect":
+            return SimpleNamespace(returncode=0, stdout=json.dumps({"Status": "healthy", "Log": []}))
+        return SimpleNamespace(returncode=0, stdout="")
+    monkeypatch.setattr(db_guard, "_capture", docker)
+    db_guard.verify_database_healthy(tmp_path, attempts=1)
+    assert ["docker", "compose", "up", "-d", "--no-deps", "ac-database"] in calls
