@@ -118,3 +118,83 @@ The heavy `AzerothCore live integration (opt in)` workflow runs **only** on a ru
 The fast PR VM test intentionally disables auto-starting the image-download-heavy realm unit; it still checks the service definition and its non-secret Compose template. In-client addon tests need a licensed 3.3.5a client, Wine GPU validation and automated login, so **those are not currently covered by GitHub Actions**.
 
 The CI verifies the committed `flake.lock` is used without rewriting it. To update dependencies, run `nix flake update` and commit the changed lock file. OCI images are still unpinned until digests are selected.
+
+## Experimental one-command host setup (feature PR)
+
+After this feature branch is merged, the intended command is:
+
+```sh
+nix run github:robinschweitz/addon-forge#setup -- --check-only
+nix run github:robinschweitz/addon-forge#setup -- --client /absolute/path/to/WoW-3.3.5a
+```
+
+Before merging, test it via `nix run github:robinschweitz/addon-forge/feat/one-command-setup#setup -- --check-only`, or from a checkout with `nix run .#setup -- --check-only`.
+
+Use `--dry-run` to print proposed operations, `--build-only` to build the full graphical VM without launching it, and `--yes` to skip the interactive start prompt. VM disk files are stored under `~/.local/state/addon-forge/vm`, separate from the Nix store, and remain across restarts. The default VM requests 12 GiB memory; host needs KVM access and a graphical display for normal startup.
+
+The launcher passes your already-owned WoW client folder read-only through a QEMU 9p share; it does **not** bundle the client into the build. Inside the guest, explicitly run:
+
+```sh
+sudo forge-import-client
+forge-realm status
+```
+
+The import copies client files into `/home/forge/Games/WoW-3.3.5a`, outside the Nix store. The current QEMU share mechanism requires a path without whitespace or commas; use a symlink in a simpler directory name if necessary. The current workflow does **not** automatically create in-game AzerothCore credentials, choose a character, or prove graphics/GPU/in-client test readiness. Follow the first-boot instructions above to finish account setup and verify gameplay manually. It also does not repartition or install NixOS on the host.
+
+**Verification:** the setup wizard unit tests and Nix evaluation checks are part of CI, but the full graphical Wine VM build, 9p client import, and live AzerothCore+WoW runtime still need hardware validation. Do not treat a successful host check as a full end-to-end guarantee.
+
+
+## Download an authorized client directly inside the VM
+
+You no longer need a copy on the host if you already have permission to fetch a
+3.3.5a installation archive from a trusted HTTPS source. Addon Forge does not
+include, publish, or recommend unofficial game-client mirrors; you must provide
+the archive URL and its expected SHA-256 hash.
+
+Inside the VM, as the regular `forge` user:
+
+```sh
+forge-fetch-client --url 'https://YOUR-AUTHORIZED-SOURCE/client.zip' \
+  --sha256 'YOUR_VERIFIED_64_CHARACTER_SHA256'
+```
+
+The tool downloads directly into temporary guest storage, validates SHA-256 before
+extracting, rejects unsafe ZIP/tar paths, symlinks and special files, verifies
+that `Wow.exe` and `Data/` exist, and installs at
+`~/Games/WoW-3.3.5a`. Existing installs are **not** overwritten. Archives
+must fit within the configured download and extraction limits. Fetch the
+checksum through a trusted channel independent of the archive link.
+
+The old host-to-VM read-only share (via `--client`) and
+`sudo forge-import-client` remain supported when you do already have game
+files on the host.
+
+Client download is distinct from automatically acquiring a license or obtaining
+AzerothCore account credentials. You still need to configure realmlist, start
+the game under Wine and create a local test account as described above.
+
+
+
+### Optional Rising Gods BitTorrent source
+
+Rising Gods publishes a WotLK 3.3.5a BitTorrent download and explains it on
+[their download page](https://www.rising-gods.de/32-startseite/212-downloads.html).
+If you have permission to use this particular third-party distribution, you can
+opt in **inside the NixOS VM** without any host-side game files:
+
+```sh
+forge-fetch-client --source rising-gods
+```
+
+This requires network access to torrent peers and enough persistent VM disk
+space for the roughly 17 GB client. The importer uses the published torrent
+infohash `f59269930d5d91dc4d65782d71399082cc355ce4`, checks torrent
+piece integrity using `aria2c`, resumes interrupted downloads on re-run,
+rejects symlinks in downloaded files, and confirms `Wow.exe` and `Data/`.
+BitTorrent will expose the VM's/host's public IP address to peers. It does not
+establish Blizzard's authorization or independently vouch for the files.
+
+The client might contain changes targeting Rising Gods. You must reconfigure
+the game's realmlist to point to the local AzerothCore realm before running the
+game. No game binaries or torrent payloads are committed to this project.
+The verified-HTTPS-archive option remains available as an alternative.
