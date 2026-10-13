@@ -155,6 +155,35 @@ To stop your **local** containers (persistent DB data is preserved):
 .\.venv\Scripts\forge.exe local-realm stop
 ```
 
+## Automatic local account creation (experimental)
+
+After the worldserver is running, you can create a local test account without
+typing its password in shell history:
+
+```powershell
+cd F:\addon-forge
+.\.venv\Scripts\forge.exe local-realm create-account --realm-dir "E:/wow-azeroth-core/azerothcore-wotlk" --account-name FORGETEST
+```
+
+Forge prompts for the password and submits the standard `account create`
+command through Docker's local worldserver console. It does not write the
+password to a project file or include it in a command-line argument. This
+Docker console integration has not yet been validated live; if the command
+times out or fails, **check whether the account was created before retrying**.
+
+## Windows slash command reliability
+
+The native Windows controller now types using the WoW window's keyboard
+layout, rather than assuming Forge and the game use the same layout. It waits
+briefly after Enter opens chat, then submits the slash command. Test in an
+unlocked, foreground WoW desktop, with both addons enabled, and check that
+the chat displays the Forge addon output rather than a SAY message.
+
+If the first test returns `infrastructure_error`, try running
+`/forge run smoke manual123` manually and then `/reload` in-game; check
+`WTF/Account/*/SavedVariables/ForgeTestBridge.lua`. A manually successful
+slash command but failing automated run indicates input/control issues.
+
 ## Preventing a reused MySQL volume/password mismatch
 
 AzerothCore's MySQL image only uses `DOCKER_DB_ROOT_PASSWORD` to initialize a
