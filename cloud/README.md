@@ -7,15 +7,15 @@ This installs a **headless** x86_64 NixOS server with Docker + AzerothCore, not 
 1. Create a fresh **disposable x86_64** Ubuntu 24.04 Hetzner Cloud server using `python scripts/cloud/hetzner.py apply --approve-cost` from the feature branch. Select an available type/location and check its **live price** first. A Hetzner server accrues charges until deleted (even while powered off).
 2. Preserve the project-level `addon-forge-realm-ssh` firewall: it must allow inbound SSH (TCP 22) **only from your public IPv4 /32**. Never expose TCP 3306, 3724 or 8085 publicly.
 3. On **Linux or WSL2 Ubuntu** (not native Windows PowerShell), install Nix with flakes, `hcloud`, OpenSSH, Python >=3.11 and git; import the same Hetzner CLI context in **WSL**, and make your SSH **private key locally available** to OpenSSH or ssh-agent. Never put your private key in Git, the cloud config or chat.
-4. Check out the feature branch and **update the Nix lock file** to lock the added `disko` input. The lockfile must be committed to the repository before a reproducible release:
+4. Check out the feature branch, verify the **committed Nix lock file** and evaluate the cloud NixOS configuration:
 
 ```bash
 git switch feat/hetzner-cloud-provisioning
-nix flake lock
+nix flake metadata --no-write-lock-file >/dev/null
 nix eval --raw .#nixosConfigurations.forge-cloud.config.system.build.toplevel.drvPath
 ```
 
-The `disko` dependency is not yet locked in the PR. Until the updated lockfile is committed, the cloud installation is a preview; don't use it on a non-disposable host.
+The `disko` dependency is pinned in `flake.lock`. Cloud installation remains experimental and should only be used on a disposable host until a live installation has been verified.
 
 ## Preflight (read-only)
 
