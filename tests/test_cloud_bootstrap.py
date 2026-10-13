@@ -102,3 +102,31 @@ def test_failed_server_creation_explains_failure(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(cloud, "execute", fake_execute)
     assert cloud.main(["apply","--approve-cost","--config", str(config(tmp_path))]) == 2
     assert "resource_unavailable" in capsys.readouterr().err
+
+def test_unavailable_server_type_blocks_creation(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(cloud.shutil, "which", lambda name: "hcloud")
+    calls = []
+    def fake_execute(argv, input_text=None):
+        calls.append(argv)
+        if argv[:2] == ["ssh-key", "describe"]:
+            return '{}'
+        if argv[:2] == ["server-type", "describe"]:
+            return '{"name":"cx43","locations":[{"location":{"name":"fsn1"},"available":false}]}'
+        raise AssertionError("No creation or resource listing should happen")
+    monkeypatch.setattr(cloud, "execute", fake_execute)
+    assert cloud.main(["check", "--config", str(config(tmp_path))]) == 2
+    assert "unavailable" in capsys.readouterr().err
+    assert not any(cmd[:2] == ["server", "create"] for cmd in calls)
+
+def test_available_type_passes_existing_preflight(monkeypatch, tmp_path):
+    monkeypatch.setattr(cloud.shutil, "which", lambda name: "hcloud")
+    def fake_execute(argv, input_text=None):
+        if argv[:2] == ["ssh-key", "describe"]:
+            return '{}'
+        if argv[:2] == ["server-type", "describe"]:
+            return '{"locations":[{"location":{"name":"fsn1"},"available":true}]}'
+        if argv[:2] in (["server", "list"], ["firewall", "list"]):
+            return "[]"
+        raise AssertionError(argv)
+    monkeypatch.setattr(cloud, "execute", fake_execute)
+    assert cloud.main(["check", "--config", str(config(tmp_path))]) == 0
