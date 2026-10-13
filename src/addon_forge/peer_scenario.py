@@ -14,7 +14,7 @@ import subprocess
 import tempfile
 import time
 
-from .agent_realm import _preflight
+from .agent_realm import _preflight, _go_environment
 from .client import ClientController
 from .config import Config
 from .runner import run_smoke
@@ -23,7 +23,7 @@ NAME = re.compile(r"[A-Za-z]{2,12}\Z")
 
 
 def _fixture_env(password: str, port: int, target: str, folder: Path, peers: int = 1) -> dict:
-    env = dict(os.environ)
+    env = _go_environment()
     env.pop("E2E_ALLOW_SOFT_PASS", None)
     env.update({
         "E2E_AUTH_ADDR": "127.0.0.1:3724",
