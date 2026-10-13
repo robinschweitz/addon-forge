@@ -29,3 +29,24 @@ def test_cloud_profile_is_headless():
     assert "PasswordAuthentication = false;" in host
     flake=(ROOT/"flake.nix").read_text()
     assert "nixosModules.cloudRealm" in flake
+
+def test_ssh_key_name_with_at_sign(tmp_path):
+    file = config(tmp_path)
+    file.write_text(file.read_text().replace('ssh_key="developer"', 'ssh_key="robin@DESKTOP-KRLA5G1"'))
+    server, source = cloud.configuration(file)
+    assert server["ssh_key"] == "robin@DESKTOP-KRLA5G1"
+    assert source == "1.1.1.1/32"
+
+def test_active_hcloud_context_accepted_without_env(monkeypatch, tmp_path):
+    monkeypatch.delenv("HCLOUD_TOKEN", raising=False)
+    monkeypatch.delenv("HCLOUD_CONTEXT", raising=False)
+    monkeypatch.setattr(cloud.shutil, "which", lambda name: "/usr/bin/hcloud")
+    seen = []
+    def fake_execute(argv, input_text=None):
+        seen.append(argv)
+        if argv[:2] == ["ssh-key", "describe"]:
+            return '{"name": "robin@DESKTOP-KRLA5G1"}'
+        return '[]'
+    monkeypatch.setattr(cloud, "execute", fake_execute)
+    assert cloud.main(["check", "--config", str(config(tmp_path))]) == 0
+    assert ["ssh-key", "describe", "developer", "-o", "json"] in seen
