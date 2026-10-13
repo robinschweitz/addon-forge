@@ -1,0 +1,11 @@
+# Copy to cloud/hetzner.toml (gitignored). Confirm live price before applying.
+[server]
+name = "addon-forge-realm"
+type = "cx43"
+location = "fsn1"
+image = "ubuntu-24.04"
+ssh_key = "YOUR_HETZNER_SSH_KEY_NAME"
+
+[network]
+# Replace with your PUBLIC single-IP CIDR. SSH is never opened to 0.0.0.0/0.
+ssh_source = "203.0.113.10/32"
