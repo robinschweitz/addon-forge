@@ -36,8 +36,17 @@ MARKER = ".addon-forge-test-copy.json"
 
 
 def _run(argv: list[str], *, cwd: Path | None = None, capture: bool = False):
-    return subprocess.run(argv, cwd=cwd, check=True, text=True,
-                          capture_output=capture)
+    try:
+        return subprocess.run(argv, cwd=cwd, check=True, text=True,
+                              capture_output=capture)
+    except subprocess.CalledProcessError as exc:
+        # Compose errors often contain useful detail on stderr already; do not
+        # print resolved config or .env values, which can contain passwords.
+        raise RuntimeError(
+            f"{' '.join(argv)} exited with status {exc.returncode}. "
+            "Use 'forge local-realm status' and 'forge local-realm logs' "
+            "to diagnose the containers."
+        ) from None
 
 
 def _same_or_inside(path: Path, root: Path) -> bool:
@@ -186,31 +195,89 @@ def clone_azerothcore(realm: Path) -> None:
         raise RuntimeError("Downloaded repository lacks docker-compose.yml")
 
 
-def ensure_local_env(realm: Path) -> None:
+def _read_private_env(realm: Path) -> tuple[str, dict[str, str], int]:
+    path = realm / ".env"
+    if not path.is_file() or path.is_symlink():
+        raise RuntimeError(f"Expected regular local AzerothCore .env: {path}")
+    content = path.read_text(encoding="utf-8")
+    values: dict[str, str] = {}
+    for line in content.splitlines():
+        if "=" in line and not line.lstrip().startswith("#"):
+            key, value = line.split("=", 1)
+            key = key.strip()
+            if key in values:
+                raise RuntimeError(f"Duplicate setting {key} in .env; refusing to edit")
+            values[key] = value.strip()
+    if not values.get("DOCKER_DB_ROOT_PASSWORD"):
+        raise RuntimeError("Missing local database password in .env")
+    for name, internal_port in LOCAL_PORTS.items():
+        value = values.get(name, "")
+        if not value.startswith("127.0.0.1:"):
+            raise RuntimeError(f"{name} must publish only on 127.0.0.1")
+        try:
+            external = int(value.rsplit(":", 1)[1])
+        except ValueError as exc:
+            raise RuntimeError(f"Invalid external port for {name}") from exc
+        if not 1 <= external <= 65535:
+            raise RuntimeError(f"Out-of-range external port for {name}")
+        if name != "DOCKER_DB_EXTERNAL_PORT" and external != internal_port:
+            raise RuntimeError(f"Unexpected external port in {name}")
+    db_port = int(values["DOCKER_DB_EXTERNAL_PORT"].rsplit(":", 1)[1])
+    if db_port in (3724, 8085, 7878):
+        raise RuntimeError("Database host port collides with a realm service")
+    return content, values, db_port
+
+
+def ensure_local_env(realm: Path, *, db_port: int | None = None,
+                     approve_port_change: bool = False) -> None:
+    if db_port is not None and (
+            not isinstance(db_port, int) or not 1 <= db_port <= 65535
+            or db_port in (3724, 8085, 7878)):
+        raise ValueError("Choose a valid database host port, e.g. 13306")
     path = realm / ".env"
     if path.exists():
-        if path.is_symlink():
-            raise RuntimeError("Refusing to follow .env symlink")
-        values = {}
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if "=" in line and not line.lstrip().startswith("#"):
-                name, value = line.split("=", 1)
-                values[name.strip()] = value.strip()
-        if not values.get("DOCKER_DB_ROOT_PASSWORD") or any(
-            values.get(name) != f"127.0.0.1:{port}"
-            for name, port in LOCAL_PORTS.items()
-        ):
-            raise RuntimeError(
-                f"Existing {path} must specify a DB password and all four "
-                "127.0.0.1 port bindings. Refusing to overwrite it."
-            )
-        print("Reusing existing loopback-only AzerothCore .env")
+        content, _, previous_port = _read_private_env(realm)
+        if db_port is not None and db_port != previous_port:
+            if not approve_port_change:
+                raise ValueError(
+                    "Changing the existing database port requires --approve-port-change"
+                )
+            # Never change someone else's hand-maintained .env file.
+            if not content.startswith("# Local Addon Forge realm only. Keep private."):
+                raise RuntimeError(
+                    "Existing .env was not created by Addon Forge; refusing automatic edits"
+                )
+            old = f"DOCKER_DB_EXTERNAL_PORT=127.0.0.1:{previous_port}"
+            new = f"DOCKER_DB_EXTERNAL_PORT=127.0.0.1:{db_port}"
+            lines = content.splitlines(keepends=True)
+            matches = [i for i, line in enumerate(lines) if line.strip() == old]
+            if len(matches) != 1:
+                raise RuntimeError("Ambiguous DB port setting; refusing automatic edits")
+            lines[matches[0]] = lines[matches[0]].replace(old, new, 1)
+            temp = path.with_name(f".env.forge-{secrets.token_hex(8)}")
+            try:
+                with temp.open("x", encoding="utf-8", newline="") as stream:
+                    stream.writelines(lines)
+                temp.chmod(0o600)
+                temp.replace(path)
+            finally:
+                temp.unlink(missing_ok=True)
+            _read_private_env(realm)
+            print(f"Changed only the host-side MySQL port {previous_port} -> {db_port}.")
+            print("Database password and internal Docker port 3306 are unchanged.")
+        else:
+            print("Reusing existing loopback-only AzerothCore .env")
         return
+    if db_port is not None and not approve_port_change:
+        raise ValueError("Using --db-port needs --approve-port-change")
+    external_db = db_port if db_port is not None else LOCAL_PORTS["DOCKER_DB_EXTERNAL_PORT"]
     password = secrets.token_hex(32)
     content = "# Local Addon Forge realm only. Keep private.\n"
     content += f"DOCKER_DB_ROOT_PASSWORD={password}\n"
-    content += "".join(f"{name}=127.0.0.1:{port}\n"
-                       for name, port in LOCAL_PORTS.items())
+    content += "".join(
+        f"{name}=127.0.0.1:{external_db if name == 'DOCKER_DB_EXTERNAL_PORT' else port}\n"
+        for name, port in LOCAL_PORTS.items()
+    )
     with path.open("x", encoding="utf-8") as stream:
         stream.write(content)
     try:
@@ -222,32 +289,55 @@ def ensure_local_env(realm: Path) -> None:
 
 def check_compose(realm: Path) -> None:
     # Capture output: Compose config includes resolved DATABASE PASSWORD!
-    # Never log it, even on errors.
+    # Never print the JSON or captured stderr to logs.
+    _, values, db_port = _read_private_env(realm)
     result = _run(["docker", "compose", "config", "--format", "json"],
                   cwd=realm, capture=True)
     config = json.loads(result.stdout)
     services = config.get("services", {})
+    expected_published = {
+        ("ac-database", 3306): db_port,
+        ("ac-authserver", 3724): 3724,
+        ("ac-worldserver", 8085): 8085,
+        ("ac-worldserver", 7878): 7878,
+    }
     found = set()
     for name, service in services.items():
         for item in service.get("ports", []):
             port = int(item.get("target", -1))
-            if (name, port) not in EXPECTED_PORTS or item.get("host_ip") != "127.0.0.1":
-                raise RuntimeError(f"Unsafe Docker host binding: {name}:{port}. "
-                                   "Only known loopback ports are permitted.")
-            if str(item.get("published", "")) != str(port):
-                raise RuntimeError(f"Unexpected forwarded port: {name}:{port}")
-            found.add((name, port))
+            key = (name, port)
+            if key not in expected_published or item.get("host_ip") != "127.0.0.1":
+                raise RuntimeError(
+                    f"Unsafe Docker host binding: {name}:{port}. "
+                    "Only known loopback ports are permitted."
+                )
+            if str(item.get("published", "")) != str(expected_published[key]):
+                raise RuntimeError(f"Unexpected published host port: {name}:{port}")
+            found.add(key)
     if found != EXPECTED_PORTS:
         raise RuntimeError(f"Compose ports incomplete: {sorted(EXPECTED_PORTS - found)}")
-    # Ensure a shell environment override did not silently replace .env secrets.
-    values = {}
-    for line in (realm / ".env").read_text(encoding="utf-8").splitlines():
-        if line.startswith("DOCKER_DB_ROOT_PASSWORD="):
-            values["pw"] = line.partition("=")[2]
     actual = services.get("ac-database", {}).get("environment", {}).get("MYSQL_ROOT_PASSWORD")
-    if not values.get("pw") or actual != values["pw"]:
+    if actual != values["DOCKER_DB_ROOT_PASSWORD"]:
         raise RuntimeError("Docker environment overrides configured database password")
     print("Verified Docker Compose binds DB, auth, world and SOAP only to 127.0.0.1")
+    print(f"Local MySQL uses 127.0.0.1:{db_port} -> container 3306")
+
+
+def start_existing(realm: Path, *, db_port: int | None = None,
+                   approve_port_change: bool = False) -> int:
+    """Resume previously built local containers without rebuilding images."""
+    realm = realm.expanduser().resolve()
+    if not verify_azerothcore_checkout(realm):
+        raise RuntimeError(f"No official AzerothCore checkout in {realm}")
+    check_tools()
+    ensure_local_env(realm, db_port=db_port,
+                     approve_port_change=approve_port_change)
+    check_compose(realm)
+    print("Resuming existing images and volumes; no rebuild or data deletion.")
+    _run(["docker", "compose", "up", "-d", "--no-build"], cwd=realm)
+    _run(["docker", "compose", "ps"], cwd=realm)
+    print("Realm containers requested; check logs if worldserver is not running.")
+    return 0
 
 
 def check_tools() -> None:
