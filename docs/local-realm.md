@@ -249,6 +249,47 @@ and UI oracles, screenshots and bounded AI repair loops. This separate
 capability-based design prevents an AI from accidentally destroying saved
 players or accessing unrelated realms.
 
+## Synchronized real protocol peer + graphical UI test (experimental)
+
+A first vertical end-to-end slice is now available: an official AzerothGhost
+harness bot is logged into the *same running local worldserver*, teleports to
+the real WoW client character, remains online while the WoW client targets
+it, and ForgeTestBridge asserts its name and player status. The bot is
+released automatically even if client assertions fail. This uses **no patched
+Wow.exe**, only a development addon and native Windows input.
+
+Close WoW, update Forge, and deploy the updated bridge once:
+
+```powershell
+cd F:\addon-forge
+git pull --ff-only
+.\.venv\Scripts\forge.exe --config forge.local.toml deploy wow\ForgeTestBridge
+.\.venv\Scripts\forge.exe --config forge.local.toml client start
+```
+
+Log into your **already-created test character** and leave it *in world*.
+Preview with the actual **character** name (not account name):
+
+```powershell
+.\.venv\Scripts\forge.exe --config forge.local.toml agent peer-test --character YOURCHAR
+```
+
+To execute, explicitly add `--approve-fixtures`.
+
+**Current limitations:** Go 1.26+ required; local realm must meet
+the earlier AzerothGhost Warden/env safeguards; generated
+`agent_scenarios/go.mod` pins AzerothGhost v1.0.8.
+The harness is not yet live-tested against your Docker realm.
+AzerothGhost fixtures may create test accounts and DB state.
+The actual graphical character must already be logged in and near the
+foreground; character selection is not automated. This test checks just
+one real peer targeted by the addon, **not party frames, combat, quests,
+or the full feature acceptance criteria of arbitrary addons**.
+For multiplayer/quest coverage we should extend the same synchronized
+harness with stable, isolated fixture APIs and independent assertions.
+The GUI client is not modified or injected into; a more expressive
+ForgeTestBridge is safer and keeps the original WoW binary intact.
+
 ## Preventing a reused MySQL volume/password mismatch
 
 AzerothCore's MySQL image only uses `DOCKER_DB_ROOT_PASSWORD` to initialize a
