@@ -42,6 +42,62 @@ In WoW, choose **Windowed** or **Windowed (Fullscreen)** mode; manually log into
 
 The test opens WoW chat, sends only `/forge ...` and `/reload`, then checks a matching `WTF/Account/*/SavedVariables/ForgeTestBridge.lua` report after reload. It returns `infrastructure_error` if no matching report appears (not a false pass). PNG screenshots use Pillow.
 
+## Optional auto-login for a private Forge test account (experimental)
+
+This workflow applies **only** to a separate, marked Forge test client on
+**Windows native Python**. It does not modify Rising Gods or log into public
+realms, and never stores passwords in `forge.local.toml`.
+
+Install the optional Windows dependencies and make sure the test client is in
+**windowed mode** with a stable size (e.g. 1280x720). From PowerShell:
+
+```powershell
+cd F:\addon-forge
+.\.venv\Scripts\python.exe -m pip install -e ".[windows]"
+.\.venv\Scripts\forge.exe --config forge.local.toml client login save --account FORGETEST
+```
+
+The password is requested privately and saved using **Windows Credential
+Manager** through the Windows keyring backend. Do not enter your Rising Gods
+credentials. Only disposable *local test realm* accounts are supported.
+
+**One-time visual calibration:** Start the copied test WoW client **normally**
+and wait at the account/password login screen. Make sure both fields are
+empty and the window is not changing size. Run:
+
+```powershell
+.\.venv\Scripts\forge.exe --config forge.local.toml client login calibrate
+```
+
+Follow four prompts, placing the mouse over two distinct, **static,
+high-contrast login-panel features** (not fields, passwords or animated
+background), then the center of the account field, then the password field.
+Move the mouse to the requested spot and press Enter in PowerShell for each.
+Forge saves only two tiny image patches and four locations in the test-client
+folder as `.addon-forge-login-calibration.json`, **never the password**.
+
+Close WoW, then start with automatic credential entry:
+
+```powershell
+.\.venv\Scripts\forge.exe --config forge.local.toml client start --login
+```
+
+Forge refuses to type unless the new WoW.exe process and its visible window
+match the configured path and its login panel matches the calibration in
+three consecutive observations. It rechecks the panel after focusing it
+and before typing the password. If the screen is unexpected or the game
+window resolution has changed, it stops **without typing credentials**.
+Do not use the keyboard/mouse during automatic login. This submits the
+account/password form; **realm selection and character selection remain
+manual**. Automatic login isn't tested on a live client yet.
+
+Security limitations: visual recognition is heuristic, not a proof of
+game state. Only use disposable private-realm passwords. This command
+cannot run on a locked Windows session, and does not support unattended
+Windows service operation. The user can revoke stored credentials via
+Windows Credential Manager. To recalibrate, delete only the calibration
+JSON file in the separate test client's root; no game files are removed.
+
 ## Security and limitations
 
 - Windows API window discovery verifies the **running executable path**, not just the title. If more than one matching WoW client is visible, the controller refuses to pick one.
