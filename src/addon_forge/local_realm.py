@@ -44,21 +44,35 @@ def _same_or_inside(path: Path, root: Path) -> bool:
     return path == root or path.is_relative_to(root)
 
 
-def paths(source: Path, target: Path, realm: Path) -> tuple[Path, Path, Path]:
-    source, target, realm = (p.expanduser().resolve() for p in (source, target, realm))
-    if not any((source / exe).is_file() for exe in ("Wow.exe", "WoW.exe")):
+def paths(source: Path | None, target: Path, realm: Path
+          ) -> tuple[Path | None, Path, Path]:
+    # Source is only necessary if Forge must create the test client.
+    supplied = [p.expanduser() for p in (source, target, realm) if p is not None]
+    if any(p.is_symlink() or (hasattr(p, "is_junction") and p.is_junction())
+           for p in supplied):
+        raise ValueError("Linked directories cannot be used for local realm setup")
+    source = source.expanduser().resolve() if source is not None else None
+    target, realm = target.expanduser().resolve(), realm.expanduser().resolve()
+    if source is not None and not any(
+            (source / exe).is_file() for exe in ("Wow.exe", "WoW.exe")):
         raise FileNotFoundError(f"No Wow.exe/ WoW.exe in source folder {source}")
-    for left, right in ((source, target), (target, source),
-                        (source, realm), (realm, source),
-                        (target, realm), (realm, target)):
-        if _same_or_inside(left, right):
-            raise ValueError("The source, test client and AzerothCore paths must be separate")
-    if source.is_symlink() or target.is_symlink() or realm.is_symlink():
-        raise ValueError("Symlink paths are not supported for local realm setup")
+    if source is None:
+        if not target.is_dir() or not any(
+                (target / exe).is_file() for exe in ("Wow.exe", "WoW.exe")):
+            raise ValueError(
+                "--source-wow is required to create a new test client. "
+                "Without it, --test-wow must already contain Wow.exe."
+            )
+    pairs = [(target, realm), (realm, target)]
+    if source is not None:
+        pairs += [(source, target), (target, source),
+                  (source, realm), (realm, source)]
+    if any(_same_or_inside(left, right) for left, right in pairs):
+        raise ValueError("The source, test client and AzerothCore paths must be separate")
     return source, target, realm
 
 
-def verify_test_copy(target: Path, source: Path) -> bool:
+def verify_test_copy(target: Path, source: Path | None) -> bool:
     if not target.exists():
         return False
     marker = target / MARKER
@@ -68,7 +82,7 @@ def verify_test_copy(target: Path, source: Path) -> bool:
         identity = json.loads(marker.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise RuntimeError(f"Invalid test-client marker: {marker}") from exc
-    if identity.get("source") != str(source):
+    if source is not None and identity.get("source") != str(source):
         raise RuntimeError("Existing test copy was made from a different source")
     if not any((target / exe).is_file() for exe in ("Wow.exe", "WoW.exe")):
         raise RuntimeError(f"Existing test copy is incomplete: {target}")
@@ -76,7 +90,7 @@ def verify_test_copy(target: Path, source: Path) -> bool:
 
 
 
-def adopt_existing_test_copy(source: Path, target: Path) -> None:
+def adopt_existing_test_copy(source: Path | None, target: Path) -> None:
     """Explicitly register an already-copied WoW directory as Forge-only.
 
     Never remove copied account data. Move the copied WTF directory aside so
@@ -105,7 +119,7 @@ def adopt_existing_test_copy(source: Path, target: Path) -> None:
             raise RuntimeError("Existing WTF is not a directory")
         wtf.rename(saved)
         print(f"Set aside copied game accounts/settings (not deleted): {saved}")
-    (target / MARKER).write_text(json.dumps({"source": str(source),
+    (target / MARKER).write_text(json.dumps({"source": str(source) if source is not None else None,
                                              "adopted": True}),
                                 encoding="utf-8")
     print(f"Registered existing WoW folder for Forge testing: {target}")
@@ -278,17 +292,20 @@ def local_config_file(config_path: Path, target: Path, realm: Path) -> None:
     print(f"Wrote isolated test configuration: {config_path}")
 
 
-def setup(source: Path, target: Path, realm: Path, locale: str | None,
+def setup(source: Path | None, target: Path, realm: Path, locale: str | None,
           config_path: Path, *, approve: bool = False,
           adopt_existing: bool = False) -> None:
     source, target, realm = paths(source, target, realm)
     config_path = config_path.expanduser().resolve()
-    print(f"Original WoW (untouched): {source}")
+    print(f"Original WoW (untouched): {source if source else 'not supplied'}")
     print(f"Separate Forge WoW copy:  {target}")
     print(f"AzerothCore checkout:    {realm}")
     print(f"Forge test configuration: {config_path}")
     if config_path.name == "forge.toml":
         raise ValueError("Use forge.local.toml; refusing to overwrite your existing forge.toml")
+    if source is None:
+        print("No original source supplied: only the existing test WoW folder "
+              "will be used. Verify this is NOT your Rising Gods installation.")
     if target.exists() and not (target / MARKER).is_file():
         if not adopt_existing:
             print("Existing test WoW folder has no Forge marker; will refuse to "
@@ -323,7 +340,10 @@ def setup(source: Path, target: Path, realm: Path, locale: str | None,
     clone_azerothcore(realm)
     ensure_local_env(realm)
     check_compose(realm)
-    make_test_copy(source, target)
+    if not target.exists():
+        if source is None:
+            raise RuntimeError("Cannot create a test WoW folder without --source-wow")
+        make_test_copy(source, target)
     client_realmlist, backup = configure_realmlist(target, locale=locale)
     print(f"Test realmlist: {client_realmlist} (backup: {backup})")
     local_config_file(config_path, target, realm)
