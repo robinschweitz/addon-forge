@@ -23,6 +23,18 @@ Windows 10/11 can use a **native WoW 3.3.5a client without Wine/WSL** for graphi
 
 The controller verifies the WoW executable path and foreground window, restricts commands to `/forge` and `/reload`, and reads the same ForgeTestBridge SavedVariables results as Linux/Wine. **Real-client Windows integration has not yet been validated**; Windows CI tests use a mocked Win32 UI.
 
+## Complete Windows/Linux ↔ Hetzner workflow (experimental)
+
+See [end-to-end setup](docs/end-to-end.md) for a secure **SSH-only** connection
+between local WoW (Windows native or Linux/Wine) and a cloud NixOS AzerothCore
+realm. The commands `forge realmlist --locale enUS` and
+`forge tunnel YOUR_HETZNER_IP` configure backed-up local client settings and
+forward login/world ports over SSH without opening public game ports. Remote
+database realmlist settings must also point to loopback; see the guide.
+
+Live Hetzner NixOS deployment and a full graphical WoW login have **not yet
+been validated**; automated unit/NixOS CI checks do not replace an in-game run.
+
 ## NixOS all-in-one test VM (experimental)
 
 A full local test appliance (Xfce/X11, Wine, Forge CLI, systemd-managed AzerothCore) is now described in [docs/nixos-vm.md](docs/nixos-vm.md). On a Nix-capable Linux host:

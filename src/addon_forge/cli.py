@@ -31,6 +31,13 @@ def make_parser():
     test.add_argument("--suite", default="smoke")
     test.add_argument("--require-test", action="append", default=[], help="Require named in-game assertion")
     test.add_argument("--output", type=Path, default=Path(".forge-runs"))
+    tunnel = sub.add_parser("tunnel", help="SSH-forward private realm TCP 3724 and 8085")
+    tunnel.add_argument("host")
+    tunnel.add_argument("--user", default="root")
+    tunnel.add_argument("--identity", type=Path)
+    tunnel.add_argument("--port", type=int, default=22)
+    realmlist = sub.add_parser("realmlist", help="Back up and point WoW at SSH-tunneled local realm")
+    realmlist.add_argument("--locale")
     realm = sub.add_parser("realm")
     realm.add_argument("action", choices=["up", "down", "status"])
     ai = sub.add_parser("ai")
@@ -83,6 +90,14 @@ def main(argv=None) -> int:
                     print("Windows screenshots  NOT FOUND (pip install addon-forge[windows])")
             print(f"WoW directory: {cfg.wow_dir} | exists: {cfg.wow_dir.is_dir()}")
             print(f"Realm source: {cfg.realm_dir or 'not configured'}")
+            return 0
+        if args.command == "tunnel":
+            from .realm_connect import tunnel as run_tunnel
+            return run_tunnel(args.host, user=args.user, identity=args.identity, port=args.port)
+        if args.command == "realmlist":
+            from .realm_connect import configure_realmlist
+            path, backup = configure_realmlist(cfg.wow_dir, locale=args.locale)
+            print(f"Realmlist configured: {path} (original backup: {backup})")
             return 0
         if args.command == "deploy":
             from .deploy import deploy
