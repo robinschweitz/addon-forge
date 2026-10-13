@@ -116,8 +116,6 @@ def test_unavailable_server_type_blocks_creation(monkeypatch, tmp_path, capsys):
     calls = []
     def fake_execute(argv, input_text=None):
         calls.append(argv)
-        if argv[:2] == ["server-type", "describe"]:
-            return '{"locations":[{"location":{"name":"fsn1"},"available":true}]}'
         if argv[:2] == ["ssh-key", "describe"]:
             return '{}'
         if argv[:2] == ["server-type", "describe"]:
