@@ -51,6 +51,26 @@ client's `WTF` settings to `.forge-original-WTF-backup` (without deleting
 them), preserves your original Rising Gods client, reuses the existing official
 AzerothCore Git checkout, and sets up the local test environment.
 
+### Existing test client, without `--source-wow`
+
+If you have an independent test WoW installation already, you can omit
+`--source-wow` entirely. Replace these example paths with your existing test
+WoW directory and existing AzerothCore checkout:
+
+```powershell
+.\.venv\Scripts\forge.exe local-realm setup --test-wow "F:\WoW-Forge-Test" --realm-dir "F:\azerothcore-wotlk" --locale deDE --adopt-existing-test-wow
+```
+
+This command is a read-only preview. After you verify the paths, append
+`--approve-local-setup` to authorize setup. **Be certain that
+`--test-wow` is your separate test installation, not Rising Gods:** Forge
+cannot infer that from a source path when no source is given. An existing
+unregistered folder is never changed without both
+`--adopt-existing-test-wow` and `--approve-local-setup`.
+
+If the test folder does not yet exist, `--source-wow` is still required to
+create one.
+
 ## Run the local setup (changes local files and uses Docker)
 
 ```powershell
