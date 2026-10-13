@@ -111,7 +111,7 @@ in {
     realm = {
       enable = mkEnableOption "locally managed AzerothCore test realm";
       images = {
-        database = mkOption { type = types.str; default = "mysql:8.0"; description = "MySQL OCI image; pin by digest for stronger reproducibility."; };
+        database = mkOption { type = types.str; default = "mysql:8.4"; description = "MySQL OCI image; pin by digest for stronger reproducibility."; };
         authserver = mkOption { type = types.str; default = "acore/ac-wotlk-authserver:master"; description = "Authserver image (supports image digest pinning)."; };
         worldserver = mkOption { type = types.str; default = "acore/ac-wotlk-worldserver:master"; description = "Worldserver image (supports image digest pinning)."; };
         dbImport = mkOption { type = types.str; default = "acore/ac-wotlk-db-import:master"; description = "DB bootstrap image."; };
@@ -125,6 +125,11 @@ in {
         message = "Addon Forge realm requires Docker."; }
     ];
     virtualisation.docker.enable = true;
+    # Export the non-secret Compose template for CI validation. The actual
+    # random password lives only in /var/lib/addon-forge-realm/.env.
+    environment.etc."addon-forge/realm-compose.json" = mkIf realm.enable {
+      source = composeFile;
+    };
     users.users.${cfg.user}.extraGroups = [ "docker" ];
     environment.systemPackages = with pkgs; [
       forgePackage git lua5_1 docker docker-compose
