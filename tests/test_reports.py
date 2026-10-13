@@ -37,3 +37,26 @@ def test_limits_and_string_unescape():
 
 def test_encoded_lua_string():
     assert parse_report('ForgeTestReport = { text = "a\\065b" }')["text"] == "aAb"
+
+
+def test_parse_versioned_bridge_snapshot():
+    source = '''ForgeTestReport = {
+      schemaVersion = 2, bridgeVersion = 2, completed = true,
+      runId = "new123", tests = { { name = "bridge_loaded", status = "passed" } },
+      snapshot = { player = { exists = true, name = "test" },
+        frames = { ForgeExampleFrame = { shown = true, width = 200, height = 30 } },
+        party = { count = 0, members = {} } }
+    }'''
+    report = parse_report(source)
+    assert report["bridgeVersion"] == 2
+    assert report["snapshot"]["player"]["name"] == "test"
+    assert report["snapshot"]["frames"]["ForgeExampleFrame"]["shown"] is True
+
+
+def test_bridge_source_contains_telemetry_contract():
+    from pathlib import Path
+    source = (Path(__file__).resolve().parents[1] / "wow" /
+              "ForgeTestBridge" / "Core.lua").read_text(encoding="utf-8")
+    assert "schemaVersion = 2" in source
+    assert "report.snapshot = observed" in source
+    assert "function Bridge:RegisterFrame" in source
