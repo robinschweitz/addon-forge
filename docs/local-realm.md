@@ -290,6 +290,66 @@ harness with stable, isolated fixture APIs and independent assertions.
 The GUI client is not modified or injected into; a more expressive
 ForgeTestBridge is safer and keeps the original WoW binary intact.
 
+## Reusable agent QA scenarios: server fixtures + independently checked client state
+
+The new `forge agent run-plan` command loads a strict JSON scenario schema:
+`version=1`, `addon` (directory beside plan), `character` (your actual
+graphical test character), `peers` (0-4 persistent AzerothGhost players)
+and `checks`. Supported independent checks are `player_in_world`,
+`target_player`, `frame_visible` (registered frame), and
+`party_count_at_least`. All expected values must be fixed **before**
+the agent runs; the model cannot declare its own results as passes.
+
+Example (already in repository):
+`examples/forge-example-scenario.json`, verifying the player is in-world
+and the real `ForgeExampleFrame` is displayed. Change its `character`
+field to your local test character name. Update and deploy the bridge and
+example addon and restart WoW so the new Lua code is loaded.
+
+```powershell
+cd F:\addon-forge
+git pull --ff-only
+.\.venv\Scripts\forge.exe --config forge.local.toml deploy wow\ForgeTestBridge
+.\.venv\Scripts\forge.exe --config forge.local.toml deploy examples\ForgeExample
+.\.venv\Scripts\forge.exe --config forge.local.toml agent run-plan examples\forge-example-scenario.json
+```
+
+Without approval the command is a read-only preview. With WoW in-world,
+approved execution:
+
+```powershell
+.\.venv\Scripts\forge.exe --config forge.local.toml agent run-plan examples\forge-example-scenario.json --approve-fixtures
+```
+
+When `peers > 0` the plan runner uses a synchronized live-server fixture
+and the `peer` suite. The first player is targeted through `/targetexact`
+and the bridge asserts that it really is a player; you can add an independent
+`target_player` check. This **does not** yet form a party with your
+graphical character, so `party_count_at_least` will only pass if that
+state was established separately. It does not automatically generate custom
+combat or quest conditions. No database volume deletions or `Wow.exe`
+modifications are performed.
+
+### Using your already installed OpenCode agent
+
+Run OpenCode from `F:\addon-forge` and instruct it to treat
+`docs/local-realm.md`, `src/addon_forge/scenario_plan.py`,
+`wow/ForgeTestBridge/Core.lua`, and `examples/forge-example-scenario.json`
+as the available tool contract. It may write a new addon in
+`projects/NewAddon`, register observable frames using
+`ForgeTestBridge:RegisterFrame("MyFrame", frame)`, and write a JSON plan
+beside it. It should run a preview before an approved test, then inspect
+the JSON report and screenshots. Approval only authorizes bounded local
+test fixtures and addon deployment, **not** arbitrary Docker/SQL commands.
+In-client smoke tests still require a running, logged-in graphical test
+character and any new addon to be enabled.
+
+A future agent tool adapter can expose these operations directly to OpenCode.
+The CLI runner is usable already; unrestricted AI-generated scenario scripts,
+permanent multi-bot sessions, fully unattended login/character selection,
+combat and quest fixture orchestration and screen-vision interaction are
+still separate engineering milestones.
+
 ## Preventing a reused MySQL volume/password mismatch
 
 AzerothCore's MySQL image only uses `DOCKER_DB_ROOT_PASSWORD` to initialize a
