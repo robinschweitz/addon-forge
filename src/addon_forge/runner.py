@@ -7,7 +7,7 @@ import uuid
 
 from .client import ClientController
 from .config import Config
-from .reports import latest_report
+from .reports import latest_report, parse_report, ReportParseError
 
 
 @dataclass
@@ -38,7 +38,22 @@ def run_smoke(cfg: Config, suite: str = "smoke", out_dir: Path | None = None,
             report = entry[1]
             break
     if report is None:
-        result = TestResult("infrastructure_error", run_id, {"error": "Missing matching SavedVariables report; confirm client is in-world and ForgeTestBridge is enabled"})
+        root = cfg.wow_dir / "WTF" / "Account"
+        entries = list(root.glob("*/SavedVariables/ForgeTestBridge.lua"))
+        diagnostics = []
+        for path in entries[:8]:
+            try:
+                parsed = parse_report(path.read_text(encoding="utf-8-sig"))
+                diagnostics.append({"path": str(path), "run_id": parsed.get("runId"),
+                                    "completed": parsed.get("completed")})
+            except (OSError, UnicodeError, ReportParseError) as exc:
+                diagnostics.append({"path": str(path), "parse_error": type(exc).__name__})
+        result = TestResult("infrastructure_error", run_id, {
+            "error": "Missing matching SavedVariables report; verify /forge run manually, then /reload",
+            "report_files_found": len(entries), "reports": diagnostics,
+            "hint": ("No saved report files: check that ForgeTestBridge is enabled and slash handler loaded"
+                     if not entries else "Report files exist: check run ID and parser errors")
+        })
     else:
         tests = report.get("tests", [])
         if not report.get("completed") or not isinstance(tests, list) or not tests:
