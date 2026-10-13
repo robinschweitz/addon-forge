@@ -59,6 +59,9 @@ def make_parser():
     agent = sub.add_parser("agent", help="Agent-facing inspectable local test realm capabilities")
     agent_sub = agent.add_subparsers(dest="action", required=True)
     agent_sub.add_parser("capabilities")
+    workflow = agent_sub.add_parser("run-plan", help="Review or execute a bounded addon acceptance plan")
+    workflow.add_argument("plan", type=Path)
+    workflow.add_argument("--approve-fixtures", action="store_true")
     peer = agent_sub.add_parser("peer-test", help="Synchronize real AzerothGhost peer with graphical WoW target test")
     peer.add_argument("--character", required=True, help="Already logged-in private-realm character name")
     peer.add_argument("--approve-fixtures", action="store_true")
@@ -107,6 +110,12 @@ def main(argv=None) -> int:
             if args.action == "capabilities":
                 print(json.dumps(capabilities(), indent=2))
                 return 0
+            if args.action == "run-plan":
+                from .agent_workflow import run_plan
+                result = run_plan(load_config(args.config), args.plan,
+                                  approve=args.approve_fixtures)
+                print(json.dumps(result, indent=2))
+                return 0 if result["status"] in ("plan_only", "passed") else 1
             if args.action == "peer-test":
                 from .peer_scenario import peer_scenario
                 result = peer_scenario(load_config(args.config), character=args.character,
