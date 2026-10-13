@@ -54,6 +54,8 @@
         '';
       };
       nixosModules.default = import ./nix/modules/workstation.nix { inherit forgePackage; };
+      # Realm-only profile to import into a separately installed, SSH-keyed cloud NixOS host.
+      nixosModules.cloudRealm = import ./nix/hosts/forge-cloud.nix;
       # A complete disposable VM, including the loopback-only AzerothCore test realm.
       # nix build .#nixosConfigurations.forge-vm.config.system.build.vm
       nixosConfigurations.forge-vm = nixpkgs.lib.nixosSystem {
