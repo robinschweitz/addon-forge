@@ -38,6 +38,13 @@ def make_parser():
     tunnel.add_argument("--port", type=int, default=22)
     realmlist = sub.add_parser("realmlist", help="Back up and point WoW at SSH-tunneled local realm")
     realmlist.add_argument("--locale")
+    local = sub.add_parser("local-realm", help="Set up a separate local AzerothCore test realm")
+    local.add_argument("action", choices=["setup", "status", "logs", "console", "stop"])
+    local.add_argument("--source-wow", type=Path, help="Original WoW client directory (read-only)")
+    local.add_argument("--test-wow", type=Path, help="New isolated WoW test copy")
+    local.add_argument("--realm-dir", type=Path, help="AzerothCore checkout directory")
+    local.add_argument("--locale", default=None, help="WoW locale (enUS, deDE, ...)")
+    local.add_argument("--approve-local-setup", action="store_true")
     realm = sub.add_parser("realm")
     realm.add_argument("action", choices=["up", "down", "status"])
     ai = sub.add_parser("ai")
@@ -74,6 +81,16 @@ def main(argv=None) -> int:
             result = repair_addon(args.addon, max_attempts=args.max_attempts)
             print(json.dumps(result, indent=2, default=str))
             return 0 if result["status"] == "passed" else 1
+        if args.command == "local-realm":
+            from .local_realm import setup, operate
+            realm = args.realm_dir or Path("azerothcore-wotlk")
+            if args.action == "setup":
+                if not args.source_wow or not args.test_wow:
+                    raise ValueError("Supply --source-wow and --test-wow for local-realm setup")
+                setup(args.source_wow, args.test_wow, realm, args.locale,
+                      Path("forge.local.toml"), approve=args.approve_local_setup)
+                return 0
+            return operate(args.action, realm)
         cfg = load_config(args.config)
         if args.command == "doctor":
             requirements = ([("Python", "python"), ("Docker", "docker")]
