@@ -39,12 +39,14 @@ def make_parser():
     realmlist = sub.add_parser("realmlist", help="Back up and point WoW at SSH-tunneled local realm")
     realmlist.add_argument("--locale")
     local = sub.add_parser("local-realm", help="Set up a separate local AzerothCore test realm")
-    local.add_argument("action", choices=["setup", "status", "logs", "console", "stop"])
+    local.add_argument("action", choices=["setup", "start", "status", "logs", "console", "stop"])
     local.add_argument("--source-wow", type=Path, help="Original WoW client directory (read-only)")
     local.add_argument("--test-wow", type=Path, help="New isolated WoW test copy")
     local.add_argument("--realm-dir", type=Path, help="AzerothCore checkout directory")
     local.add_argument("--locale", default=None, help="WoW locale (enUS, deDE, ...)")
     local.add_argument("--approve-local-setup", action="store_true")
+    local.add_argument("--db-port", type=int, help="Host-side MySQL port, e.g. 13306")
+    local.add_argument("--approve-port-change", action="store_true")
     local.add_argument("--adopt-existing-test-wow", action="store_true",
                        help="Explicitly reuse an existing separate WoW copy")
     realm = sub.add_parser("realm")
@@ -84,7 +86,7 @@ def main(argv=None) -> int:
             print(json.dumps(result, indent=2, default=str))
             return 0 if result["status"] == "passed" else 1
         if args.command == "local-realm":
-            from .local_realm import setup, operate
+            from .local_realm import setup, operate, start_existing
             realm = args.realm_dir or (Path.cwd().parent / "azerothcore-wotlk")
             if args.action == "setup":
                 if not args.test_wow:
@@ -93,6 +95,9 @@ def main(argv=None) -> int:
                       Path("forge.local.toml"), approve=args.approve_local_setup,
                       adopt_existing=args.adopt_existing_test_wow)
                 return 0
+            if args.action == "start":
+                return start_existing(realm, db_port=args.db_port,
+                                      approve_port_change=args.approve_port_change)
             return operate(args.action, realm)
         cfg = load_config(args.config)
         if args.command == "doctor":
