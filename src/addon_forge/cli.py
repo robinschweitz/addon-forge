@@ -59,6 +59,9 @@ def make_parser():
     agent = sub.add_parser("agent", help="Agent-facing inspectable local test realm capabilities")
     agent_sub = agent.add_subparsers(dest="action", required=True)
     agent_sub.add_parser("capabilities")
+    peer = agent_sub.add_parser("peer-test", help="Synchronize real AzerothGhost peer with graphical WoW target test")
+    peer.add_argument("--character", required=True, help="Already logged-in private-realm character name")
+    peer.add_argument("--approve-fixtures", action="store_true")
     fixture = agent_sub.add_parser("realm-fixture", help="Run an approved official AzerothGhost fixture")
     fixture.add_argument("scenario", choices=["create-character", "login-world", "teleport"])
     fixture.add_argument("--realm-dir", type=Path)
@@ -104,6 +107,12 @@ def main(argv=None) -> int:
             if args.action == "capabilities":
                 print(json.dumps(capabilities(), indent=2))
                 return 0
+            if args.action == "peer-test":
+                from .peer_scenario import peer_scenario
+                result = peer_scenario(load_config(args.config), character=args.character,
+                                       approve=args.approve_fixtures)
+                print(json.dumps(result, indent=2))
+                return 0 if result["status"] in ("plan_only", "passed") else 1
             root = args.realm_dir or (Path.cwd().parent / "azerothcore-wotlk")
             result = run_realm_smoke(root, scenario=args.scenario, approve=args.approve_fixtures)
             print(json.dumps(result, indent=2))
