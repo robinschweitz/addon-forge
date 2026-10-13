@@ -56,6 +56,13 @@ def make_parser():
     local.add_argument("--approve-port-change", action="store_true")
     local.add_argument("--adopt-existing-test-wow", action="store_true",
                        help="Explicitly reuse an existing separate WoW copy")
+    agent = sub.add_parser("agent", help="Agent-facing inspectable local test realm capabilities")
+    agent_sub = agent.add_subparsers(dest="action", required=True)
+    agent_sub.add_parser("capabilities")
+    fixture = agent_sub.add_parser("realm-fixture", help="Run an approved official AzerothGhost fixture")
+    fixture.add_argument("scenario", choices=["create-character", "login-world", "teleport"])
+    fixture.add_argument("--realm-dir", type=Path)
+    fixture.add_argument("--approve-fixtures", action="store_true")
     realm = sub.add_parser("realm")
     realm.add_argument("action", choices=["up", "down", "status"])
     ai = sub.add_parser("ai")
@@ -92,6 +99,15 @@ def main(argv=None) -> int:
             result = repair_addon(args.addon, max_attempts=args.max_attempts)
             print(json.dumps(result, indent=2, default=str))
             return 0 if result["status"] == "passed" else 1
+        if args.command == "agent":
+            from .agent_realm import capabilities, run_realm_smoke
+            if args.action == "capabilities":
+                print(json.dumps(capabilities(), indent=2))
+                return 0
+            root = args.realm_dir or (Path.cwd().parent / "azerothcore-wotlk")
+            result = run_realm_smoke(root, scenario=args.scenario, approve=args.approve_fixtures)
+            print(json.dumps(result, indent=2))
+            return 0 if result["status"] in ("plan_only", "passed") else 1
         if args.command == "local-realm":
             from .local_realm import setup, operate, start_existing
             realm = args.realm_dir or (Path.cwd().parent / "azerothcore-wotlk")
