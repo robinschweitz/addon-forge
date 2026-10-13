@@ -79,7 +79,9 @@ def check_type_availability(server):
               "use 'hcloud server-type describe' to inspect manually.", file=sys.stderr)
         return
     for row in locations:
-        place = row.get("location") if isinstance(row, dict) else None
+        # Current hcloud JSON uses locations[].name; tolerate older nested
+        # locations[].location.name responses for compatibility.
+        place = row.get("location", row.get("name")) if isinstance(row, dict) else None
         place_name = place.get("name") if isinstance(place, dict) else place
         if place_name != location:
             continue
