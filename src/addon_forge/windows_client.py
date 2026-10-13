@@ -96,6 +96,10 @@ class WindowsAPI:
         self.user.GetForegroundWindow.restype = wintypes.HWND
         self.user.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
         self.user.GetWindowRect.restype = wintypes.BOOL
+        self.user.GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
+        self.user.GetCursorPos.restype = wintypes.BOOL
+        self.user.SetCursorPos.argtypes = [ctypes.c_int, ctypes.c_int]
+        self.user.SetCursorPos.restype = wintypes.BOOL
         self.user.VkKeyScanW.argtypes = [wintypes.WCHAR]
         self.user.VkKeyScanW.restype = ctypes.c_short
         self.user.VkKeyScanExW.argtypes = [wintypes.WCHAR, wintypes.HANDLE]
@@ -173,6 +177,38 @@ class WindowsAPI:
         ))
         if self.user.SendInput(1, ctypes.byref(item), ctypes.sizeof(_INPUT)) != 1:
             raise OSError("Windows SendInput failed; check WoW privileges and desktop session")
+
+    def window_pid(self, hwnd: int) -> int:
+        pid = wintypes.DWORD()
+        self.user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        return pid.value
+
+    def cursor(self) -> tuple[int, int]:
+        p = wintypes.POINT()
+        if not self.user.GetCursorPos(ctypes.byref(p)):
+            raise OSError("Cannot read mouse cursor")
+        return p.x, p.y
+
+    def click(self, hwnd: int, point: tuple[int, int]):
+        left, top, right, bottom = self.rect(hwnd)
+        x, y = point
+        if not (0 <= x < right-left and 0 <= y < bottom-top):
+            raise ValueError("Login click outside verified WoW window")
+        if not self.user.SetCursorPos(left+x, top+y):
+            raise OSError("Cannot position mouse for local login")
+        for flags in (0x0002, 0x0004):  # LEFTDOWN / LEFTUP
+            item = _INPUT(type=0, u=_INPUT_UNION(mi=_MOUSEINPUT(
+                dx=0, dy=0, mouseData=0, dwFlags=flags, time=0, dwExtraInfo=0)))
+            if self.user.SendInput(1, ctypes.byref(item), ctypes.sizeof(_INPUT)) != 1:
+                raise OSError("Mouse click failed")
+        time.sleep(0.1)
+
+    def ctrl_a(self):
+        self._key(0x11)
+        try:
+            self.tap(0x41)
+        finally:
+            self._key(0x11, True)
 
     def tap(self, vk: int):
         self._key(vk)
