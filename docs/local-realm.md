@@ -99,6 +99,26 @@ The upstream first build, DB imports and client-data initialization may take
 some time. A successful `docker compose up` does not guarantee the world
 server is ready; inspect logs if it exits.
 
+## Resume after a Windows MySQL port 3306 bind error
+
+If the Docker images built successfully but startup failed with a Windows
+`127.0.0.1:3306` bind error, **do not build again or delete your volumes**.
+Use an alternative **host-side** database port:
+
+```powershell
+cd F:\addon-forge
+git pull --ff-only
+.\.venv\Scripts\forge.exe local-realm start --realm-dir "E:/wow-azeroth-core/azerothcore-wotlk" --db-port 13306 --approve-port-change
+.\.venv\Scripts\forge.exe local-realm status --realm-dir "E:/wow-azeroth-core/azerothcore-wotlk"
+```
+
+The restart command preserves the original randomized database password,
+Docker database volumes, your WoW test client, and the *internal* MySQL
+container port 3306. It changes only the Windows published MySQL port to
+`127.0.0.1:13306`, rechecks Docker's resolved port bindings and runs
+`docker compose up -d --no-build`. It does not recreate the images.
+If 13306 is also blocked/reserved, pick another free high port.
+
 ## Monitor, create an account, and run a test
 
 ```powershell
