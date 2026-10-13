@@ -41,7 +41,8 @@ def _fixture_env(password: str, port: int, target: str, folder: Path, peers: int
 def peer_scenario(cfg: Config, *, character: str,
                   approve: bool = False, timeout: int = 100,
                   peers: int = 1, suite: str = "peer",
-                  required_tests: tuple[str, ...] = ("peer_target_visible",)) -> dict:
+                  required_tests: tuple[str, ...] = ("peer_target_visible",),
+                  output_dir: Path | None = None) -> dict:
     if not NAME.fullmatch(character):
         raise ValueError("Use a 2-12-letter local graphical test character name.")
     if peers < 1 or peers > 4:
@@ -110,7 +111,8 @@ def peer_scenario(cfg: Config, *, character: str,
                 client = ClientController(cfg)
                 client.command("/targetexact " + name)
                 client.command("/forge expect " + name)
-                result = run_smoke(cfg, suite=suite, required_tests=required_tests)
+                result = run_smoke(cfg, suite=suite, required_tests=required_tests,
+                                   out_dir=output_dir)
                 return {
                     "status": result.status, "peer_name": name, "peer_names": names,
                     "report": result.__dict__, "note": (
