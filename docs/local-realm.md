@@ -31,6 +31,26 @@ The default AzerothCore clone location is `F:\azerothcore-wotlk` (next to
 your `F:\addon-forge` checkout). To choose another location, use
 `--realm-dir "F:\some-other-folder"`.
 
+## Already have both folders? Reuse them
+
+If you've **already copied WoW** and **already cloned AzerothCore**, you do
+not need to copy or clone them again. Pass the full existing directory names,
+and add `--adopt-existing-test-wow` to explicitly register your separate copy.
+
+For example, if your original Rising Gods client is in `F:\\WoW-RisingGods`,
+the copied game is `F:\\WoW-Forge-Test`, and your existing AzerothCore clone
+is `F:\\azerothcore-wotlk`:
+
+```powershell
+.\.venv\Scripts\forge.exe local-realm setup --source-wow "F:\WoW-RisingGods" --test-wow "F:\WoW-Forge-Test" --realm-dir "F:\azerothcore-wotlk" --locale deDE --adopt-existing-test-wow
+```
+
+The command above is a **read-only preview**. After verifying the paths, add
+`--approve-local-setup` to perform the setup. This moves the copied
+client's `WTF` settings to `.forge-original-WTF-backup` (without deleting
+them), preserves your original Rising Gods client, reuses the existing official
+AzerothCore Git checkout, and sets up the local test environment.
+
 ## Run the local setup (changes local files and uses Docker)
 
 ```powershell
