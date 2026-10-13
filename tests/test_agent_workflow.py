@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from types import SimpleNamespace
+from addon_forge.runner import TestResult
 import pytest
 
 from addon_forge.agent_workflow import run_plan
@@ -35,7 +35,7 @@ def test_report_success_requires_independent_snapshot(tmp_path, monkeypatch):
     cfg,plan=setup_plan(tmp_path)
     monkeypatch.setattr("addon_forge.agent_workflow.check_addon", lambda p: [])
     monkeypatch.setattr("addon_forge.agent_workflow.deploy",lambda *args:None)
-    mock=SimpleNamespace(status="passed",run_id="abc",details={
+    mock=TestResult(status="passed",run_id="abc",details={
        "report":{"completed":True,"snapshot":{"player":{"exists":True}}}})
     monkeypatch.setattr("addon_forge.agent_workflow.run_smoke",lambda *a,**k:mock)
     result=run_plan(cfg,plan,approve=True)
@@ -46,7 +46,7 @@ def test_no_telemetry_never_passes(tmp_path,monkeypatch):
     cfg,plan=setup_plan(tmp_path)
     monkeypatch.setattr("addon_forge.agent_workflow.check_addon",lambda p:[])
     monkeypatch.setattr("addon_forge.agent_workflow.deploy",lambda *a:None)
-    mock=SimpleNamespace(status="passed",run_id="abc",details={
+    mock=TestResult(status="passed",run_id="abc",details={
        "report":{"completed":True}})
     monkeypatch.setattr("addon_forge.agent_workflow.run_smoke",lambda *a,**k:mock)
     result=run_plan(cfg,plan,approve=True)
