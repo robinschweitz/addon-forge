@@ -36,7 +36,7 @@ def test_report_success_requires_independent_snapshot(tmp_path, monkeypatch):
     monkeypatch.setattr("addon_forge.agent_workflow.check_addon", lambda p: [])
     monkeypatch.setattr("addon_forge.agent_workflow.deploy",lambda *args:None)
     mock=TestResult(status="passed",run_id="abc",details={
-       "report":{"completed":True,"snapshot":{"player":{"exists":True}}}})
+       "report":{"completed":True,"bridgeVersion":2,"schemaVersion":2,"snapshot":{"player":{"exists":True}}}})
     monkeypatch.setattr("addon_forge.agent_workflow.run_smoke",lambda *a,**k:mock)
     result=run_plan(cfg,plan,approve=True)
     assert result["status"]=="passed"
@@ -47,7 +47,7 @@ def test_no_telemetry_never_passes(tmp_path,monkeypatch):
     monkeypatch.setattr("addon_forge.agent_workflow.check_addon",lambda p:[])
     monkeypatch.setattr("addon_forge.agent_workflow.deploy",lambda *a:None)
     mock=TestResult(status="passed",run_id="abc",details={
-       "report":{"completed":True}})
+       "report":{"completed":True,"bridgeVersion":2,"schemaVersion":2}})
     monkeypatch.setattr("addon_forge.agent_workflow.run_smoke",lambda *a,**k:mock)
     result=run_plan(cfg,plan,approve=True)
     assert result["status"]=="infrastructure_error"
