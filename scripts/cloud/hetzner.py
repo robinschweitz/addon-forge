@@ -3,7 +3,6 @@
 import argparse
 import ipaddress
 import json
-import os
 from pathlib import Path
 import re
 import shutil
@@ -15,9 +14,16 @@ def configuration(path):
     with Path(path).open("rb") as f:
         data = tomllib.load(f)
     server = data.get("server", {})
-    keys = ("name", "type", "location", "image", "ssh_key")
-    if any(not isinstance(server.get(k), str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{1,63}", server[k]) or server[k].startswith("YOUR_") for k in keys):
-        raise ValueError("Set valid [server] values, including an existing SSH key name")
+    # Hetzner SSH key *names* may contain '@' (e.g. robin@DESKTOP-KRLA5G1).
+    # Restrict infrastructure identifiers, but validate the SSH key separately.
+    identifiers = ("name", "type", "location", "image")
+    if any(not isinstance(server.get(k), str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{1,63}", server[k]) or server[k].startswith("YOUR_") for k in identifiers):
+        raise ValueError("Set valid [server] name, type, location and image")
+    ssh_key = server.get("ssh_key")
+    if (not isinstance(ssh_key, str) or not 1 <= len(ssh_key) <= 255
+            or not ssh_key.strip() or ssh_key.startswith(("YOUR_", "-"))
+            or any(ord(ch) < 32 or ord(ch) == 127 for ch in ssh_key)):
+        raise ValueError("Set [server] ssh_key to the SSH key NAME from 'hcloud ssh-key list'")
     ip = ipaddress.ip_network(data["network"]["ssh_source"], strict=True)
     if ip.num_addresses != 1 or not ip.is_global:
         raise ValueError("SSH access requires one public /32 or /128; no wildcards or private IPs")
@@ -45,8 +51,9 @@ def main(argv=None):
             return 0
         if not shutil.which("hcloud"):
             raise RuntimeError("Install Hetzner's official hcloud CLI")
-        if not os.environ.get("HCLOUD_TOKEN") and not os.environ.get("HCLOUD_CONTEXT"):
-            raise RuntimeError("Configure hcloud credentials locally; never paste API tokens into chat")
+        # hcloud stores its active context in its own configuration file.
+        # The CLI handles authentication; environment variables are optional.
+        # The read-only SSH key describe call below verifies access to that project.
         if args.action == "status":
             print(execute(["server","describe",name,"-o","json"]))
             return 0
