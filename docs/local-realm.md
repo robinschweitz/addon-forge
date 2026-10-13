@@ -249,6 +249,29 @@ and UI oracles, screenshots and bounded AI repair loops. This separate
 capability-based design prevents an AI from accidentally destroying saved
 players or accessing unrelated realms.
 
+### Go 1.25.5 and automatic Go 1.26 selection
+
+If `go version` shows Go 1.25.5 on Windows, **do not uninstall it**.
+Forge uses `GOTOOLCHAIN=auto` while running the module, which allows
+Go to download the Go 1.26 toolchain required by the pinned harness.
+
+You can check the effective module toolchain without changing your
+system's Go installation:
+
+```powershell
+cd E:\wow-azeroth-core\azerothcore-wotlk\e2e
+$env:GOTOOLCHAIN = "auto"
+$env:GOWORK = "off"
+go version
+cd F:\addon-forge
+```
+
+The first module invocation may need internet access to download a Go toolchain.
+Forge checks this automatically during approved fixture preflight. The
+`peer-test` read-only preview does not require Go or access your server.
+Your local realm also needs the separate AzerothGhost test-only Warden setting;
+Forge does not silently alter the server's anti-cheat configuration.
+
 ## Synchronized real protocol peer + graphical UI test (experimental)
 
 A first vertical end-to-end slice is now available: an official AzerothGhost
