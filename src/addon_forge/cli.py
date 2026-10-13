@@ -83,7 +83,7 @@ def main(argv=None) -> int:
             return 0 if result["status"] == "passed" else 1
         if args.command == "local-realm":
             from .local_realm import setup, operate
-            realm = args.realm_dir or Path("azerothcore-wotlk")
+            realm = args.realm_dir or (Path.cwd().parent / "azerothcore-wotlk")
             if args.action == "setup":
                 if not args.source_wow or not args.test_wow:
                     raise ValueError("Supply --source-wow and --test-wow for local-realm setup")
