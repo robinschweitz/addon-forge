@@ -3,6 +3,9 @@ frame:SetWidth(200)
 frame:SetHeight(30)
 frame:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
 frame:Show()
+if ForgeTestBridge and ForgeTestBridge.RegisterFrame then
+    ForgeTestBridge:RegisterFrame("ForgeExampleFrame", frame)
+end
 
 local label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 label:SetAllPoints(frame)
