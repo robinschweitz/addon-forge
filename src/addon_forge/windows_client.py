@@ -98,6 +98,10 @@ class WindowsAPI:
         self.user.GetWindowRect.restype = wintypes.BOOL
         self.user.VkKeyScanW.argtypes = [wintypes.WCHAR]
         self.user.VkKeyScanW.restype = ctypes.c_short
+        self.user.VkKeyScanExW.argtypes = [wintypes.WCHAR, wintypes.HANDLE]
+        self.user.VkKeyScanExW.restype = ctypes.c_short
+        self.user.GetKeyboardLayout.argtypes = [wintypes.DWORD]
+        self.user.GetKeyboardLayout.restype = wintypes.HANDLE
         self.user.SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(_INPUT), ctypes.c_int]
         self.user.SendInput.restype = wintypes.UINT
         self.kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
@@ -174,9 +178,20 @@ class WindowsAPI:
         self._key(vk)
         self._key(vk, True)
 
-    def type_text(self, text: str):
+    def type_text(self, text: str, *, hwnd: int | None = None):
+        # Key mappings can differ across Windows processes (e.g. German '/' is
+        # Shift+7, US '/' is VK_OEM_2). Query the target WoW thread, not Forge.
+        layout = None
+        if hwnd is not None:
+            thread = self.user.GetWindowThreadProcessId(hwnd, None)
+            if not thread:
+                raise RuntimeError("Cannot identify WoW window's keyboard layout")
+            layout = self.user.GetKeyboardLayout(thread)
+            if not layout:
+                raise RuntimeError("Cannot access WoW keyboard layout")
         for char in text:
-            key = self.user.VkKeyScanW(char)
+            key = (self.user.VkKeyScanExW(char, layout)
+                   if layout is not None else self.user.VkKeyScanW(char))
             if key == -1:
                 raise RuntimeError(f"Current keyboard layout cannot type {char!r}")
             vk = key & 0xFF
@@ -222,8 +237,17 @@ class WindowsClientController:
         hwnd = int(self.window_id())
         self.api.focus(hwnd)
         self.api.tap(0x0D)  # Enter opens in-game chat.
-        self.api.type_text(command)
-        self.api.tap(0x0D)  # Enter sends message to the ForgeTestBridge.
+        # The game handles focus on its render thread. Without a delay, the
+        # first character (notably '/') may be lost, resulting in a SAY.
+        time.sleep(0.18)
+        try:
+            self.api.type_text(command, hwnd=hwnd)
+        except Exception:
+            # Never send a partial slash command as ordinary public chat.
+            self.api.tap(0x1B)  # Escape closes chat without sending.
+            raise
+        time.sleep(0.08)
+        self.api.tap(0x0D)  # Enter submits slash command.
         # Native SendInput does not prove that the game received the command.
         # run_smoke verifies a correlated SavedVariables report after /reload.
 
