@@ -23,10 +23,49 @@ function Bridge:Assert(condition, message)
     if not condition then error(message or "assertion failed", 2) end
 end
 
+local function forgeUnit(unit)
+    if not UnitExists(unit) then return { exists = false } end
+    local _, class = UnitClass(unit)
+    return { exists = true, name = UnitName(unit) or "", class = class or "",
+        level = UnitLevel(unit) or 0, health = UnitHealth(unit) or 0,
+        maxHealth = UnitHealthMax(unit) or 0,
+        isPlayer = UnitIsPlayer(unit) and true or false }
+end
+
+Bridge.frames = Bridge.frames or {}
+function Bridge:RegisterFrame(name, frame)
+    if type(name) ~= "string" or not string.match(name, "^[%w_]+$")
+        or string.len(name) > 32 or not frame or type(frame.IsShown) ~= "function" then
+        error("RegisterFrame expects a name and WoW frame", 2)
+    end
+    self.frames[name] = frame
+end
+
+local function forgeSnapshot()
+    local frames = {}
+    for name, frame in pairs(Bridge.frames) do
+        local ok, value = pcall(function()
+            return { shown = frame:IsShown() and true or false,
+                     width = frame:GetWidth(), height = frame:GetHeight() }
+        end)
+        if ok then frames[name] = value end
+    end
+    local party = {}
+    local count = GetNumPartyMembers() or 0
+    for i = 1, math.min(count, 4) do
+        table.insert(party, forgeUnit("party" .. i))
+    end
+    return { player = forgeUnit("player"), target = forgeUnit("target"),
+        party = { count = count, members = party },
+        raid = { count = GetNumRaidMembers() or 0 },
+        questLogCount = GetNumQuestLogEntries() or 0, frames = frames }
+end
+
 local function runSuite(suite, runId)
     local entries = Bridge.tests[suite] or {}
     local report = {
-        schemaVersion = 1,
+        schemaVersion = 2,
+        bridgeVersion = Bridge.version,
         runId = runId,
         suite = suite,
         completed = false,
@@ -46,6 +85,9 @@ local function runSuite(suite, runId)
     for _, err in ipairs(Bridge.errors) do
         table.insert(report.errors, err)
     end
+    local ok, observed = pcall(forgeSnapshot)
+    if ok then report.snapshot = observed
+    else table.insert(report.errors, "Snapshot: " .. stringify(observed)) end
     report.completed = true
     DEFAULT_CHAT_FRAME:AddMessage("|cff66ccffForge|r " .. suite .. ": " .. #report.tests .. " assertions finished. Use /reload to persist.")
 end
