@@ -30,15 +30,18 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False) -> dict:
         return {"status": "failed", "error": "Static validation failed",
                 "diagnostics": [asdict(x) for x in errors]}
     deploy(addon, cfg.wow_dir)
+    evidence_dir = addon.parent / ".forge-runs"
     # Newly deployed addons need a reload or restart and must be enabled. Stop
     # instead of treating an unregistered addon as success.
     if plan["peers"]:
         run = peer_scenario(cfg, character=plan["character"], approve=True,
                             peers=plan["peers"], suite="peer",
-                            required_tests=("peer_target_visible",))
+                            required_tests=("peer_target_visible",),
+                            output_dir=evidence_dir)
         test = run.get("report", {})
     else:
-        result = run_smoke(cfg, suite="smoke", required_tests=("bridge_loaded",))
+        result = run_smoke(cfg, suite="smoke", required_tests=("bridge_loaded",),
+                           out_dir=evidence_dir)
         test = asdict(result)
     if test.get("status") != "passed":
         return {"status": test.get("status", "infrastructure_error"), **preview,
@@ -49,4 +52,5 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False) -> dict:
                 "error": "Missing correlated test report"}
     independent = evaluate(plan, report)
     status = independent["status"]
-    return {"status": status, **preview, "test": test, "independent": independent}
+    return {"status": status, **preview, "test": test, "independent": independent,
+            "evidence_dir": str(evidence_dir)}
