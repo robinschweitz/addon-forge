@@ -1,0 +1,77 @@
+name: NixOS appliance CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      build_full_vm:
+        description: "Also build the full graphical NixOS development VM (large download)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nixos-appliance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evaluate-and-compose:
+    name: Evaluate Nix and validate real Compose output
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Evaluate all flake outputs without building VM
+        run: |
+          nix flake check --no-build --show-trace
+          nix eval --raw .#nixosConfigurations.forge-vm.config.system.build.vm.drvPath
+          nix eval --raw .#packages.x86_64-linux.default.drvPath
+      - name: Validate rendered AzerothCore Compose topology, credentials and networking
+        run: nix build --no-link --print-build-logs .#checks.x86_64-linux.realm-compose
+      - name: Check pinned flake inputs
+        run: |
+          if [ ! -f flake.lock ]; then
+            echo '::warning::flake.lock is missing. Run nix flake lock and commit it for reproducible VM builds.'
+          else
+            nix flake metadata --no-write-lock-file --json >/dev/null
+            git diff --exit-code -- flake.lock
+          fi
+
+  vm-boot:
+    name: Boot NixOS VM and inspect Forge services
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          enable_kvm: true
+      - name: Verify hardware acceleration availability
+        run: |
+          test -r /dev/kvm && test -w /dev/kvm || {
+            echo '::error::This runner has no writable /dev/kvm; cannot run real NixOS VM test.'
+            exit 1
+          }
+      - name: Build and boot actual NixOS module test
+        run: nix build --no-link --print-build-logs .#checks.x86_64-linux.vm-boot
+
+  full-desktop-vm-build:
+    name: Build full Xfce/Wine developer VM (on demand)
+    if: github.event_name == 'workflow_dispatch' && inputs.build_full_vm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build the full VM closure
+        run: nix build --no-link --print-build-logs .#nixosConfigurations.forge-vm.config.system.build.vm

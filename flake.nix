@@ -44,32 +44,57 @@
           echo "Addon Forge — run: forge --help"
         '';
       };
-      nixosModules.default = { config, lib, pkgs, ... }:
-        let cfg = config.services.addon-forge;
-        in {
-          options.services.addon-forge = {
-            enable = lib.mkEnableOption "Addon Forge development workstation dependencies";
-            user = lib.mkOption {
-              type = lib.types.str;
-              description = "Existing non-root user that may operate the local Docker test realm";
-            };
+      nixosModules.default = import ./nix/modules/workstation.nix { inherit forgePackage; };
+      # A complete disposable VM, including the loopback-only AzerothCore test realm.
+      # nix build .#nixosConfigurations.forge-vm.config.system.build.vm
+      nixosConfigurations.forge-vm = nixpkgs.lib.nixosSystem {
+        inherit system;
+        modules = [ self.nixosModules.default ./nix/hosts/forge-vm.nix ];
+      };
+      # Validate the exact Compose configuration emitted by the NixOS module.
+      # No Docker daemon, game files or OCI downloads are necessary.
+      checks.${system} = {
+        realm-compose = pkgs.runCommand "forge-realm-compose-check" {
+        nativeBuildInputs = [ pkgs.docker-compose pkgs.python313 ];
+      } ''
+        cat > credentials.env <<'EOF'
+        FORGE_DB_PASSWORD=ci-placeholder-not-a-secret
+        EOF
+        docker-compose --env-file credentials.env \
+          -f ${self.nixosConfigurations.forge-vm.config.environment.etc."addon-forge/realm-compose.json".source} \
+          config --format json > rendered.json
+        python ${self}/scripts/ci/check_compose.py rendered.json
+        touch "$out"
+      '';
+      # Boots a small NixOS machine with the actual Addon Forge module.
+      # The realm unit is present, but starting heavy external OCI images is
+      # deliberately excluded from this deterministic PR smoke test.
+        vm-boot = pkgs.testers.runNixOSTest {
+        name = "forge-vm-boot";
+        nodes.machine = { lib, ... }: {
+          imports = [ self.nixosModules.default ];
+          system.stateVersion = "26.05";
+          users.users.forge.isNormalUser = true;
+          services.addon-forge = {
+            enable = true;
+            user = "forge";
+            client.enable = false; # Test module wiring without compiling Wine.
+            realm.enable = true;
           };
-          config = lib.mkIf cfg.enable {
-            # Workstation prerequisites only; does not download proprietary game files.
-            virtualisation.docker.enable = true;
-            users.users.${cfg.user}.extraGroups = [ "docker" ];
-            environment.systemPackages = with pkgs; [
-              forgePackage
-              git
-              lua5_1
-              docker-compose
-              xdotool
-              imagemagick
-              wineWowPackages.stable
-            ];
-          };
+          systemd.services.addon-forge-realm.wantedBy = lib.mkForce [ ];
         };
-      checks.${system}.python-tests = pkgs.runCommand "forge-python-tests" {
+        testScript = ''
+          machine.start()
+          machine.wait_for_unit("multi-user.target")
+          machine.succeed("command -v forge")
+          machine.succeed("command -v forge-realm")
+          machine.succeed("systemctl cat addon-forge-realm.service")
+          machine.succeed("test -e /etc/addon-forge/realm-compose.json")
+          machine.succeed("test ! -e /var/lib/addon-forge-realm/.env")
+          machine.succeed("systemctl is-enabled docker.service")
+        '';
+      };
+        python-tests = pkgs.runCommand "forge-python-tests" {
         nativeBuildInputs = [ python python.pkgs.pytest ];
       } ''
         cd ${self}
@@ -77,5 +102,6 @@
         pytest -q
         touch $out
       '';
+      };
     };
 }

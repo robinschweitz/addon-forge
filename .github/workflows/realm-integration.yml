@@ -1,0 +1,28 @@
+name: AzerothCore live integration (opt in)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Intentionally requires an explicitly provisioned runner with ample disk space,
+# nested containers and fast networking. GitHub hosted runners can be too small
+# for full initial AzerothCore DB + client data images.
+jobs:
+  realm-live:
+    runs-on: [self-hosted, linux, x64, addon-forge-realm]
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build the exact non-secret Compose template from the NixOS configuration
+        id: compose
+        shell: bash
+        run: |
+          path=$(nix build --no-link --print-out-paths '.#nixosConfigurations.forge-vm.config.environment.etc."addon-forge/realm-compose.json".source')
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+      - name: Start AzerothCore and verify auth/world TCP readiness
+        run: bash scripts/ci/realm_integration.sh "${{ steps.compose.outputs.path }}"
