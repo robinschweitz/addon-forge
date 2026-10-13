@@ -6,6 +6,16 @@ This repository contains a real, runnable Python CLI, a WoW 3.3.5a test companio
 
 **Status (v0.1.0):** Python tests can run on any Linux workstation. The Wine + WoW + AzerothCore integration path is implemented but **has not been validated on a running game client**. The graphical IDE, deterministic combat fixtures and fully hands-off login are future milestones. Never interpret static checks alone as proof an addon works in game.
 
+## Local AzerothCore realm — automated setup (experimental)
+
+For Windows/Linux development without paying for a cloud server, see
+[the local realm setup guide](docs/local-realm.md). The new
+`forge local-realm setup` command can clone official AzerothCore, configure
+Docker services to bind only to localhost, create a separate WoW test
+copy that preserves your original server settings, deploy Forge addons and
+start the realm. It previews changes unless you explicitly supply
+`--approve-local-setup`. A real WoW/Docker integration run is still needed.
+
 ## Headless Hetzner Cloud realm (experimental)
 
 Cloud deployment lives in [cloud/README.md](cloud/README.md). The opt-in
