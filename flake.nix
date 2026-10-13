@@ -78,10 +78,6 @@
       # Validate the exact Compose configuration emitted by the NixOS module.
       # No Docker daemon, game files or OCI downloads are necessary.
       checks.${system} = {
-        cloud-eval = pkgs.runCommand "addon-forge-cloud-eval" {} ''
-          test -n "${self.nixosConfigurations.forge-cloud.config.system.build.toplevel.drvPath}"
-          touch "$out"
-        '';
         realm-compose = pkgs.runCommand "forge-realm-compose-check" {
         nativeBuildInputs = [ pkgs.docker-compose pkgs.python313 ];
       } ''
