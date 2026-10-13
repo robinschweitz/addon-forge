@@ -1,0 +1,5 @@
+## Interface: 30300
+## Title: ForgeExample
+## Notes: Minimal in-client smoke test example for Addon Forge
+## OptionalDeps: ForgeTestBridge
+ForgeExample.lua

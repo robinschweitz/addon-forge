@@ -1,0 +1,3 @@
+{
+  "required_tests": ["bridge_loaded", "example_frame_visible"]
+}

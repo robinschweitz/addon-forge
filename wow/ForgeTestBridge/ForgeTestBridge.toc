@@ -1,0 +1,6 @@
+## Interface: 30300
+## Title: ForgeTestBridge
+## Notes: Development-only test harness for original WotLK 3.3.5a
+## Author: Addon Forge contributors
+## SavedVariables: ForgeTestReport
+Core.lua
