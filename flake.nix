@@ -24,6 +24,7 @@
       };
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
+          forgePackage
           python
           python.pkgs.pytest
           python.pkgs.setuptools
@@ -38,7 +39,8 @@
         ];
         shellHook = ''
           export PYTHONPATH="$PWD/src''${PYTHONPATH:+:$PYTHONPATH}"
-          echo "Addon Forge — run: python -m addon_forge.cli --help"
+          forge() { python -m addon_forge.cli "$@"; }
+          echo "Addon Forge — run: forge --help"
         '';
       };
       nixosModules.default = { config, lib, pkgs, ... }:
