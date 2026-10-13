@@ -4,6 +4,7 @@ ForgeTestBridge = ForgeTestBridge or {}
 local Bridge = ForgeTestBridge
 Bridge.tests = Bridge.tests or {}
 Bridge.errors = Bridge.errors or {}
+Bridge.version = 2
 
 local function stringify(value)
     if type(value) == "string" then return value end
