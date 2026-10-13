@@ -1,6 +1,12 @@
 # Purpose-built, disposable local developer VM. Do not expose to untrusted networks.
 { lib, pkgs, ... }: {
   system.stateVersion = "26.05";
+  # These settings make the full NixOS configuration evaluable as a bootable
+  # system. The QEMU VM variant supplies its own ephemeral root filesystem.
+  # /dev/vda is the intended target when installing this as a standalone image;
+  # disk-image production still needs a partitioning/install module.
+  fileSystems."/" = { device = "/dev/vda1"; fsType = "ext4"; };
+  boot.loader.grub.devices = [ "/dev/vda" ];
   networking.hostName = "forge-vm";
   networking.networkmanager.enable = true;
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
