@@ -151,3 +151,44 @@ def test_existing_copy_requires_explicit_adoption(tmp_path, monkeypatch):
         realm.setup(source, target, checkout, "deDE",
                     tmp_path / "forge.local.toml", approve=True)
     assert not checkout.exists()
+
+def test_existing_test_copy_no_source_plan_is_read_only(tmp_path, monkeypatch):
+    _, target, checkout = fixture_paths(tmp_path)
+    target.mkdir()
+    (target / "Wow.exe").touch()
+    monkeypatch.setattr(realm, "check_tools", lambda: pytest.fail("No Docker in plan"))
+    realm.setup(None, target, checkout, "deDE",
+                tmp_path / "forge.local.toml", adopt_existing=True)
+    assert not (target / realm.MARKER).exists()
+    assert not checkout.exists()
+
+
+def test_missing_test_client_requires_original_source(tmp_path):
+    with pytest.raises(ValueError, match="--source-wow"):
+        realm.paths(None, tmp_path / "nonexistent-client", tmp_path / "azerothcore")
+
+
+def test_existing_test_copy_without_source_is_adoptable(tmp_path):
+    _, target, checkout = fixture_paths(tmp_path)
+    target.mkdir()
+    (target / "Wow.exe").touch()
+    (target / "WTF").mkdir()
+    (target / "WTF" / "Config.wtf").write_text("old account settings")
+    source, test, selected_realm = realm.paths(None, target, checkout)
+    assert source is None and test == target and selected_realm == checkout
+    realm.adopt_existing_test_copy(None, target)
+    assert (target / realm.MARKER).exists()
+    assert not (target / "WTF").exists()
+    assert (target / ".forge-original-WTF-backup" / "Config.wtf").read_text() == "old account settings"
+    assert realm.verify_test_copy(target, None)
+
+
+def test_no_source_requires_explicit_adoption_before_any_clone(tmp_path, monkeypatch):
+    _, target, checkout = fixture_paths(tmp_path)
+    target.mkdir()
+    (target / "Wow.exe").touch()
+    monkeypatch.setattr(realm, "check_tools", lambda: None)
+    with pytest.raises(RuntimeError, match="--adopt-existing-test-wow"):
+        realm.setup(None, target, checkout, "deDE",
+                    tmp_path / "forge.local.toml", approve=True)
+    assert not checkout.exists()
