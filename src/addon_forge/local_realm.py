@@ -82,7 +82,8 @@ def adopt_existing_test_copy(source: Path, target: Path) -> None:
     Never remove copied account data. Move the copied WTF directory aside so
     the new test client does not reuse existing Rising Gods credentials.
     """
-    if verify_test_copy(target, source):
+    if (target / MARKER).is_file():
+        verify_test_copy(target, source)
         print(f"Reusing previously registered Forge test client: {target}")
         return
     if not target.is_dir() or target.is_symlink() or (
