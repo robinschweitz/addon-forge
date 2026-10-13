@@ -17,6 +17,18 @@ The installation requires **Linux or WSL2** with Nix, hcloud, and SSH.
 The cloud realm does **not** run a WoW client, offer GPU/X11 automation or
 expose public game ports. Review CI and disk prerequisites before installing.
 
+## Complete Windows/Linux ↔ Hetzner workflow (experimental)
+
+See [end-to-end setup](docs/end-to-end.md) for a secure **SSH-only** connection
+between local WoW (Windows native or Linux/Wine) and a cloud NixOS AzerothCore
+realm. The commands `forge realmlist --locale enUS` and
+`forge tunnel YOUR_HETZNER_IP` configure backed-up local client settings and
+forward login/world ports over SSH without opening public game ports. Remote
+database realmlist settings must also point to loopback; see the guide.
+
+Live Hetzner NixOS deployment and a full graphical WoW login have **not yet
+been validated**; automated unit/NixOS CI checks do not replace an in-game run.
+
 ## NixOS all-in-one test VM (experimental)
 
 A full local test appliance (Xfce/X11, Wine, Forge CLI, systemd-managed AzerothCore) is now described in [docs/nixos-vm.md](docs/nixos-vm.md). On a Nix-capable Linux host:
