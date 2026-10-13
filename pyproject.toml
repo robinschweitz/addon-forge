@@ -12,7 +12,7 @@ license = { text = "MIT" }
 dependencies = []
 
 [project.optional-dependencies]
-windows = ["Pillow>=10"]
+windows = ["Pillow>=10", "keyring>=25"]
 
 [project.scripts]
 forge = "addon_forge.cli:main"
