@@ -22,7 +22,11 @@ def make_parser():
     dep.add_argument("addon", type=Path)
     client = sub.add_parser("client")
     client_sub = client.add_subparsers(dest="action", required=True)
-    client_sub.add_parser("start")
+    start_client = client_sub.add_parser("start")
+    start_client.add_argument("--login", action="store_true", help="Launch new test WoW and log in using Windows vault credentials")
+    login = client_sub.add_parser("login", help="Manage Windows-only automated test login")
+    login.add_argument("mode", choices=["save", "calibrate"])
+    login.add_argument("--account", help="Test-only realm account name for save mode")
     video = client_sub.add_parser("windowed", help="Configure test client video settings while WoW is closed")
     video.add_argument("--resolution", default="1280x720")
     cmd = client_sub.add_parser("command")
@@ -142,6 +146,15 @@ def main(argv=None) -> int:
             from .deploy import deploy
             print(deploy(args.addon, cfg.wow_dir))
             return 0
+        if args.command == "client" and args.action == "login":
+            from .win_login import calibrate, save_credentials
+            if args.mode == "save":
+                if not args.account:
+                    raise ValueError("Supply --account for client login save")
+                save_credentials(cfg.wow_dir, args.account)
+            else:
+                print(calibrate(cfg))
+            return 0
         if args.command == "client" and args.action == "windowed":
             from .client_settings import configure_windowed
             path, backup = configure_windowed(cfg.wow_dir, resolution=args.resolution)
@@ -152,7 +165,11 @@ def main(argv=None) -> int:
             from .client import ClientController
             client = ClientController(cfg)
             if args.action == "start":
-                print(f"Client started, PID: {client.start()}")
+                if args.login:
+                    from .win_login import start_and_login
+                    print(f"Client login initiated, PID: {start_and_login(cfg)}")
+                else:
+                    print(f"Client started, PID: {client.start()}")
             elif args.action == "command":
                 client.command(args.text)
                 print("Command sent; game receipt is not guaranteed")
