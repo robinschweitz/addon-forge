@@ -44,7 +44,7 @@ def block_unknown_database_volume(realm: Path) -> None:
         raise RuntimeError("AzerothCore MySQL uses a non-volume data mount. "
                            "Configure its existing credentials manually before setup.")
     volume_key = mount.get("source")
-    volume = definition.get("volumes", {}).get(volume_key, {}).get("name")
+    volume = definition.get("volumes", {}).get(volume_key, {}).get("name", volume_key)
     if not isinstance(volume, str) or not volume:
         raise RuntimeError("Could not identify the existing database volume safely.")
     # docker volume inspect exits 1 when a volume doesn't exist; distinguish
