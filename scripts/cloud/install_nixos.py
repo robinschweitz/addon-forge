@@ -38,6 +38,10 @@ def verify_boot_disk(host):
                            "sda; found: " + ", ".join(disks))
     return disks
 
+def supported_install_platform():
+    return os.name == "posix"
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Install NixOS, wiping /dev/sda")
     parser.add_argument("action", choices=["check", "install"])
@@ -48,7 +52,7 @@ def main(argv=None):
     parser.add_argument("--confirm-wipe-disk", choices=[BOOT_DISK])
     args = parser.parse_args(argv)
     try:
-        if os.name != "posix":
+        if not supported_install_platform():
             raise RuntimeError("Run this command from Linux or WSL2 with Nix installed")
         for executable in ("hcloud", "ssh", "nix"):
             if shutil.which(executable) is None:
