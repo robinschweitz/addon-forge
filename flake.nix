@@ -53,7 +53,8 @@
       };
       # Validate the exact Compose configuration emitted by the NixOS module.
       # No Docker daemon, game files or OCI downloads are necessary.
-      checks.${system}.realm-compose = pkgs.runCommand "forge-realm-compose-check" {
+      checks.${system} = {
+        realm-compose = pkgs.runCommand "forge-realm-compose-check" {
         nativeBuildInputs = [ pkgs.docker-compose pkgs.python313 ];
       } ''
         cat > credentials.env <<'EOF'
@@ -68,7 +69,7 @@
       # Boots a small NixOS machine with the actual Addon Forge module.
       # The realm unit is present, but starting heavy external OCI images is
       # deliberately excluded from this deterministic PR smoke test.
-      checks.${system}.vm-boot = pkgs.testers.runNixOSTest {
+        vm-boot = pkgs.testers.runNixOSTest {
         name = "forge-vm-boot";
         nodes.machine = { lib, ... }: {
           imports = [ self.nixosModules.default ];
@@ -92,7 +93,7 @@
           machine.succeed("systemctl is-enabled docker.service")
         '';
       };
-      checks.${system}.python-tests = pkgs.runCommand "forge-python-tests" {
+        python-tests = pkgs.runCommand "forge-python-tests" {
         nativeBuildInputs = [ python python.pkgs.pytest ];
       } ''
         cd ${self}
@@ -100,5 +101,6 @@
         pytest -q
         touch $out
       '';
+      };
     };
 }
