@@ -18,9 +18,18 @@
       };
     in {
       packages.${system}.default = forgePackage;
-      apps.${system}.default = {
-        type = "app";
-        program = "${forgePackage}/bin/forge";
+      apps.${system} = {
+        default = {
+          type = "app";
+          program = "${forgePackage}/bin/forge";
+        };
+        # One-command, non-privileged setup entry point (Nix is available on the host).
+        setup = {
+          type = "app";
+          program = "${pkgs.writeShellScript "forge-setup" ''
+            exec ${pkgs.python313}/bin/python3 ${self}/scripts/setup_wizard.py --flake ${self} "$@"
+          ''}";
+        };
       };
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
