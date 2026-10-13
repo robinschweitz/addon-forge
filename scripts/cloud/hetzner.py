@@ -63,6 +63,46 @@ def validate_reusable_firewall(name, source):
             "Inspect it using 'hcloud firewall describe' and resolve manually."
         )
 
+def check_type_availability(server):
+    """Consult Hetzner's live per-location availability indicator.
+
+    A True value is only a hint, not a guarantee of successful placement.
+    A False value is a useful reason to stop before trying to create a server.
+    """
+    kind = server["type"]
+    location = server["location"]
+    data = json.loads(execute(["server-type", "describe", kind, "-o", "json"]))
+    details = data.get("server_type", data) if isinstance(data, dict) else {}
+    locations = details.get("locations")
+    if not isinstance(locations, list):
+        print("Warning: hcloud did not expose per-location availability; "
+              "use 'hcloud server-type describe' to inspect manually.", file=sys.stderr)
+        return
+    for row in locations:
+        place = row.get("location") if isinstance(row, dict) else None
+        place_name = place.get("name") if isinstance(place, dict) else place
+        if place_name != location:
+            continue
+        if row.get("available") is False:
+            raise RuntimeError(
+                f"Hetzner currently marks {kind} unavailable in {location}. "
+                "See 'hcloud server-type list -o "
+                "columns=name,location,location_available,location_recommended' "
+                "for alternatives. No server was created."
+            )
+        if row.get("available") is True:
+            print(f"Hetzner lists {kind} in {location} as available "
+                  "(not a capacity guarantee).")
+        else:
+            print(f"Warning: availability of {kind} in {location} "
+                  "was not provided by hcloud.")
+        return
+    raise RuntimeError(
+        f"Hetzner does not list {kind} as supported in {location}. "
+        "Choose a listed server type and location."
+    )
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description="Provision an SSH-restricted, billable Hetzner bootstrap server")
     p.add_argument("action", choices=("plan", "check", "apply", "status"))
@@ -89,6 +129,7 @@ def main(argv=None):
             print(execute(["server","describe",name,"-o","json"]))
             return 0
         execute(["ssh-key","describe",server["ssh_key"],"-o","json"])
+        check_type_availability(server)
         if find_resource("server", name):
             raise RuntimeError(
                 f"Server {name!r} already exists. Check 'hcloud server list' "
