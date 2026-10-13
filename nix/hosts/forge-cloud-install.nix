@@ -12,7 +12,6 @@
   boot.initrd.availableKernelModules = [ "ahci" "virtio_pci" "virtio_scsi" "sd_mod" "ext4" ];
   boot.loader.grub = {
     enable = true;
-    devices = [ "/dev/sda" ];
     efiSupport = false; # Hetzner x86 cloud's legacy BIOS boot path.
   };
   boot.kernelParams = [ "console=ttyS0" ];
