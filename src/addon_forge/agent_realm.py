@@ -80,13 +80,40 @@ def scenario_plan(scenario: str, realm: Path) -> dict:
     }
 
 
-def _go_version() -> None:
+def _go_environment() -> dict[str, str]:
+    """Isolate Go's toolchain selection from the user's global settings.
+
+    Go >=1.21 can automatically select the minimum version in the module's
+    go.mod. Keep the global Go install and go env settings untouched.
+    """
+    return {**os.environ, "GOTOOLCHAIN": "auto", "GOWORK": "off"}
+
+
+def _go_version(module: Path) -> None:
     if not shutil.which("go"):
-        raise RuntimeError("Go 1.26+ is required for official AzerothGhost e2e; install Go first.")
-    result = subprocess.run(["go", "version"], capture_output=True, text=True, check=False)
+        raise RuntimeError("Go 1.21+ is required to use the automatic Go 1.26+ toolchain.")
+    if not (module / "go.mod").is_file():
+        raise RuntimeError(f"Expected Go module at {module}")
+    try:
+        # Run INSIDE the module: plain 'go version' in the Forge root sees only
+        # the old globally installed Go 1.25 even when go.mod asks for 1.26.
+        result = subprocess.run(
+            ["go", "version"], cwd=module, env=_go_environment(),
+            capture_output=True, text=True, check=False, timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Timed out downloading/selecting Go 1.26 toolchain. "
+                           "Check internet access and GOPROXY.") from None
+    except OSError as exc:
+        raise RuntimeError("Could not run Go; check the Go installation.") from exc
     m = re.search(r"\bgo(\d+)\.(\d+)(?:\.\d+)?\b", result.stdout)
     if result.returncode or not m or tuple(map(int, m.groups())) < MIN_GO_VERSION:
-        raise RuntimeError("Official AzerothCore e2e requires Go 1.26 or newer.")
+        raise RuntimeError(
+            "AzerothGhost requires Go 1.26+. Go 1.25.5 can switch automatically "
+            "with GOTOOLCHAIN=auto when run from the e2e Go module; "
+            "check 'go env GOPROXY GOSUMDB', connectivity and module's go.mod. "
+            "No system-wide Go update is needed."
+        )
 
 
 def _compose_environment(realm: Path) -> dict:
@@ -144,7 +171,7 @@ def _preflight(realm: Path) -> tuple[str, int]:
             "Fixture runner requires the random root password originally generated "
             "by Forge. Refusing to interpret other database passwords in DSNs."
         )
-    _go_version()
+    _go_version(realm / "e2e")
     return password, db_port
 
 
@@ -156,7 +183,7 @@ def run_realm_smoke(realm: Path, *, scenario: str,
         return {"status": "plan_only", **plan}
     password, port = _preflight(realm)
     # Never pass credentials in a process command line or return/log them.
-    env = dict(os.environ)
+    env = _go_environment()
     env["E2E_AUTH_ADDR"] = "127.0.0.1:3724"
     for prefix, schema in (
         ("E2E_AUTH_DSN", "acore_auth"),
