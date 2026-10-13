@@ -116,3 +116,38 @@ def test_symlinks_refused_before_copy(tmp_path):
     with pytest.raises(ValueError, match="link"):
         realm.make_test_copy(source, target)
     assert not target.exists()
+
+def test_adopt_existing_copy_preserves_original_and_moves_only_test_wtf(tmp_path):
+    source, target, _ = fixture_paths(tmp_path)
+    target.mkdir()
+    (target / "Wow.exe").write_bytes(b"copied-game")
+    (target / "WTF").mkdir()
+    (target / "WTF" / "Config.wtf").write_text("Rising Gods configuration")
+    realm.adopt_existing_test_copy(source, target)
+    assert (target / realm.MARKER).is_file()
+    assert not (target / "WTF").exists()
+    assert (target / ".forge-original-WTF-backup" / "Config.wtf").read_text() == "Rising Gods configuration"
+    assert (source / "WTF" / "credentials.wtf").read_text() == "private"
+    realm.adopt_existing_test_copy(source, target)
+
+
+def test_adoption_refuses_wtf_backup_collision(tmp_path):
+    source, target, _ = fixture_paths(tmp_path)
+    target.mkdir()
+    (target / "Wow.exe").touch()
+    (target / "WTF").mkdir()
+    (target / ".forge-original-WTF-backup").mkdir()
+    with pytest.raises(RuntimeError, match="both WTF"):
+        realm.adopt_existing_test_copy(source, target)
+    assert not (target / realm.MARKER).exists()
+
+
+def test_existing_copy_requires_explicit_adoption(tmp_path, monkeypatch):
+    source, target, checkout = fixture_paths(tmp_path)
+    target.mkdir()
+    (target / "Wow.exe").touch()
+    monkeypatch.setattr(realm, "check_tools", lambda: None)
+    with pytest.raises(RuntimeError, match="--adopt-existing-test-wow"):
+        realm.setup(source, target, checkout, "deDE",
+                    tmp_path / "forge.local.toml", approve=True)
+    assert not checkout.exists()
