@@ -271,6 +271,8 @@ def ensure_local_env(realm: Path, *, db_port: int | None = None,
     if db_port is not None and not approve_port_change:
         raise ValueError("Using --db-port needs --approve-port-change")
     external_db = db_port if db_port is not None else LOCAL_PORTS["DOCKER_DB_EXTERNAL_PORT"]
+    from .db_guard import block_unknown_database_volume
+    block_unknown_database_volume(realm)
     password = secrets.token_hex(32)
     content = "# Local Addon Forge realm only. Keep private.\n"
     content += f"DOCKER_DB_ROOT_PASSWORD={password}\n"
@@ -334,6 +336,8 @@ def start_existing(realm: Path, *, db_port: int | None = None,
                      approve_port_change=approve_port_change)
     check_compose(realm)
     print("Resuming existing images and volumes; no rebuild or data deletion.")
+    from .db_guard import verify_database_healthy
+    verify_database_healthy(realm)
     _run(["docker", "compose", "up", "-d", "--no-build"], cwd=realm)
     _run(["docker", "compose", "ps"], cwd=realm)
     print("Realm containers requested; check logs if worldserver is not running.")
@@ -443,7 +447,12 @@ def setup(source: Path | None, target: Path, realm: Path, locale: str | None,
             raise RuntimeError(f"Run setup from Addon Forge repository root: {addon}")
         print(f"Installed test addon: {deploy(addon, target)}")
     print("Building and starting the local AzerothCore containers...")
-    _run(["docker", "compose", "up", "-d", "--build"], cwd=realm)
+    # Build the images without starting dependent services. Validate the
+    # persisted database credentials before allowing importer/worldserver startup.
+    _run(["docker", "compose", "build"], cwd=realm)
+    from .db_guard import verify_database_healthy
+    verify_database_healthy(realm)
+    _run(["docker", "compose", "up", "-d", "--no-build"], cwd=realm)
     print("Docker Compose started. Database/client-data imports may still be running.")
     _run(["docker", "compose", "ps"], cwd=realm)
     print("Next: forge local-realm status; when ac-worldserver is running, "
