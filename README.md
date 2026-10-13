@@ -6,6 +6,20 @@ This repository contains a real, runnable Python CLI, a WoW 3.3.5a test companio
 
 **Status (v0.1.0):** Python tests can run on any Linux workstation. The Wine + WoW + AzerothCore integration path is implemented but **has not been validated on a running game client**. The graphical IDE, deterministic combat fixtures and fully hands-off login are future milestones. Never interpret static checks alone as proof an addon works in game.
 
+## NixOS all-in-one test VM (experimental)
+
+A full local test appliance (Xfce/X11, Wine, Forge CLI, systemd-managed AzerothCore) is now described in [docs/nixos-vm.md](docs/nixos-vm.md). On a Nix-capable Linux host:
+
+```bash
+git clone https://github.com/robinschweitz/addon-forge.git
+cd addon-forge
+nix flake lock
+nix build .#nixosConfigurations.forge-vm.config.system.build.vm
+./result/bin/run-forge-vm-vm
+```
+
+The realm is provisioned on VM boot with generated database credentials. You must still provide your own authorized 3.3.5a game client, create a test account, and verify Wine graphics. This VM and its Nix evaluation are not yet tested on a live NixOS/KVM host. OCI images currently use mutable upstream tags.
+
 ## Quick start on NixOS / Linux with Nix
 
 ```bash

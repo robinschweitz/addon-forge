@@ -44,31 +44,11 @@
           echo "Addon Forge — run: forge --help"
         '';
       };
-      nixosModules.default = { config, lib, pkgs, ... }:
-        let cfg = config.services.addon-forge;
-        in {
-          options.services.addon-forge = {
-            enable = lib.mkEnableOption "Addon Forge development workstation dependencies";
-            user = lib.mkOption {
-              type = lib.types.str;
-              description = "Existing non-root user that may operate the local Docker test realm";
-            };
-          };
-          config = lib.mkIf cfg.enable {
-            # Workstation prerequisites only; does not download proprietary game files.
-            virtualisation.docker.enable = true;
-            users.users.${cfg.user}.extraGroups = [ "docker" ];
-            environment.systemPackages = with pkgs; [
-              forgePackage
-              git
-              lua5_1
-              docker-compose
-              xdotool
-              imagemagick
-              wineWowPackages.stable
-            ];
-          };
-        };
+      nixosModules.default = import ./nix/modules/workstation.nix { inherit forgePackage; };
+      nixosConfigurations.forge-vm = nixpkgs.lib.nixosSystem {
+        inherit system;
+        modules = [ self.nixosModules.default ./nix/hosts/forge-vm.nix ];
+      };
       checks.${system}.python-tests = pkgs.runCommand "forge-python-tests" {
         nativeBuildInputs = [ python python.pkgs.pytest ];
       } ''
