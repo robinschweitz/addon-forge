@@ -30,6 +30,12 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False) -> dict:
         return {"status": "failed", "error": "Static validation failed",
                 "diagnostics": [asdict(x) for x in errors]}
     deploy(addon, cfg.wow_dir)
+    # Reinstall the matching bridge before a plan run. It has a versioned
+    # reporting contract and cannot be substituted by an older copy.
+    bridge_src = Path(__file__).resolve().parents[2] / "wow" / "ForgeTestBridge"
+    if not bridge_src.is_dir():
+        raise RuntimeError("ForgeTestBridge source directory is missing")
+    deploy(bridge_src, cfg.wow_dir)
     evidence_dir = addon.parent / ".forge-runs"
     # Newly deployed addons need a reload or restart and must be enabled. Stop
     # instead of treating an unregistered addon as success.
@@ -50,6 +56,10 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False) -> dict:
     if not isinstance(report, dict):
         return {"status": "infrastructure_error", **preview,
                 "error": "Missing correlated test report"}
+    if report.get("bridgeVersion") != 2 or report.get("schemaVersion") != 2:
+        return {"status": "infrastructure_error", **preview, "test": test,
+                "error": "Old ForgeTestBridge loaded; it lacks v2 telemetry. "
+                         "Close and restart the test WoW client after deploying the bridge."}
     independent = evaluate(plan, report)
     status = independent["status"]
     return {"status": status, **preview, "test": test, "independent": independent,
