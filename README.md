@@ -17,6 +17,12 @@ The installation requires **Linux or WSL2** with Nix, hcloud, and SSH.
 The cloud realm does **not** run a WoW client, offer GPU/X11 automation or
 expose public game ports. Review CI and disk prerequisites before installing.
 
+## Native Windows graphical WoW testing (experimental)
+
+Windows 10/11 can use a **native WoW 3.3.5a client without Wine/WSL** for graphical smoke tests. See [Windows setup and limitations](docs/windows-testing.md). Install from Windows PowerShell with `py -3.11 -m pip install -e ".[windows]"`, configure `[client] wow_dir` in `forge.toml`, then use the existing `forge deploy`, `forge client start`, `forge client screenshot`, and `forge test` commands.
+
+The controller verifies the WoW executable path and foreground window, restricts commands to `/forge` and `/reload`, and reads the same ForgeTestBridge SavedVariables results as Linux/Wine. **Real-client Windows integration has not yet been validated**; Windows CI tests use a mocked Win32 UI.
+
 ## Complete Windows/Linux ↔ Hetzner workflow (experimental)
 
 See [end-to-end setup](docs/end-to-end.md) for a secure **SSH-only** connection
