@@ -1,25 +1,63 @@
-# Cloud realm bootstrap (preview)
+# Hetzner Cloud Addon Forge realm — NixOS installation (experimental)
 
-The Hetzner CLI creates only an SSH-firewalled **Ubuntu bootstrap server**. It does not yet install NixOS, provision AzerothCore, or create a remote graphical client. Do not treat this as a turnkey cloud deployment.
+This installs a **headless** x86_64 NixOS server with Docker + AzerothCore, not a GPU-backed WoW client. WoW requires a separate GPU-capable worker; the realm binds only to localhost. No public game ports are opened.
 
-1. In Hetzner Cloud Console, create a project, upload an SSH public key and generate a project API token.
-2. Keep the token on your machine using the official `hcloud` CLI context or `HCLOUD_TOKEN`. Never put secrets in Git or chat.
-3. Run:
+## Preparation
+
+1. Create a fresh **disposable x86_64** Ubuntu 24.04 Hetzner Cloud server using `python scripts/cloud/hetzner.py apply --approve-cost` from the feature branch. Select an available type/location and check its **live price** first. A Hetzner server accrues charges until deleted (even while powered off).
+2. Preserve the project-level `addon-forge-realm-ssh` firewall: it must allow inbound SSH (TCP 22) **only from your public IPv4 /32**. Never expose TCP 3306, 3724 or 8085 publicly.
+3. On **Linux or WSL2 Ubuntu** (not native Windows PowerShell), install Nix with flakes, `hcloud`, OpenSSH, Python >=3.11 and git; import the same Hetzner CLI context in **WSL**, and make your SSH **private key locally available** to OpenSSH or ssh-agent. Never put your private key in Git, the cloud config or chat.
+4. Check out the feature branch and **update the Nix lock file** to lock the added `disko` input. The lockfile must be committed to the repository before a reproducible release:
 
 ```bash
-cp cloud/hetzner.toml.example cloud/hetzner.toml
-# Replace the SSH key and SSH source IP; verify server availability and live cost.
-python3 scripts/cloud/hetzner.py plan
-python3 scripts/cloud/hetzner.py check
-python3 scripts/cloud/hetzner.py apply --approve-cost
+git switch feat/hetzner-cloud-provisioning
+nix flake lock
+nix eval --raw .#nixosConfigurations.forge-cloud.config.system.build.toplevel.drvPath
 ```
 
-**Apply creates billable resources.** The script first creates a firewall allowing incoming TCP/22 only from one specified public IP, then attaches that firewall when creating the server. The AzerothCore realm's own TCP 3724/8085 ports remain local-only. Delete unused resources in Hetzner Console to stop charges; also check separate volumes and backups.
+The `disko` dependency is not yet locked in the PR. Until the updated lockfile is committed, the cloud installation is a preview; don't use it on a non-disposable host.
 
-## NixOS installation, not automatic yet
+## Preflight (read-only)
 
-Once this disposable server is reachable via SSH, install NixOS with a separately audited disk layout and SSH authorized keys using [nixos-anywhere](https://github.com/nix-community/nixos-anywhere). This is destructive and may wipe the disk. This repository exports `nixosModules.cloudRealm` to be imported **alongside** `nixosModules.default` from your own host configuration. It enables the headless AzerothCore realm and disables Wine/X11.
+Run from the repository root under WSL2/Linux, substituting a **public** key you own:
 
-Do not run `nixos-anywhere` until the exact boot device, filesystem, bootloader, SSH keys and recovery plan are verified on a disposable instance. Live cloud installation has not been tested.
+```bash
+python3 scripts/cloud/install_nixos.py check --public-key ~/.ssh/id_ed25519.pub
+```
 
-GPU game testing requires a separate Linux worker; the headless cloud realm has neither a WoW client nor graphics acceleration.
+This checks the project context, correct server name/ID, SSH access, and that the remote machine has **exactly one block disk named /dev/sda**. The installer intentionally refuses any other layout. Confirm the server ID printed by the check against `hcloud server list`. This operation does not modify the server.
+
+## Destructive install — fresh server only
+
+**Warning: `install` irreversibly repartitions and formats /dev/sda**, deleting Ubuntu and all data on it. Do this ONLY on a disposable server after verifying its ID and SSH key. You must supply both confirmation arguments:
+
+```bash
+python3 scripts/cloud/install_nixos.py install \
+  --public-key ~/.ssh/id_ed25519.pub \
+  --confirm-server-id YOUR_NEW_SERVER_ID \
+  --confirm-wipe-disk /dev/sda
+```
+
+The installer runs `nix run github:nix-community/nixos-anywhere -- --flake .#forge-cloud --target-host root@SERVER_IP --extra-files ...`. It stages only your **public** SSH key in the new root account; no secrets are placed into the Nix store. NixOS enables key-only SSH and Docker; the Forge realm service starts at boot.
+
+## Validate the deployed server
+
+After the installer reboots the machine, SSH to its public IP from your trusted IP:
+
+```bash
+ssh root@SERVER_IP
+systemctl status addon-forge-realm --no-pager
+journalctl -u addon-forge-realm -n 100 --no-pager
+forge-realm status
+forge-realm logs ac-worldserver
+docker ps --format 'table {{.Names}}\t{{.Status}}'
+```
+
+A successful NixOS installation is **not** the same as proof that AzerothCore has initialized, the data images are valid, or a client can log in. Pulling several upstream OCI images and database imports can take many minutes. The Compose images currently use mutable tags and have **not been validated end to end** on a real running Hetzner server. First-boot failure diagnostics are in `journalctl` and `forge-realm logs`.
+
+## Limits and ongoing operations
+
+- Hetzner server is **not** the graphical WoW test worker. Real client/Wine/automated in-game testing still needs a separate machine and account.
+- Game ports 3724/8085 are bound to 127.0.0.1, so a remote WoW client cannot directly connect. Use an intentionally configured private tunnel / worker rather than opening public firewall ports.
+- Docker named volumes and realm state persist on the server disk; they are **destroyed** when you delete the server unless you explicitly back them up. `/var/lib/addon-forge-realm/.env` is generated on first start and must be kept private.
+- For ordinary updates, deploy a new tested NixOS closure instead of reinstalling the disk. Use `nixos-rebuild` with a suitable host flake or SSH deploy process.
