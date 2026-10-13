@@ -192,3 +192,59 @@ def test_no_source_requires_explicit_adoption_before_any_clone(tmp_path, monkeyp
         realm.setup(None, target, checkout, "deDE",
                     tmp_path / "forge.local.toml", approve=True)
     assert not checkout.exists()
+
+def test_existing_db_port_can_change_only_with_approval(tmp_path):
+    root = tmp_path / "ac"
+    root.mkdir()
+    realm.ensure_local_env(root)
+    before = (root / ".env").read_text()
+    with pytest.raises(ValueError, match="approve-port-change"):
+        realm.ensure_local_env(root, db_port=13306)
+    assert (root / ".env").read_text() == before
+    realm.ensure_local_env(root, db_port=13306, approve_port_change=True)
+    after = (root / ".env").read_text()
+    assert "DOCKER_DB_EXTERNAL_PORT=127.0.0.1:13306" in after
+    assert before.split("DOCKER_DB_ROOT_PASSWORD=")[1].splitlines()[0] == after.split("DOCKER_DB_ROOT_PASSWORD=")[1].splitlines()[0]
+
+
+def test_existing_custom_env_not_overwritten(tmp_path):
+    root = tmp_path / "ac"
+    root.mkdir()
+    realm.ensure_local_env(root)
+    path = root / ".env"
+    content = path.read_text().replace("# Local Addon Forge realm only. Keep private.", "# user-managed")
+    path.write_text(content)
+    with pytest.raises(RuntimeError, match="not created by Addon Forge"):
+        realm.ensure_local_env(root, db_port=13306, approve_port_change=True)
+    assert path.read_text() == content
+
+
+def test_resolved_compose_accepts_alternate_local_db_host_port(tmp_path, monkeypatch):
+    root = tmp_path / "ac"
+    root.mkdir()
+    realm.ensure_local_env(root, db_port=13306, approve_port_change=True)
+    services = {}
+    for name, port in realm.EXPECTED_PORTS:
+        services.setdefault(name, {"ports": []})["ports"].append({
+            "target": port, "published": str(13306 if name == "ac-database" else port),
+            "host_ip": "127.0.0.1"
+        })
+    password = (root / ".env").read_text().split("DOCKER_DB_ROOT_PASSWORD=")[1].splitlines()[0]
+    services["ac-database"]["environment"] = {"MYSQL_ROOT_PASSWORD": password}
+    monkeypatch.setattr(realm, "_run", lambda *a, **kw:
+                        SimpleNamespace(stdout=json.dumps({"services": services})))
+    realm.check_compose(root)
+
+
+def test_resume_uses_no_build_and_preserves_volumes(tmp_path, monkeypatch):
+    root = tmp_path / "ac"
+    root.mkdir()
+    realm.ensure_local_env(root)
+    calls = []
+    monkeypatch.setattr(realm, "verify_azerothcore_checkout", lambda path: True)
+    monkeypatch.setattr(realm, "check_tools", lambda: None)
+    monkeypatch.setattr(realm, "check_compose", lambda path: None)
+    monkeypatch.setattr(realm, "_run", lambda command, **kw: calls.append(command))
+    realm.start_existing(root, db_port=13306, approve_port_change=True)
+    assert ["docker", "compose", "up", "-d", "--no-build"] in calls
+    assert not any("--build" in cmd for cmd in calls)
