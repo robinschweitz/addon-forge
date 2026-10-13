@@ -184,6 +184,38 @@ If the first test returns `infrastructure_error`, try running
 `WTF/Account/*/SavedVariables/ForgeTestBridge.lua`. A manually successful
 slash command but failing automated run indicates input/control issues.
 
+## Keep the test client in a small window
+
+**Close WoW completely first** so its shutdown does not overwrite the video
+configuration. Then, in `F:\addon-forge`:
+
+```powershell
+.\.venv\Scripts\forge.exe --config forge.local.toml client windowed --resolution 1280x720
+.\.venv\Scripts\forge.exe --config forge.local.toml client start
+```
+
+This only changes the **separate test client's** `WTF/Config.wtf`.
+It sets `gxWindow=1`, `gxMaximize=0`, and `gxResolution=1280x720`,
+preserving the original file as `Config.wtf.forge-backup`. Do not run
+the configuration command while WoW is running. WoW may still adjust window
+geometry based on its UI settings; if so, select Windowed in Video Options.
+
+## Troubleshoot missing Forge SavedVariables report
+
+A functioning `/reload` by itself does not prove the
+`/forge run` handler is registered or that its SavedVariables were
+written. With both addons enabled and the character in-world, **type**
+`/forge run smoke manual123` manually. You should see the assertion count.
+Then type `/reload`, and in PowerShell:
+
+```powershell
+Get-ChildItem "F:\Wow\wow_second\WTF\Account" -Recurse -Filter ForgeTestBridge.lua | Select-Object FullName,LastWriteTime
+```
+
+Forge now includes `report_files_found`, available run IDs and parse
+errors in `infrastructure_error` responses. Those diagnostics distinguish
+an unloaded addon from stale/missing report files or parser problems.
+
 ## Preventing a reused MySQL volume/password mismatch
 
 AzerothCore's MySQL image only uses `DOCKER_DB_ROOT_PASSWORD` to initialize a
