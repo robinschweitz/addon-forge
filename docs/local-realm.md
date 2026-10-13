@@ -216,6 +216,39 @@ Forge now includes `report_files_found`, available run IDs and parse
 errors in `infrastructure_error` responses. Those diagnostics distinguish
 an unloaded addon from stale/missing report files or parser problems.
 
+## AI realm fixture API (experimental)
+
+Full autonomous orchestration of persistent accounts/characters, parties, combat,
+quests, UI interactions and independent success criteria is a **roadmap goal**,
+not yet delivered.
+
+First building block: Forge exposes a fixed set of upstream
+AzerothCore/AzerothGhost protocol tests. Preview (no changes):
+
+```powershell
+cd F:\addon-forge
+.\.venv\Scripts\forge.exe agent capabilities
+.\.venv\Scripts\forge.exe agent realm-fixture create-character --realm-dir "E:/wow-azeroth-core/azerothcore-wotlk"
+```
+
+On an explicitly disposable local realm, after reviewing the plan, append
+`--approve-fixtures` to execute. Fixed fixture names are
+`create-character`, `login-world`, and `teleport`. This invokes reviewed
+upstream test cases, **not arbitrary AI shell/SQL/GM commands**. Requirements:
+Go 1.26+, recent AzerothCore checkout with `e2e/go.mod`, running
+loopback-only Docker realm, Forge-created .env, and an *explicit* test-only
+worldserver `AC_WARDEN_ENABLED=0` environment override (required by
+the upstream harness; Forge never changes anti-cheat settings automatically).
+It may not be available in the user's current checkout.
+
+The upstream harness creates disposable account/character protocol fixtures
+and its own cleanup; they do **not** directly control a graphical WoW player.
+Next phase: persistent fixture sessions synchronized with actual WoW GUI,
+deterministic multiplayer/quests/combat, independently verified game-state
+and UI oracles, screenshots and bounded AI repair loops. This separate
+capability-based design prevents an AI from accidentally destroying saved
+players or accessing unrelated realms.
+
 ## Preventing a reused MySQL volume/password mismatch
 
 AzerothCore's MySQL image only uses `DOCKER_DB_ROOT_PASSWORD` to initialize a
