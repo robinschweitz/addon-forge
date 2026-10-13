@@ -44,6 +44,8 @@ def test_active_hcloud_context_accepted_without_env(monkeypatch, tmp_path):
     seen = []
     def fake_execute(argv, input_text=None):
         seen.append(argv)
+        if argv[:2] == ["server-type", "describe"]:
+            return '{"locations":[{"location":{"name":"fsn1"},"available":true}]}'
         if argv[:2] == ["ssh-key", "describe"]:
             return '{"name": "robin@DESKTOP-KRLA5G1"}'
         return '[]'
@@ -56,6 +58,8 @@ def test_existing_matching_firewall_is_reused(monkeypatch, tmp_path):
     commands = []
     def fake_execute(argv, input_text=None):
         commands.append(argv)
+        if argv[:2] == ["server-type", "describe"]:
+            return '{"locations":[{"location":{"name":"fsn1"},"available":true}]}'
         if argv[:2] == ["ssh-key", "describe"]:
             return '{}'
         if argv[:2] == ["server", "list"]:
@@ -74,6 +78,8 @@ def test_existing_matching_firewall_is_reused(monkeypatch, tmp_path):
 def test_unrelated_existing_firewall_is_not_reused(monkeypatch, tmp_path):
     monkeypatch.setattr(cloud.shutil, "which", lambda name: "hcloud")
     def fake_execute(argv, input_text=None):
+        if argv[:2] == ["server-type", "describe"]:
+            return '{"locations":[{"location":{"name":"fsn1"},"available":true}]}'
         if argv[:2] == ["ssh-key", "describe"]:
             return '{}'
         if argv[:2] == ["server", "list"]:
@@ -90,6 +96,8 @@ def test_failed_server_creation_explains_failure(monkeypatch, tmp_path, capsys):
     import subprocess
     monkeypatch.setattr(cloud.shutil, "which", lambda name: "hcloud")
     def fake_execute(argv, input_text=None):
+        if argv[:2] == ["server-type", "describe"]:
+            return '{"locations":[{"location":{"name":"fsn1"},"available":true}]}'
         if argv[:2] == ["ssh-key", "describe"]:
             return '{}'
         if argv[:2] in (["server", "list"], ["firewall", "list"]):
@@ -108,6 +116,8 @@ def test_unavailable_server_type_blocks_creation(monkeypatch, tmp_path, capsys):
     calls = []
     def fake_execute(argv, input_text=None):
         calls.append(argv)
+        if argv[:2] == ["server-type", "describe"]:
+            return '{"locations":[{"location":{"name":"fsn1"},"available":true}]}'
         if argv[:2] == ["ssh-key", "describe"]:
             return '{}'
         if argv[:2] == ["server-type", "describe"]:
@@ -121,6 +131,8 @@ def test_unavailable_server_type_blocks_creation(monkeypatch, tmp_path, capsys):
 def test_available_type_passes_existing_preflight(monkeypatch, tmp_path):
     monkeypatch.setattr(cloud.shutil, "which", lambda name: "hcloud")
     def fake_execute(argv, input_text=None):
+        if argv[:2] == ["server-type", "describe"]:
+            return '{"locations":[{"location":{"name":"fsn1"},"available":true}]}'
         if argv[:2] == ["ssh-key", "describe"]:
             return '{}'
         if argv[:2] == ["server-type", "describe"]:
