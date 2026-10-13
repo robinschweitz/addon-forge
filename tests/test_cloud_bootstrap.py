@@ -50,3 +50,55 @@ def test_active_hcloud_context_accepted_without_env(monkeypatch, tmp_path):
     monkeypatch.setattr(cloud, "execute", fake_execute)
     assert cloud.main(["check", "--config", str(config(tmp_path))]) == 0
     assert ["ssh-key", "describe", "developer", "-o", "json"] in seen
+
+def test_existing_matching_firewall_is_reused(monkeypatch, tmp_path):
+    monkeypatch.setattr(cloud.shutil, "which", lambda name: "hcloud")
+    commands = []
+    def fake_execute(argv, input_text=None):
+        commands.append(argv)
+        if argv[:2] == ["ssh-key", "describe"]:
+            return '{}'
+        if argv[:2] == ["server", "list"]:
+            return "[]"
+        if argv[:2] == ["firewall", "list"]:
+            return '[{"name":"addon-forge-realm-ssh"}]'
+        if argv[:2] == ["firewall", "describe"]:
+            return '{"name":"addon-forge-realm-ssh","rules":[{"direction":"in","protocol":"tcp","port":"22","source_ips":["1.1.1.1/32"]}],"applied_to":[]}'
+        if argv[:2] == ["server", "create"]:
+            return '{"id":12}'
+        raise AssertionError(argv)
+    monkeypatch.setattr(cloud, "execute", fake_execute)
+    assert cloud.main(["apply", "--approve-cost", "--config", str(config(tmp_path))]) == 0
+    assert not any(cmd[:2] == ["firewall","create"] for cmd in commands)
+
+def test_unrelated_existing_firewall_is_not_reused(monkeypatch, tmp_path):
+    monkeypatch.setattr(cloud.shutil, "which", lambda name: "hcloud")
+    def fake_execute(argv, input_text=None):
+        if argv[:2] == ["ssh-key", "describe"]:
+            return '{}'
+        if argv[:2] == ["server", "list"]:
+            return "[]"
+        if argv[:2] == ["firewall", "list"]:
+            return '[{"name":"addon-forge-realm-ssh"}]'
+        if argv[:2] == ["firewall", "describe"]:
+            return '{"rules":[{"direction":"in","protocol":"tcp","port":"22","source_ips":["0.0.0.0/0"]}],"applied_to":[]}'
+        raise AssertionError(argv)
+    monkeypatch.setattr(cloud, "execute", fake_execute)
+    assert cloud.main(["apply", "--approve-cost", "--config", str(config(tmp_path))]) == 2
+
+def test_failed_server_creation_explains_failure(monkeypatch, tmp_path, capsys):
+    import subprocess
+    monkeypatch.setattr(cloud.shutil, "which", lambda name: "hcloud")
+    def fake_execute(argv, input_text=None):
+        if argv[:2] == ["ssh-key", "describe"]:
+            return '{}'
+        if argv[:2] in (["server", "list"], ["firewall", "list"]):
+            return "[]"
+        if argv[:2] == ["firewall", "create"]:
+            return '{}'
+        if argv[:2] == ["server", "create"]:
+            raise subprocess.CalledProcessError(1, argv, stderr="resource_unavailable: chosen server type unavailable")
+        raise AssertionError(argv)
+    monkeypatch.setattr(cloud, "execute", fake_execute)
+    assert cloud.main(["apply","--approve-cost","--config", str(config(tmp_path))]) == 2
+    assert "resource_unavailable" in capsys.readouterr().err
