@@ -45,6 +45,8 @@ def make_parser():
     local.add_argument("--realm-dir", type=Path, help="AzerothCore checkout directory")
     local.add_argument("--locale", default=None, help="WoW locale (enUS, deDE, ...)")
     local.add_argument("--approve-local-setup", action="store_true")
+    local.add_argument("--adopt-existing-test-wow", action="store_true",
+                       help="Explicitly reuse an existing separate WoW copy")
     realm = sub.add_parser("realm")
     realm.add_argument("action", choices=["up", "down", "status"])
     ai = sub.add_parser("ai")
@@ -88,7 +90,8 @@ def main(argv=None) -> int:
                 if not args.source_wow or not args.test_wow:
                     raise ValueError("Supply --source-wow and --test-wow for local-realm setup")
                 setup(args.source_wow, args.test_wow, realm, args.locale,
-                      Path("forge.local.toml"), approve=args.approve_local_setup)
+                      Path("forge.local.toml"), approve=args.approve_local_setup,
+                      adopt_existing=args.adopt_existing_test_wow)
                 return 0
             return operate(args.action, realm)
         cfg = load_config(args.config)
