@@ -6,6 +6,17 @@ This repository contains a real, runnable Python CLI, a WoW 3.3.5a test companio
 
 **Status (v0.1.0):** Python tests can run on any Linux workstation. The Wine + WoW + AzerothCore integration path is implemented but **has not been validated on a running game client**. The graphical IDE, deterministic combat fixtures and fully hands-off login are future milestones. Never interpret static checks alone as proof an addon works in game.
 
+## Headless Hetzner Cloud realm (experimental)
+
+Cloud deployment lives in [cloud/README.md](cloud/README.md). The opt-in
+`hcloud` bootstrap creates a billable SSH-restricted x86 server; an independent,
+explicitly destructive `nixos-anywhere` step installs a pinned NixOS system
+with Docker, Forge CLI, generated database credentials and AzerothCore Compose.
+
+The installation requires **Linux or WSL2** with Nix, hcloud, and SSH.
+The cloud realm does **not** run a WoW client, offer GPU/X11 automation or
+expose public game ports. Review CI and disk prerequisites before installing.
+
 ## Native Windows graphical WoW testing (experimental)
 
 Windows 10/11 can use a **native WoW 3.3.5a client without Wine/WSL** for graphical smoke tests. See [Windows setup and limitations](docs/windows-testing.md). Install from Windows PowerShell with `py -3.11 -m pip install -e ".[windows]"`, configure `[client] wow_dir` in `forge.toml`, then use the existing `forge deploy`, `forge client start`, `forge client screenshot`, and `forge test` commands.
