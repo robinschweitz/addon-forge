@@ -155,6 +155,26 @@ To stop your **local** containers (persistent DB data is preserved):
 .\.venv\Scripts\forge.exe local-realm stop
 ```
 
+## Preventing a reused MySQL volume/password mismatch
+
+AzerothCore's MySQL image only uses `DOCKER_DB_ROOT_PASSWORD` to initialize a
+**new** data directory. Docker persists databases in a named volume after
+containers stop. If the original `.env` is missing while an existing volume
+remains, generating a new password would break database authentication.
+
+Forge now checks for a pre-existing Compose MySQL volume **before generating a
+new password**, and refuses to proceed when an existing volume has no matching
+configuration. During `setup` and `start`, Forge starts only MySQL first
+and waits for its credential-checked health status. A root authentication
+failure (1045) stops the process with a diagnostic **before launching**
+the DB importer or worldserver.
+
+If your existing database already uses the wrong password, this prevention
+does not change that password: reconcile it through MySQL using the original
+credentials or its official non-destructive recovery procedure. Keep your
+`.env` backed up, private, and never post its password. Forge does not
+delete volumes, replace database passwords, or silently reset MySQL.
+
 ## Boundaries and recovery
 
 - Never use `docker compose down -v` unless you intentionally wish to erase
