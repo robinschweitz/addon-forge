@@ -104,6 +104,66 @@ def wait_for_screen(call, expected: str, *, timeout: float = 65,
         sleep(interval)
 
 
+def wait_for_player_identity(call, character: str, *, timeout: float = 35,
+                             interval: float = 0.7, clock=None, sleep=None) -> dict:
+    """Verify the actual character after the SDK's world-loading transition.
+
+    The SDK enterWorld(wait=true) checks an in-world flag, which can precede
+    PLAYER_ENTERING_WORLD, availability of UnitName('player'), or loaded addons.
+    Never accept a distinct player name; a transient nil/empty Lua return is
+    retried for a bounded period, not mistaken for the wrong character.
+    """
+    if not CHARACTER.fullmatch(character):
+        raise ValueError("Invalid character name")
+    clock = clock or time.monotonic
+    sleep = sleep or time.sleep
+    deadline = clock() + timeout
+    stable = 0
+    lua_state = "unavailable"
+    unit_state = "unavailable"
+    while True:
+        screen = call("client.getScreen")
+        if not isinstance(screen, dict):
+            raise RuntimeError("SDK returned invalid world state")
+        if screen.get("screen") == "world" or screen.get("inWorld") is True:
+            lua = call("lua.evaluate", {"code": "return UnitName('player')"})
+            if not isinstance(lua, dict):
+                raise RuntimeError("SDK returned invalid Lua identity state")
+            value = lua.get("result") if lua.get("ok") is True else None
+            if isinstance(value, str) and value:
+                if value.casefold() != character.casefold():
+                    raise RuntimeError("SDK Lua reports a different in-world character; refusing test.")
+                lua_state = "matched"
+            else:
+                lua_state = "unavailable" if lua.get("ok") is not True else "not_ready"
+            unit = call("unit.get", {"token": "player"})
+            if not isinstance(unit, dict):
+                raise RuntimeError("SDK returned invalid player unit state")
+            unit_name = unit.get("name")
+            if unit.get("exists") is True and isinstance(unit_name, str) and unit_name:
+                if unit_name.casefold() != character.casefold():
+                    raise RuntimeError("SDK unit API reports a different player; refusing test.")
+                unit_state = "matched"
+            else:
+                unit_state = "not_ready"
+            if lua_state == "matched" and unit_state == "matched":
+                stable += 1
+                if stable >= 2:
+                    return {"status": "verified", "character": character}
+            else:
+                stable = 0
+        else:
+            stable = 0
+            lua_state, unit_state = "not_in_world", "not_in_world"
+        if clock() >= deadline:
+            raise RuntimeError(
+                "SDK player identity did not become ready after world entry: "
+                f"lua={lua_state}; unit={unit_state}. "
+                "Use 'forge agent wowcontrol-status --player' while the test client "
+                "is still open for read-only diagnostics. No scenario was authorized.")
+        sleep(interval)
+
+
 def launch_and_enter(cfg: Config, character: str, *, rpc=request) -> int:
     from .win_login import _test_copy, _credentials
     from .windows_client import _client_binary, WindowsAPI
@@ -161,9 +221,7 @@ def launch_and_enter(cfg: Config, character: str, *, rpc=request) -> int:
         raise RuntimeError("Requested character is absent from realm")
     if call("client.enterWorld", {"name":character, "wait":True}).get("ok") is not True:
         raise RuntimeError("SDK world entry failed")
-    identity = call("lua.evaluate", {"code":"return UnitName('player')"})
-    if identity.get("ok") is not True or identity.get("result") != character:
-        raise RuntimeError("SDK Lua player identity disagrees")
+    wait_for_player_identity(call, character)
     return pid
 
 def bridge_command(cfg: Config, command: str) -> None:
@@ -187,10 +245,10 @@ def bridge_command(cfg: Config, command: str) -> None:
         raise RuntimeError("SDK did not execute the installed Forge bridge handler")
 
 
-def client_status(cfg: Config, *, rpc=request) -> dict:
+def client_status(cfg: Config, *, inspect_player: bool = False, rpc=request) -> dict:
     """Read-only diagnostics for an already injected, marked graphical client.
 
-    Never invokes injector, login, Lua, input, process termination or deploy.
+    Never invokes injector, login, input, process termination or deploy.\n    Optional --player performs only a constant read-only Lua query.
     """
     from .windows_client import WindowsAPI, _client_binary
     from .win_login import _test_copy
@@ -204,7 +262,24 @@ def client_status(cfg: Config, *, rpc=request) -> dict:
     raw_screen = response.get("screen")
     screen = raw_screen if raw_screen in ("login", "charselect", "world", "") else "<unknown>"
     state = response.get("loginState")
-    return {"status": "observed", "backend": "wowcontrol", "pid": pid,
-            "screen": screen, "in_world": response.get("inWorld") is True,
-            "login_state": state if type(state) is int else None,
-            "note": "Read-only verified-process SDK screen query; no credentials sent"}
+    result = {"status": "observed", "backend": "wowcontrol", "pid": pid,
+              "screen": screen, "in_world": response.get("inWorld") is True,
+              "login_state": state if type(state) is int else None,
+              "note": "PID-verified read-only state; no credentials or mutations sent"}
+    if inspect_player and result["in_world"]:
+        lua = rpc("lua.evaluate", {"code": "return UnitName('player')"},
+                  expected_pid=pid)
+        unit = rpc("unit.get", {"token": "player"}, expected_pid=pid)
+        if not isinstance(lua, dict) or not isinstance(unit, dict):
+            raise RuntimeError("Invalid SDK player diagnostic response")
+        lua_name = lua.get("result")
+        unit_name = unit.get("name")
+        result["player"] = {
+            "lua_ok": lua.get("ok") is True,
+            "lua_name": lua_name if isinstance(lua_name, str) and
+                        CHARACTER.fullmatch(lua_name) else None,
+            "unit_exists": unit.get("exists") is True,
+            "unit_name": unit_name if isinstance(unit_name, str) and
+                         CHARACTER.fullmatch(unit_name) else None,
+        }
+    return result

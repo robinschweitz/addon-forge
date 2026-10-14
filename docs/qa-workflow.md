@@ -150,6 +150,38 @@ interfere with it, so run under a dedicated, trusted desktop login.
 The injected DLL has arbitrary native-code privileges. Review upstream
 source and consider a dedicated disposable Windows VM.
 
+### SDK logs in, enters the world, then says Lua identity disagrees
+
+The SDK's `client.enterWorld(wait=true)` can succeed before the in-game
+player identity is readable. Forge now waits for **two consecutive matching
+player identities** from both `lua.evaluate` and `unit.get` after the
+world-loading transition. A different named character stops the scenario
+immediately. If these read-only APIs are still unavailable after 35
+seconds, Forge reports which channel was unavailable rather than sending
+additional login commands. The ForgeTestBridge v2 in-game report remains
+an independent assertion and is not skipped.
+
+If Forge leaves the separate test client open, query the current
+SDK state **without closing/relaunching WoW**:
+
+```powershell
+.\\.venv\\Scripts\\forge.exe --config forge.local.toml agent wowcontrol-status --player
+```
+
+The `--player` option performs only these permitted queries:
+`client.getScreen`, `lua.evaluate` with the fixed literal
+`return UnitName('player')`, and `unit.get` for `player`.
+It does not type, log in, start, stop or mutate anything, and each
+request is checked against the marked test client's PID. It reports
+`lua_ok`, `lua_name`, `unit_exists` and `unit_name`
+(or `null` for unavailable names); no arbitrary Lua error strings
+or credentials are printed.
+
+If both APIs keep showing a missing player despite the visible client being
+in world, that points to a WoWControlSDK runtime/offset issue and
+should **not** be bypassed by declaring the scenario passed. Close only
+the marked test copy before the next approved full session.
+
 ### SDK says the test client is not on the login screen
 
 The SDK injector reports **pipe ready** before the WoW glue UI necessarily
