@@ -101,3 +101,21 @@ def test_parser_exposes_guarded_setup():
     opts = make_parser().parse_args(
         ["agent", "wowcontrol-setup", "--approve-build", "--realm-name", "Test Realm"])
     assert opts.approve_build and opts.realm_name == "Test Realm"
+    assert not opts.install_prereqs
+    opts = make_parser().parse_args(["agent", "wowcontrol-setup", "--approve-build", "--install-prereqs"])
+    assert opts.install_prereqs
+
+
+def test_opt_in_winget_only_for_missing_packages(monkeypatch):
+    invoked = []
+    monkeypatch.setattr(sdk.shutil, "which", lambda name: "C:/winget.exe" if name == "winget" else None)
+    monkeypatch.setattr(sdk, "_invoke", lambda argv, **kwargs: invoked.append(argv) or "")
+    sdk._install_prerequisites({"git": "C:/git.exe", "cmake": None,
+                                "visual_studio_cpp": None})
+    assert len(invoked) == 2
+    assert "Kitware.CMake" in invoked[0]
+    assert "Microsoft.VisualStudio.2022.BuildTools" in invoked[1]
+    assert "--override" in invoked[1]
+    assert all("--accept-package-agreements" in argv for argv in invoked)
+    assert all("--accept-source-agreements" in argv for argv in invoked)
+    assert all(argv[0] == "C:/winget.exe" for argv in invoked)
