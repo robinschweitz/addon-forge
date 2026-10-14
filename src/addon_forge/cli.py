@@ -64,6 +64,7 @@ def make_parser():
     agent_sub.add_parser("capabilities")
     sdk = agent_sub.add_parser("wowcontrol-setup", help="Pin, build and configure external WoWControlSDK for the private test copy")
     sdk.add_argument("--approve-build", action="store_true", help="Authorize compiling third-party C++ source")
+    sdk.add_argument("--install-prereqs", action="store_true", help="Opt in to winget installing missing Git, CMake and Visual Studio Build Tools")
     sdk.add_argument("--realm-name", help="Exact local AzerothCore realm name (enables SDK backend)")
     sdk.add_argument("--workspace", type=Path, help="Separate source/build directory; default .forge-tools/wowcontrol-sdk")
     session = agent_sub.add_parser("session", help="Start verified WoW and run a bounded addon plan")
@@ -128,7 +129,8 @@ def main(argv=None) -> int:
             if args.action == "wowcontrol-setup":
                 from .wowcontrol_build import setup
                 result = setup(args.config, approve=args.approve_build,
-                               realm=args.realm_name, workspace=args.workspace)
+                               realm=args.realm_name, workspace=args.workspace,
+                               install_prereqs=args.install_prereqs)
                 print(json.dumps(result, indent=2))
                 return 0 if result["status"] in ("plan_only", "built") else 1
             if args.action == "capabilities":
