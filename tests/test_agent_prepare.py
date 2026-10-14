@@ -37,3 +37,8 @@ def test_prepare_does_not_deploy_while_game_open(tmp_path, monkeypatch):
     result = agent_prepare.prepare_environment(config(tmp_path), start_client=True)
     assert result["status"] == "client_running"
     assert result["bridge_deployed"] is False
+
+
+def test_session_import_and_preview_callable():
+    from addon_forge.agent_session import run_session
+    assert callable(run_session)
