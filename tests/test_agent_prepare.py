@@ -142,6 +142,7 @@ def test_sdk_login_pins_rpc_to_test_pid_and_never_uses_secret_in_argv(tmp_path, 
     assert len(launched) == 1
     assert "TOPSECRET" not in repr(launched)
     assert observed[-1][0] == "unit.get"
+    assert not any(method == "lua.evaluate" for method, _, _ in observed)
 
 def test_missing_pywin32_is_a_friendly_preflight_error(monkeypatch):
     import builtins
@@ -265,53 +266,37 @@ def test_sdk_status_never_displays_unexpected_screen_string(tmp_path, monkeypatc
     assert out["login_state"] is None
 
 
-def test_world_identity_retries_nil_until_two_agree():
+def test_world_identity_requires_two_unit_matches_without_lua():
     from addon_forge.wowcontrol import wait_for_player_identity
-    counters = {"lua": 0, "unit": 0}
-    now = [0.0]
+    calls = []
+    states = iter([{"exists": False}, {"exists": True, "name": "Test"},
+                   {"exists": True, "name": "Test"}])
     def rpc(method, params=None):
+        calls.append(method)
         if method == "client.getScreen":
             return {"screen": "world", "inWorld": True}
-        if method == "lua.evaluate":
-            counters["lua"] += 1
-            return {"ok": True, "result": None if counters["lua"] < 3 else "Test"}
-        if method == "unit.get":
-            counters["unit"] += 1
-            return {"exists": counters["unit"] >= 2,
-                    "name": "Test" if counters["unit"] >= 2 else ""}
-        raise AssertionError(method)
+        assert method == "unit.get"
+        return next(states)
+    now = [0.0]
     result = wait_for_player_identity(rpc, "Test", timeout=10, interval=0.5,
         clock=lambda: now[0], sleep=lambda delta: now.__setitem__(0, now[0] + delta))
-    assert result["status"] == "verified"
-    assert counters["lua"] == 4
-    assert counters["unit"] == 4
+    assert result == {"status": "sdk_unit_matched", "character": "Test"}
+    assert calls.count("unit.get") == 3
+    assert "lua.evaluate" not in calls
 
 
-def test_world_identity_rejects_wrong_lua_character_immediately():
+def test_world_identity_rejects_wrong_unit_player_immediately():
     from addon_forge.wowcontrol import wait_for_player_identity
     calls = []
     def rpc(method, params=None):
         calls.append(method)
         if method == "client.getScreen":
-            return {"inWorld": True}
-        if method == "lua.evaluate":
-            return {"ok": True, "result": "SomeoneElse"}
-        raise AssertionError("No unit query or other action after mismatched player")
-    with pytest.raises(RuntimeError, match="different in-world character"):
-        wait_for_player_identity(rpc, "Test", sleep=lambda _: None)
-    assert calls == ["client.getScreen", "lua.evaluate"]
-
-
-def test_world_identity_rejects_wrong_unit_player_immediately():
-    from addon_forge.wowcontrol import wait_for_player_identity
-    def rpc(method, params=None):
-        if method == "client.getScreen":
             return {"screen": "world"}
-        if method == "lua.evaluate":
-            return {"ok": True, "result": "Test"}
+        assert method == "unit.get"
         return {"exists": True, "name": "Wrong"}
     with pytest.raises(RuntimeError, match="different player"):
         wait_for_player_identity(rpc, "Test", sleep=lambda _: None)
+    assert calls == ["client.getScreen", "unit.get"]
 
 
 def test_world_identity_timeout_has_safe_diagnostics():
@@ -320,10 +305,9 @@ def test_world_identity_timeout_has_safe_diagnostics():
     def rpc(method, params=None):
         if method == "client.getScreen":
             return {"inWorld": True}
-        if method == "lua.evaluate":
-            return {"ok": False, "error": "SECRET INTERNAL LUA ERROR"}
-        return {"exists": True, "name": "Test"}
-    with pytest.raises(RuntimeError, match="lua=unavailable; unit=matched") as exc:
+        assert method == "unit.get"
+        return {"exists": False, "name": "SECRET"}
+    with pytest.raises(RuntimeError, match="unit=not_ready") as exc:
         wait_for_player_identity(rpc, "Test", timeout=1, interval=0.5,
             clock=lambda: now[0], sleep=lambda delta: now.__setitem__(0, now[0] + delta))
     assert "SECRET" not in str(exc.value)
@@ -338,17 +322,15 @@ def test_world_identity_waits_until_actual_world_flag():
     def rpc(method, params=None):
         if method == "client.getScreen":
             return next(states)
-        if method == "lua.evaluate":
-            return {"ok": True, "result": "Test"}
+        assert method == "unit.get"
         return {"exists": True, "name": "Test"}
     result = wait_for_player_identity(rpc, "Test", timeout=3, interval=0.5,
         clock=lambda: now[0], sleep=lambda delta: now.__setitem__(0, now[0] + delta))
-    assert result["status"] == "verified"
+    assert result["status"] == "sdk_unit_matched"
 
 
-def test_sdk_player_status_reads_constant_lua_and_unit_pid_bound(tmp_path, monkeypatch):
+def test_sdk_player_status_avoids_crashing_lua_query(tmp_path, monkeypatch):
     from addon_forge import wowcontrol, win_login, windows_client
-    from addon_forge.cli import make_parser
     cfg = Config(wow_dir=tmp_path / "wow", wine_prefix=tmp_path / "wine",
                  automation_backend="wowcontrol")
     monkeypatch.setattr(win_login, "_test_copy", lambda path: path)
@@ -362,21 +344,18 @@ def test_sdk_player_status_reads_constant_lua_and_unit_pid_bound(tmp_path, monke
         observed.append((method, params, expected_pid))
         if method == "client.getScreen":
             return {"screen": "world", "inWorld": True, "loginState": 8}
-        if method == "lua.evaluate":
-            return {"ok": True, "result": "Test"}
-        if method == "unit.get":
-            return {"exists": True, "name": "Test"}
-        raise AssertionError(method)
+        assert method == "unit.get"
+        return {"exists": True, "name": "Test"}
     out = wowcontrol.client_status(cfg, inspect_player=True, rpc=rpc)
-    assert out["player"] == {"lua_ok": True, "lua_name": "Test",
-                              "unit_exists": True, "unit_name": "Test"}
+    assert out["player"] == {
+        "unit_exists": True, "unit_name": "Test",
+        "verification": "sdk_only; fresh ForgeTestBridge v2 report required",
+    }
     assert observed == [
         ("client.getScreen", None, 28732),
-        ("lua.evaluate", {"code": "return UnitName('player')"}, 28732),
         ("unit.get", {"token": "player"}, 28732),
     ]
-    opts = make_parser().parse_args(["agent", "wowcontrol-status", "--player"])
-    assert opts.player is True
+
 
 
 def test_sdk_player_status_disallows_displaying_unknown_names(tmp_path, monkeypatch):
@@ -391,9 +370,8 @@ def test_sdk_player_status_disallows_displaying_unknown_names(tmp_path, monkeypa
     def rpc(method, params=None, *, expected_pid):
         if method == "client.getScreen":
             return {"screen": "world", "inWorld": True}
-        if method == "lua.evaluate":
-            return {"ok": False, "error": "SECRET"}
+        assert method == "unit.get"
         return {"exists": True, "name": "SECRET\nAND MORE"}
     out = wowcontrol.client_status(cfg, inspect_player=True, rpc=rpc)
-    assert out["player"] == {"lua_ok": False, "lua_name": None,
-                              "unit_exists": True, "unit_name": None}
+    assert out["player"] == {"unit_exists": True, "unit_name": None,
+                              "verification": "sdk_only; fresh ForgeTestBridge v2 report required"}
