@@ -10,13 +10,15 @@ PIPE = r"\\.\pipe\WowGameCommand"
 def verify_server_pid(handle: int, expected_pid: int, *, kernel=None) -> None:
     if not isinstance(expected_pid, int) or expected_pid <= 0:
         raise RuntimeError("A verified WoW process ID is required")
-    if kernel is None:
+    real_kernel = kernel is None
+    if real_kernel:
         if sys.platform != "win32":
             raise RuntimeError("Windows named pipes only")
         kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     function = kernel.GetNamedPipeServerProcessId
-    function.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.ULONG)]
-    function.restype = wintypes.BOOL
+    if real_kernel:
+        function.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.ULONG)]
+        function.restype = wintypes.BOOL
     actual = wintypes.ULONG()
     if not function(int(handle), ctypes.byref(actual)) or actual.value != expected_pid:
         raise RuntimeError("SDK pipe owner does not match the marked WoW window PID")
