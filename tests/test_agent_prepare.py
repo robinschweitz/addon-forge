@@ -123,7 +123,7 @@ def test_sdk_login_pins_rpc_to_test_pid_and_never_uses_secret_in_argv(tmp_path, 
         if method == "client.ping":
             return {"status": "ok"}
         if method == "client.getScreen":
-            return {"screen": "login" if len([x for x in observed if x[0] == method]) == 1 else "charselect"}
+            return {"screen": "login" if len([x for x in observed if x[0] == method]) <= 2 else "charselect"}
         if method == "client.login":
             return {"ok": True}
         if method == "client.getCharacters":
@@ -168,3 +168,57 @@ def test_injector_does_not_launch_without_pywin32(tmp_path, monkeypatch):
                         lambda *args, **kwargs: pytest.fail("Injector launched"))
     with pytest.raises(RuntimeError, match="pywin32"):
         wowcontrol.launch_and_enter(cfg, "Test")
+
+
+def test_sdk_screen_wait_allows_initial_unknown_and_requires_stable_login():
+    from addon_forge.wowcontrol import wait_for_screen
+    observed = iter(["", "", "login", "", "login", "login"])
+    calls = []
+    now = [0.0]
+    def call(method):
+        calls.append(method)
+        return {"screen": next(observed), "loginState": 0, "inWorld": False}
+    def advance(seconds):
+        now[0] += seconds
+    assert wait_for_screen(call, "login", timeout=10, interval=0.5,
+                           clock=lambda: now[0], sleep=advance)["screen"] == "login"
+    assert calls == ["client.getScreen"] * 6
+
+
+def test_sdk_screen_wait_timeout_reports_nonsecret_diagnostics():
+    from addon_forge.wowcontrol import wait_for_screen
+    now = [0.0]
+    def call(method):
+        return {"screen": "", "loginState": 2, "inWorld": False}
+    def advance(seconds):
+        now[0] += seconds
+    with pytest.raises(RuntimeError, match="last screen='', loginState=2") as err:
+        wait_for_screen(call, "login", timeout=1.0, interval=0.5,
+                        clock=lambda: now[0], sleep=advance)
+    assert "No credentials are sent" in str(err.value)
+
+
+def test_sdk_screen_wait_refuses_unverified_charselect_without_waiting():
+    from addon_forge.wowcontrol import wait_for_screen
+    with pytest.raises(RuntimeError, match="unverified account"):
+        wait_for_screen(lambda method: {"screen": "charselect"}, "login",
+                        timeout=0.1, sleep=lambda _: None)
+
+
+def test_sdk_screen_wait_rejects_already_in_world():
+    from addon_forge.wowcontrol import wait_for_screen
+    with pytest.raises(RuntimeError, match="already in-world"):
+        wait_for_screen(lambda method: {"screen": "world", "inWorld": True},
+                        "login", timeout=0.1, sleep=lambda _: None)
+
+
+def test_sdk_screen_wait_never_logs_unexpected_payload():
+    from addon_forge.wowcontrol import wait_for_screen
+    now = [0.0]
+    def advance(seconds):
+        now[0] += seconds
+    with pytest.raises(RuntimeError) as exc:
+        wait_for_screen(lambda method: {"screen": "SECRET", "loginState": "SECRET"},
+                        "login", timeout=0.1, interval=0.2,
+                        clock=lambda: now[0], sleep=advance)
+    assert "SECRET" not in str(exc.value)
