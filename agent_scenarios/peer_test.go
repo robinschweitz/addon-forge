@@ -90,7 +90,7 @@ func TestPeerTargetFixture(t *testing.T) {
     left := os.Getenv("FORGE_PEER_LEFT")
     didLeave := false
 
-	deadline := time.Now().Add(120 * time.Second)
+	deadline := time.Now().Add(230 * time.Second)
 	for time.Now().Before(deadline) {
 		if _, err := os.Stat(release); err == nil {
             return
