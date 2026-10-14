@@ -27,6 +27,9 @@ def make_parser():
     login = client_sub.add_parser("login", help="Manage Windows-only automated test login")
     login.add_argument("mode", choices=["save", "calibrate"])
     login.add_argument("--account", help="Test-only realm account name for save mode")
+    char = client_sub.add_parser("character", help="Calibrate isolated test character selection")
+    char.add_argument("mode", choices=["calibrate"])
+    char.add_argument("--character", required=True)
     video = client_sub.add_parser("windowed", help="Configure test client video settings while WoW is closed")
     video.add_argument("--resolution", default="1280x720")
     cmd = client_sub.add_parser("command")
@@ -66,6 +69,7 @@ def make_parser():
     prepare = agent_sub.add_parser("prepare", help="Safely deploy bridge and start isolated test WoW if needed")
     prepare.add_argument("--start-client", action="store_true")
     prepare.add_argument("--login", action="store_true", help="Use calibrated Windows-vault login for a newly started client")
+    prepare.add_argument("--enter-character", help="Enter the selected test character after verified login")
     workflow = agent_sub.add_parser("run-plan", help="Review or execute a bounded addon acceptance plan")
     workflow.add_argument("plan", type=Path)
     workflow.add_argument("--approve-fixtures", action="store_true")
@@ -120,7 +124,7 @@ def main(argv=None) -> int:
             if args.action == "prepare":
                 from .agent_prepare import prepare_environment
                 result = prepare_environment(load_config(args.config), start_client=args.start_client,
-                                             login=args.login)
+                                             login=args.login, enter_character=args.enter_character)
                 print(json.dumps(result, indent=2))
                 return 0
             if args.action == "party-lifecycle":
@@ -200,6 +204,10 @@ def main(argv=None) -> int:
         if args.command == "deploy":
             from .deploy import deploy
             print(deploy(args.addon, cfg.wow_dir))
+            return 0
+        if args.command == "client" and args.action == "character":
+            from .win_character import calibrate_character
+            print(calibrate_character(load_config(args.config), args.character))
             return 0
         if args.command == "client" and args.action == "login":
             from .win_login import calibrate, save_credentials
