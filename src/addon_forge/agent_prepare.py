@@ -50,6 +50,9 @@ def prepare_environment(cfg: Config, *, start_client: bool = False,
             "next": "Use the current in-world client if bridge v2 is already loaded; "
                     "otherwise close the test client and rerun prepare.",
         }
+    if cfg.automation_backend == "wowcontrol" and login and enter_character:
+        from .wowcontrol import require_windows_transport
+        require_windows_transport()  # No addon deployment or injection on missing pywin32.
     installed = deploy(bridge, wow)
     if not start_client:
         return {"status": "prepared", "bridge_deployed": True,

@@ -20,14 +20,28 @@ ALLOWED = frozenset({"client.ping", "client.getScreen", "client.getCharacters",
                      "lua.evaluate"})
 
 
+def require_windows_transport():
+    """Fail before launching WoW if the named-pipe Python extension is missing."""
+    if sys.platform != "win32":
+        raise RuntimeError("WoWControlSDK requires native Windows")
+    try:
+        import win32file
+        import pywintypes  # noqa: F401 - catches a broken pywin32 installation
+    except (ImportError, OSError) as exc:
+        raise RuntimeError(
+            "WoWControlSDK requires pywin32 in this Forge virtual environment. "
+            'Run .\\.venv\\Scripts\\python.exe -m pip install -e ".[windows]" '
+            "from the Addon Forge checkout; close the separate test WoW, then retry. "
+            "No SDK login should start until this check passes."
+        ) from exc
+    return win32file
+
+
 def request(method: str, params: dict | None = None, *, expected_pid: int, transport=None) -> dict:
     if method not in ALLOWED:
         raise ValueError("Unapproved SDK method")
     if transport is None:
-        if sys.platform != "win32":
-            raise RuntimeError("WoWControlSDK requires Windows")
-        import win32file
-        transport = win32file
+        transport = require_windows_transport()
     from .wowcontrol_pipe import open_verified_pipe
     handle = open_verified_pipe(transport, expected_pid)
     try:
@@ -52,6 +66,8 @@ def launch_and_enter(cfg: Config, character: str, *, rpc=request) -> int:
         raise RuntimeError("Native Windows required")
     if not CHARACTER.fullmatch(character):
         raise ValueError("Invalid test character")
+    if rpc is request:
+        require_windows_transport()
     wow = _test_copy(cfg.wow_dir)
     if not cfg.wowcontrol_realm or not re.fullmatch(r"[A-Za-z0-9 _-]{2,64}", cfg.wowcontrol_realm):
         raise ValueError("Configure a specific local wowcontrol_realm before logging in")

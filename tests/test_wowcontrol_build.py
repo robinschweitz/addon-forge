@@ -141,3 +141,23 @@ def test_approved_build_refuses_linked_configuration(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match="linked local configuration"):
         sdk.setup(alias, approve=True)
     assert original.read_text() == "[client]\nwow_dir = 'F:/test-wow'\n"
+
+def test_python_windows_extras_use_running_interpreter(monkeypatch):
+    calls = []
+    monkeypatch.setattr(sdk, "_invoke", lambda argv, **kw: calls.append((argv, kw)) or "")
+    sdk._install_python_transport()
+    command, options = calls[0]
+    assert command[:4] == [sdk.sys.executable, "-m", "pip", "install"]
+    assert command[-2:] == ["-e", ".[windows]"]
+    assert (options["cwd"] / "pyproject.toml").is_file()
+
+
+def test_python_transport_dependency_detection(monkeypatch):
+    import importlib
+    real = importlib.import_module
+    def missing(name, *args, **kwargs):
+        if name == "win32file":
+            raise ModuleNotFoundError("No module named win32file")
+        return real(name, *args, **kwargs)
+    monkeypatch.setattr(importlib, "import_module", missing)
+    assert sdk._python_transport_ready() is False

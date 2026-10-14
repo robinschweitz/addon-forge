@@ -112,6 +112,24 @@ wowcontrol_dll = "C:/tools/WoWControlSDK/WoWControlSDK.dll"
 wowcontrol_realm = "Your Local AzerothCore Realm"
 ```
 
+If the SDK injector starts and Forge fails with `ModuleNotFoundError: No
+module named 'win32file'`, the SDK build itself was successful but the
+**Forge virtual environment** is missing `pywin32`. Close the isolated
+test WoW client created by the injector, then install the project extras
+once:
+
+```powershell
+.\\.venv\\Scripts\\python.exe -m pip install -e ".[windows]"
+.\\.venv\\Scripts\\python.exe -c "import win32file; print('pywin32 OK')"
+```
+
+Retry `agent session` after verifying the separate client is closed.
+Newer Forge versions fail **before injection** when this dependency is
+missing. `agent wowcontrol-setup --approve-build --install-prereqs`
+also installs the declared Windows Python extras when needed, not just
+the C++ toolchain. It never needs to reset AzerothCore or rebuild SDK
+binaries to resolve this Python error.
+
 Preserve the existing `wow_dir`, `wine_prefix` and `[realm]` settings.
 Install Windows extras once with
 `.\.venv\Scripts\python.exe -m pip install -e ".[windows]"`.
