@@ -65,9 +65,44 @@ JSON-RPC. It provides API login, named character entry, Lua evaluation and
 world queries. **We have not live-tested this backend** on the local test
 copy and it should not be used on a public realm.
 
-Build or audit the SDK yourself in an isolated directory; Forge does
-not download executables or DLLs. Configure the local ignored
-`forge.local.toml` (paths are illustrative and must point to real files):
+**Recommended:** Forge now automates acquiring and building a **pinned**
+WoWControlSDK source revision. The setup command will not launch WoW, inject
+a DLL, or change your Docker realm. Preview with:
+
+```powershell
+.\.venv\Scripts\forge.exe --config forge.local.toml agent wowcontrol-setup
+```
+
+Authorize a pinned Win32 Release build and, only if Git/CMake/Visual Studio
+2022 C++ tools are missing, allow `winget` to install them:
+
+```powershell
+.\.venv\Scripts\forge.exe --config forge.local.toml agent wowcontrol-setup --approve-build --install-prereqs --realm-name "EXACT LOCAL REALM NAME"
+```
+
+Replace the quoted realm name with the local AzerothCore realm's actual
+display name. Microsoft Visual Studio Build Tools may require elevation
+or a restart; run the command again afterward if the process reports missing
+prerequisites. Without `--install-prereqs`, setup only checks prerequisites
+and reports missing tools (no system-wide installation). Without
+`--approve-build`, setup is a read-only preview. Without a realm name
+(either from `--realm-name` or an existing `wowcontrol_realm` setting)
+it will build and record paths but **not switch** from the working Win32
+backend. It never downloads a precompiled third-party DLL.
+
+Forge checks out the exact upstream commit
+`6cda5ac734dba8016a7ef30ae7bcad602472c1e2`
+into ignored `.forge-tools/wowcontrol-sdk/source`, builds both artifacts
+for **Win32/x86**, validates their PE headers, and reports SHA-256 hashes.
+It refuses modified or differently sourced code on repeated runs. The
+existing `forge.local.toml` is amended only with SDK settings, and its
+first pre-setup copy is preserved under ignored `.forge-tools`.
+Source auditing cannot be fully automated: this is third-party native
+code with process-injection privileges. Run it only on a trusted, isolated
+Windows desktop or disposable test VM.
+
+You may also configure the existing local ignored
+`forge.local.toml` manually (paths are illustrative):
 
 ```toml
 [client]
