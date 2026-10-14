@@ -185,3 +185,26 @@ def bridge_command(cfg: Config, command: str) -> None:
     result = request("lua.evaluate", {"code": code}, expected_pid=pid)
     if result.get("ok") is not True or result.get("result") != "ok":
         raise RuntimeError("SDK did not execute the installed Forge bridge handler")
+
+
+def client_status(cfg: Config, *, rpc=request) -> dict:
+    """Read-only diagnostics for an already injected, marked graphical client.
+
+    Never invokes injector, login, Lua, input, process termination or deploy.
+    """
+    from .windows_client import WindowsAPI, _client_binary
+    from .win_login import _test_copy
+    wow = _test_copy(cfg.wow_dir)
+    api = WindowsAPI()
+    hwnd = api.find_window(cfg.window_name, _client_binary(wow))
+    pid = api.window_pid(hwnd)
+    response = rpc("client.getScreen", expected_pid=pid)
+    if not isinstance(response, dict):
+        raise RuntimeError("Unexpected WoWControlSDK screen response")
+    raw_screen = response.get("screen")
+    screen = raw_screen if raw_screen in ("login", "charselect", "world", "") else "<unknown>"
+    state = response.get("loginState")
+    return {"status": "observed", "backend": "wowcontrol", "pid": pid,
+            "screen": screen, "in_world": response.get("inWorld") is True,
+            "login_state": state if type(state) is int else None,
+            "note": "Read-only verified-process SDK screen query; no credentials sent"}
