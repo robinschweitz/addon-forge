@@ -26,3 +26,34 @@ def test_peer_environment_is_local_only_and_no_soft_pass(tmp_path, monkeypatch):
     assert "E2E_ALLOW_SOFT_PASS" not in env
     assert env["E2E_AUTH_ADDR"] == "127.0.0.1:3724"
     assert env["E2E_CHAR_DSN"] == f"root:{secret}@tcp(127.0.0.1:13306)/acore_characters"
+
+import json
+from addon_forge.peer_scenario import _read_ready
+
+
+def test_legacy_live_one_peer_handshake(tmp_path):
+    path = tmp_path / "ready.json"
+    path.write_text(json.dumps({"status": "ready", "name": "Fpeerabc",
+                                "target": "Test"}))
+    assert _read_ready(path, target="Test", count=1) == ["Fpeerabc"]
+
+
+def test_versioned_four_peer_handshake(tmp_path):
+    path = tmp_path / "ready.json"
+    names = ["Fpeeraaa", "Fpeerbbb", "Fpeerccc", "Fpeerddd"]
+    path.write_text(json.dumps({"version": 2, "status": "ready", "name": names[0],
+                                "names": names, "count": 4, "target": "Test"}))
+    assert _read_ready(path, target="Test", count=4) == names
+
+
+@pytest.mark.parametrize("payload,count", [
+    ({"status":"ready","name":"Fpeera","target":"Other"},1),
+    ({"version":2,"status":"ready","name":"Fpeera","names":["Fpeera"],"count":2,"target":"Test"},1),
+    ({"version":2,"status":"ready","name":"Fpeera","names":["Fpeera","Fpeera"],"count":2,"target":"Test"},2),
+    ({"status":"ready","name":"Fpeera","target":"Test"},2),
+])
+def test_invalid_peer_handshakes_fail_closed(tmp_path, payload, count):
+    path = tmp_path / "ready.json"
+    path.write_text(json.dumps(payload))
+    with pytest.raises(RuntimeError):
+        _read_ready(path, target="Test", count=count)
