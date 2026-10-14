@@ -62,7 +62,7 @@ def test_invalid_peer_handshakes_fail_closed(tmp_path, payload, count):
 def test_party_lifecycle_preview_requires_multiple_peers(tmp_path):
     cfg = Config(wow_dir=tmp_path / "wow", wine_prefix=tmp_path / "wine",
                  realm_dir=tmp_path / "realm")
-    with pytest.raises(ValueError, match="two to four"):
+    with pytest.raises(ValueError, match="three or four"):
         peer_scenario(cfg, character="Test", lifecycle=True, peers=1)
     plan = peer_scenario(cfg, character="Test", lifecycle=True, peers=3)
     assert plan["status"] == "plan_only"
