@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "addon": "ForgeClock",
+  "character": "Test",
+  "peers": 0,
+  "observer": "sdk",
+  "checks": [
+    {"type": "player_in_world", "value": true}
+  ]
+}
