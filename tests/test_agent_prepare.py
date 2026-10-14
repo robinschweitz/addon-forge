@@ -222,3 +222,40 @@ def test_sdk_screen_wait_never_logs_unexpected_payload():
                         "login", timeout=0.1, interval=0.2,
                         clock=lambda: now[0], sleep=advance)
     assert "SECRET" not in str(exc.value)
+
+
+def test_sdk_client_status_read_only_and_pid_bound(tmp_path, monkeypatch):
+    from addon_forge import wowcontrol, win_login, windows_client
+    cfg = Config(wow_dir=tmp_path / "wow", wine_prefix=tmp_path / "wine",
+                 automation_backend="wowcontrol")
+    monkeypatch.setattr(win_login, "_test_copy", lambda path: path)
+    monkeypatch.setattr(windows_client, "_client_binary", lambda path: path / "Wow.exe")
+    api = Mock()
+    api.find_window.return_value = 12
+    api.window_pid.return_value = 30272
+    monkeypatch.setattr(windows_client, "WindowsAPI", lambda: api)
+    observed = []
+    def rpc(method, *, expected_pid):
+        observed.append((method, expected_pid))
+        return {"screen": "", "inWorld": False, "loginState": 7}
+    status = wowcontrol.client_status(cfg, rpc=rpc)
+    assert status["status"] == "observed"
+    assert status["screen"] == ""
+    assert status["pid"] == 30272
+    assert status["login_state"] == 7
+    assert observed == [("client.getScreen", 30272)]
+
+
+def test_sdk_status_never_displays_unexpected_screen_string(tmp_path, monkeypatch):
+    from addon_forge import wowcontrol, win_login, windows_client
+    cfg = Config(wow_dir=tmp_path / "wow", wine_prefix=tmp_path / "wine")
+    monkeypatch.setattr(win_login, "_test_copy", lambda path: path)
+    monkeypatch.setattr(windows_client, "_client_binary", lambda path: path / "Wow.exe")
+    api = Mock()
+    api.find_window.return_value = 12
+    api.window_pid.return_value = 1
+    monkeypatch.setattr(windows_client, "WindowsAPI", lambda: api)
+    out = wowcontrol.client_status(cfg, rpc=lambda *args, **kwargs:
+                                   {"screen": "SENSITIVE STRING", "loginState": "SENSITIVE"})
+    assert out["screen"] == "<unknown>"
+    assert out["login_state"] is None
