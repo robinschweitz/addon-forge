@@ -55,6 +55,54 @@ docker compose logs --tail 40 ac-worldserver
 
 **Never use `docker compose down -v` or delete MySQL volumes to fix a test.**
 
+## Optional WoWControlSDK backend (experimental, Windows only)
+
+This is an **alternative to pixel-calibrated login**, not a replacement for
+ForgeTestBridge or AzerothGhost. The external project
+[WoWControlSDK](https://github.com/Zerik-Official/WoWControlSDK) controls a
+real graphical WoW 3.3.5a client using a DLL and local Windows named-pipe
+JSON-RPC. It provides API login, named character entry, Lua evaluation and
+world queries. **We have not live-tested this backend** on the local test
+copy and it should not be used on a public realm.
+
+Build or audit the SDK yourself in an isolated directory; Forge does
+not download executables or DLLs. Configure the local ignored
+`forge.local.toml` (paths are illustrative and must point to real files):
+
+```toml
+[client]
+automation_backend = "wowcontrol"
+wowcontrol_injector = "C:/tools/WoWControlSDK/WowInjector.exe"
+wowcontrol_dll = "C:/tools/WoWControlSDK/WoWControlSDK.dll"
+wowcontrol_realm = "Your Local AzerothCore Realm"
+```
+
+Preserve the existing `wow_dir`, `wine_prefix` and `[realm]` settings.
+Install Windows extras once with
+`.\.venv\Scripts\python.exe -m pip install -e ".[windows]"`.
+The existing Windows Credential Manager test account is used; no password
+is passed on the command line. WoW must be closed at startup. Use
+`forge agent session examples/forge-example-scenario.json --approve-fixtures`
+after previewing without `--approve-fixtures`.
+
+Security requirements: use only the Forge-marked separate test copy.
+Forge verifies the SDK pipe's server PID matches the verified WoW window
+before **each RPC**. It rejects unexpected screen state, character lists,
+realm configuration, unapproved RPC methods and unexpected Lua identity.
+A **fresh ForgeTestBridge v2 report** must independently confirm the actual
+in-world character name. Do not use SDK flags such as `--kill` or put
+passwords into `--pipe-cmd`. The SDK currently creates a fixed-name
+named pipe using default Windows ACLs; a malicious local process could
+interfere with it, so run under a dedicated, trusted desktop login.
+The injected DLL has arbitrary native-code privileges. Review upstream
+source and consider a dedicated disposable Windows VM.
+
+As in the traditional backend, reports/screenshots come from the real
+client. For now, addon checks still use Forge's established chat/bridge
+runner; SDK RPC is used for startup and identity, not for executing model
+supplied arbitrary Lua. This preserves independent acceptance evidence.
+A fully scriptable policy-checked Lua/actions facade remains future work.
+
 ## Daily Windows workflow
 
 From the checkout root in native Windows PowerShell:
