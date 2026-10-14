@@ -12,7 +12,7 @@ def test_sdk_observer_uses_pid_bound_unit_and_no_lua(monkeypatch, tmp_path):
     from addon_forge import windows_client, win_login
     cfg = Config(wow_dir=tmp_path, wine_prefix=tmp_path / "wine",
                  automation_backend="wowcontrol")
-    monkeypatch.setattr(win_login, "_test_copy", lambda path: path)
+    monkeypatch.setattr(sdk_observer, "_test_copy", lambda path: path)
     monkeypatch.setattr(windows_client, "_client_binary", lambda path: path / "Wow.exe")
     api = Mock()
     api.find_window.return_value = 7
