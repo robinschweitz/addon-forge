@@ -1,13 +1,33 @@
-"""Fail-closed access to the external WoWControlSDK pipe.
+"""Authenticate each SDK pipe handle to the verified WoW process ID."""
+from __future__ import annotations
+import ctypes
+from ctypes import wintypes
+import sys
 
-An unauthenticated fixed pipe name is unsafe for passwords. The public SDK
-currently creates its pipe with default DACL and doesn't expose reliable
-server PID authentication in the Python connector. Therefore automatic
-credential RPC is intentionally disabled until a hardened upstream build
-exposes a verifiable per-session pipe and process identity.
-"""
-def open_verified_pipe(transport):
-    raise RuntimeError(
-        "WoWControlSDK named-pipe process identity is not verifiable: "
-        "refusing to send local realm credentials to a fixed-name pipe. "
-        "A PID-bound authenticated pipe transport is required.")
+PIPE = r"\\.\pipe\WowGameCommand"
+
+
+def verify_server_pid(handle: int, expected_pid: int, *, kernel=None) -> None:
+    if not isinstance(expected_pid, int) or expected_pid <= 0:
+        raise RuntimeError("A verified WoW process ID is required")
+    if kernel is None:
+        if sys.platform != "win32":
+            raise RuntimeError("Windows named pipes only")
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    function = kernel.GetNamedPipeServerProcessId
+    function.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.ULONG)]
+    function.restype = wintypes.BOOL
+    actual = wintypes.ULONG()
+    if not function(int(handle), ctypes.byref(actual)) or actual.value != expected_pid:
+        raise RuntimeError("SDK pipe owner does not match the marked WoW window PID")
+
+
+def open_verified_pipe(transport, expected_pid: int):
+    handle = transport.CreateFile(PIPE, transport.GENERIC_READ | transport.GENERIC_WRITE,
+                                  0, None, transport.OPEN_EXISTING, 0, None)
+    try:
+        verify_server_pid(int(handle), expected_pid)
+    except Exception:
+        transport.CloseHandle(handle)
+        raise
+    return handle
