@@ -62,6 +62,7 @@ def make_parser():
     agent = sub.add_parser("agent", help="Agent-facing inspectable local test realm capabilities")
     agent_sub = agent.add_subparsers(dest="action", required=True)
     agent_sub.add_parser("capabilities")
+    agent_sub.add_parser("wowcontrol-status", help="Read SDK screen state from the marked test client without login or input")
     sdk = agent_sub.add_parser("wowcontrol-setup", help="Pin, build and configure external WoWControlSDK for the private test copy")
     sdk.add_argument("--approve-build", action="store_true", help="Authorize compiling third-party C++ source")
     sdk.add_argument("--install-prereqs", action="store_true", help="Opt in to winget installing missing Git, CMake and Visual Studio Build Tools")
@@ -133,6 +134,10 @@ def main(argv=None) -> int:
                                install_prereqs=args.install_prereqs)
                 print(json.dumps(result, indent=2))
                 return 0 if result["status"] in ("plan_only", "built") else 1
+            if args.action == "wowcontrol-status":
+                from .wowcontrol import client_status
+                print(json.dumps(client_status(load_config(args.config)), indent=2))
+                return 0
             if args.action == "capabilities":
                 print(json.dumps(capabilities(), indent=2))
                 return 0
