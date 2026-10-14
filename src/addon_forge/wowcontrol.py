@@ -245,10 +245,10 @@ def bridge_command(cfg: Config, command: str) -> None:
         raise RuntimeError("SDK did not execute the installed Forge bridge handler")
 
 
-def client_status(cfg: Config, *, rpc=request) -> dict:
+def client_status(cfg: Config, *, inspect_player: bool = False, rpc=request) -> dict:
     """Read-only diagnostics for an already injected, marked graphical client.
 
-    Never invokes injector, login, Lua, input, process termination or deploy.
+    Never invokes injector, login, input, process termination or deploy.\n    Optional --player performs only a constant read-only Lua query.
     """
     from .windows_client import WindowsAPI, _client_binary
     from .win_login import _test_copy
@@ -262,7 +262,24 @@ def client_status(cfg: Config, *, rpc=request) -> dict:
     raw_screen = response.get("screen")
     screen = raw_screen if raw_screen in ("login", "charselect", "world", "") else "<unknown>"
     state = response.get("loginState")
-    return {"status": "observed", "backend": "wowcontrol", "pid": pid,
-            "screen": screen, "in_world": response.get("inWorld") is True,
-            "login_state": state if type(state) is int else None,
-            "note": "Read-only verified-process SDK screen query; no credentials sent"}
+    result = {"status": "observed", "backend": "wowcontrol", "pid": pid,
+              "screen": screen, "in_world": response.get("inWorld") is True,
+              "login_state": state if type(state) is int else None,
+              "note": "PID-verified read-only state; no credentials or mutations sent"}
+    if inspect_player and result["in_world"]:
+        lua = rpc("lua.evaluate", {"code": "return UnitName('player')"},
+                  expected_pid=pid)
+        unit = rpc("unit.get", {"token": "player"}, expected_pid=pid)
+        if not isinstance(lua, dict) or not isinstance(unit, dict):
+            raise RuntimeError("Invalid SDK player diagnostic response")
+        lua_name = lua.get("result")
+        unit_name = unit.get("name")
+        result["player"] = {
+            "lua_ok": lua.get("ok") is True,
+            "lua_name": lua_name if isinstance(lua_name, str) and
+                        CHARACTER.fullmatch(lua_name) else None,
+            "unit_exists": unit.get("exists") is True,
+            "unit_name": unit_name if isinstance(unit_name, str) and
+                         CHARACTER.fullmatch(unit_name) else None,
+        }
+    return result
