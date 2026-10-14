@@ -95,7 +95,7 @@ def launch_and_enter(cfg: Config, character: str, *, rpc=request) -> int:
     if call("client.login", {"username":account, "password":password,
                             "realmName":cfg.wowcontrol_realm}).get("ok") is not True:
         raise RuntimeError("SDK local login failed")
-    if rpc("client.getScreen").get("screen") != "charselect":
+    if call("client.getScreen").get("screen") != "charselect":
         raise RuntimeError("Expected character selection after login")
     characters = call("client.getCharacters").get("characters", [])
     if not any(isinstance(c, dict) and c.get("name") == character for c in characters):
@@ -106,3 +106,23 @@ def launch_and_enter(cfg: Config, character: str, *, rpc=request) -> int:
     if identity.get("ok") is not True or identity.get("result") != character:
         raise RuntimeError("SDK Lua player identity disagrees")
     return pid
+
+def bridge_command(cfg: Config, command: str) -> None:
+    """Call only the installed Forge bridge slash handler, not arbitrary Lua."""
+    from .windows_client import WindowsAPI, _client_binary, validate_chat_command
+    from .win_login import _test_copy
+    validate_chat_command(command)
+    if not command.startswith("/forge "):
+        raise ValueError("Only Forge bridge commands use SDK Lua transport")
+    wow = _test_copy(cfg.wow_dir)
+    api = WindowsAPI()
+    hwnd = api.find_window(cfg.window_name, _client_binary(wow))
+    pid = api.window_pid(hwnd)
+    argument = json.dumps(command[len("/forge "):], ensure_ascii=True)
+    code = ("if type(SlashCmdList) ~= 'table' or "
+            "type(SlashCmdList.FORGETEST) ~= 'function' then "
+            "return 'bridge_missing' end "
+            "SlashCmdList.FORGETEST(" + argument + ") return 'ok'")
+    result = request("lua.evaluate", {"code": code}, expected_pid=pid)
+    if result.get("ok") is not True or result.get("result") != "ok":
+        raise RuntimeError("SDK did not execute the installed Forge bridge handler")
