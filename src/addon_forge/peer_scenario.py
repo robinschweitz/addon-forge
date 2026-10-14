@@ -38,6 +38,34 @@ def _fixture_env(password: str, port: int, target: str, folder: Path, peers: int
     return env
 
 
+def _read_ready(path: Path, *, target: str, count: int) -> list[str]:
+    """Read a bounded handshake, including old one-peer fixture results."""
+    if path.is_symlink() or path.stat().st_size > 4096:
+        raise RuntimeError("Untrusted or oversized peer readiness data")
+    try:
+        meta = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, UnicodeError, OSError) as exc:
+        raise RuntimeError("Invalid peer readiness JSON") from exc
+    if not isinstance(meta, dict) or meta.get("status") != "ready":
+        raise RuntimeError("Peer fixture did not report ready status")
+    if meta.get("target") != target:
+        raise RuntimeError("Peer fixture targeted a different character")
+    names = meta.get("names")
+    if names is None and count == 1 and meta.get("version") is None:
+        names = [meta.get("name")]
+    if (not isinstance(names, list) or len(names) != count
+            or any(not isinstance(n, str) or not NAME.fullmatch(n) for n in names)
+            or len(set(names)) != count):
+        raise RuntimeError("Peer fixture returned an invalid player name list")
+    if meta.get("name") != names[0]:
+        raise RuntimeError("Peer fixture primary name differs from names list")
+    if meta.get("version") is not None and (
+            meta.get("version") != 2 or type(meta.get("count")) is not int
+            or meta["count"] != count):
+        raise RuntimeError("Peer fixture handshake version/count mismatch")
+    return names
+
+
 def peer_scenario(cfg: Config, *, character: str,
                   approve: bool = False, timeout: int = 100,
                   peers: int = 1, suite: str = "peer",
@@ -101,13 +129,8 @@ def peer_scenario(cfg: Config, *, character: str,
                     time.sleep(0.2)
                 if not ready.is_file():
                     raise RuntimeError("Peer fixture did not become ready in time.")
-                meta = json.loads(ready.read_text(encoding="utf-8"))
-                name = meta.get("name", "")
-                if meta.get("status") != "ready" or not NAME.fullmatch(name):
-                    raise RuntimeError("Peer fixture produced an invalid identity.")
-                names = meta.get("names", [])
-                if len(names) != peers or any(not NAME.fullmatch(item) for item in names):
-                    raise RuntimeError("Peer fixture did not create the requested player count.")
+                names = _read_ready(ready, target=character, count=peers)
+                name = names[0]
                 client = ClientController(cfg)
                 client.command("/targetexact " + name)
                 client.command("/forge expect " + name)
