@@ -93,3 +93,48 @@ def test_sdk_unknown_backend_configuration(tmp_path):
     cfg.write_text("[client]\nwow_dir = 'C:/test'\nautomation_backend = 'anything'\n")
     with pytest.raises(ValueError, match="backend"):
         load_config(cfg)
+
+def test_sdk_login_pins_rpc_to_test_pid_and_never_uses_secret_in_argv(tmp_path, monkeypatch):
+    from addon_forge import wowcontrol, win_login, windows_client
+    from pathlib import Path
+    monkeypatch.setattr(wowcontrol.sys, "platform", "win32")
+    wow = tmp_path / "test-wow"
+    wow.mkdir()
+    injector = tmp_path / "WowInjector.exe"
+    dll = tmp_path / "WoWControlSDK.dll"
+    for file in (injector, dll):
+        file.touch()
+    cfg = Config(wow_dir=wow, wine_prefix=tmp_path / "wine",
+                 automation_backend="wowcontrol", wowcontrol_injector=injector,
+                 wowcontrol_dll=dll, wowcontrol_realm="Local Realm")
+    monkeypatch.setattr(win_login, "_test_copy", lambda path: wow)
+    monkeypatch.setattr(win_login, "_credentials", lambda path: ("FORGETEST", "TOPSECRET"))
+    monkeypatch.setattr(windows_client, "_client_binary", lambda path: wow / "Wow.exe")
+    api = Mock()
+    api.find_window.side_effect = [RuntimeError("found 0."), 91]
+    api.window_pid.return_value = 1422
+    monkeypatch.setattr(windows_client, "WindowsAPI", lambda: api)
+    launched = []
+    monkeypatch.setattr(wowcontrol.subprocess, "run",
+                        lambda argv, **kw: launched.append(argv))
+    observed = []
+    def rpc(method, params=None, *, expected_pid):
+        observed.append((method, params, expected_pid))
+        if method == "client.ping":
+            return {"status": "ok"}
+        if method == "client.getScreen":
+            return {"screen": "login" if len([x for x in observed if x[0] == method]) == 1 else "charselect"}
+        if method == "client.login":
+            return {"ok": True}
+        if method == "client.getCharacters":
+            return {"characters": [{"name": "Test"}]}
+        if method == "client.enterWorld":
+            return {"ok": True}
+        if method == "lua.evaluate":
+            return {"ok": True, "result": "Test"}
+        raise AssertionError("Unexpected method")
+    assert wowcontrol.launch_and_enter(cfg, "Test", rpc=rpc) == 1422
+    assert all(pid == 1422 for _, _, pid in observed)
+    assert len(launched) == 1
+    assert "TOPSECRET" not in repr(launched)
+    assert observed[-1][0] == "lua.evaluate"
