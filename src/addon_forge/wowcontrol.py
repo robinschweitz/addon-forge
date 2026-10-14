@@ -28,9 +28,8 @@ def request(method: str, params: dict | None = None, *, transport=None) -> dict:
             raise RuntimeError("WoWControlSDK requires Windows")
         import win32file
         transport = win32file
-    import win32file as flags
-    handle = transport.CreateFile(PIPE, flags.GENERIC_READ | flags.GENERIC_WRITE,
-                                  0, None, flags.OPEN_EXISTING, 0, None)
+    from .wowcontrol_pipe import open_verified_pipe
+    handle = open_verified_pipe(transport)
     try:
         data = json.dumps({"jsonrpc":"2.0", "id":1, "method":method,
                            "params": params or {}}, separators=(",", ":")).encode()
