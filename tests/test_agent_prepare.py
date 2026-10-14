@@ -294,9 +294,45 @@ def test_world_identity_rejects_wrong_unit_player_immediately():
             return {"screen": "world"}
         assert method == "unit.get"
         return {"exists": True, "name": "Wrong"}
+    now = [0.0]
     with pytest.raises(RuntimeError, match="different player"):
-        wait_for_player_identity(rpc, "Test", sleep=lambda _: None)
-    assert calls == ["client.getScreen", "unit.get"]
+        wait_for_player_identity(
+            rpc, "Test", mismatch_grace=1, interval=0.5, timeout=5,
+            clock=lambda: now[0], sleep=lambda dt: now.__setitem__(0, now[0] + dt))
+    assert calls.count("client.getScreen") == 3
+    assert calls.count("unit.get") == 3
+
+
+def test_world_identity_transient_mismatch_then_matching_player():
+    from addon_forge.wowcontrol import wait_for_player_identity
+    now = [0.0]
+    names = iter(["Previous", "Test", "Test"])
+    calls = []
+    def rpc(method, params=None):
+        calls.append(method)
+        if method == "client.getScreen":
+            return {"screen": "world", "inWorld": True}
+        return {"exists": True, "name": next(names)}
+    result = wait_for_player_identity(
+        rpc, "Test", timeout=10, interval=0.5,
+        clock=lambda: now[0], sleep=lambda dt: now.__setitem__(0, now[0] + dt))
+    assert result["status"] == "sdk_unit_matched"
+    assert calls.count("unit.get") == 3
+    assert "lua.evaluate" not in calls
+
+
+def test_world_identity_persistent_mismatch_fails_after_grace():
+    from addon_forge.wowcontrol import wait_for_player_identity
+    now = [0.0]
+    def rpc(method, params=None):
+        if method == "client.getScreen":
+            return {"screen": "world", "inWorld": True}
+        return {"exists": True, "name": "Wrong"}
+    with pytest.raises(RuntimeError, match="persistently reports a different player"):
+        wait_for_player_identity(
+            rpc, "Test", timeout=20, interval=0.5, mismatch_grace=2,
+            clock=lambda: now[0], sleep=lambda dt: now.__setitem__(0, now[0] + dt))
+    assert 2 <= now[0] < 20
 
 
 def test_world_identity_timeout_has_safe_diagnostics():
