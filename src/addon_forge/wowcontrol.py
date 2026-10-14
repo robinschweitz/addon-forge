@@ -105,13 +105,14 @@ def wait_for_screen(call, expected: str, *, timeout: float = 65,
 
 
 def wait_for_player_identity(call, character: str, *, timeout: float = 35,
-                             interval: float = 0.7, clock=None, sleep=None) -> dict:
-    """Check SDK world state and player unit twice before bridge verification.
+                             interval: float = 0.7, clock=None, sleep=None,
+                             mismatch_grace: float = 8.0) -> dict:
+    """Require two stable matches after allowing transient world-entry SDK names.
 
     Do NOT call lua.evaluate("return UnitName('player')") here: on the pinned
     native SDK build it can terminate Wow.exe (observed 2026-10-14). This is
-    only a preliminary SDK check; prepare_environment must still verify the
-    player name independently from a fresh ForgeTestBridge v2 smoke report.
+    only a preliminary SDK check; the bridge observer also needs an independent
+    report. An SDK-only observer does not claim addon acceptance.
     """
     if not CHARACTER.fullmatch(character):
         raise ValueError("Invalid character name")
@@ -120,22 +121,29 @@ def wait_for_player_identity(call, character: str, *, timeout: float = 35,
     deadline = clock() + timeout
     stable = 0
     unit_state = "unavailable"
+    first_world_at = None
     while True:
         screen = call("client.getScreen")
         if not isinstance(screen, dict):
             raise RuntimeError("SDK returned invalid world state")
         if screen.get("screen") == "world" or screen.get("inWorld") is True:
+            if first_world_at is None:
+                first_world_at = clock()
             unit = call("unit.get", {"token": "player"})
             if not isinstance(unit, dict):
                 raise RuntimeError("SDK returned invalid player unit state")
             unit_name = unit.get("name")
             if unit.get("exists") is True and isinstance(unit_name, str) and unit_name:
                 if unit_name.casefold() != character.casefold():
-                    raise RuntimeError("SDK unit API reports a different player; refusing test.")
-                unit_state = "matched"
-                stable += 1
-                if stable >= 2:
-                    return {"status": "sdk_unit_matched", "character": character}
+                    unit_state = "mismatched"
+                    stable = 0
+                    if clock() - first_world_at >= mismatch_grace:
+                        raise RuntimeError("SDK unit API persistently reports a different player; refusing test.")
+                else:
+                    unit_state = "matched"
+                    stable += 1
+                    if stable >= 2:
+                        return {"status": "sdk_unit_matched", "character": character}
             else:
                 unit_state = "not_ready"
                 stable = 0
@@ -146,8 +154,7 @@ def wait_for_player_identity(call, character: str, *, timeout: float = 35,
             raise RuntimeError(
                 "SDK player identity did not become ready after world entry: "
                 f"unit={unit_state}. "
-                "A fresh ForgeTestBridge v2 report is still required; "
-                "no scenario was authorized.")
+                "No scenario was authorized.")
         sleep(interval)
 
 
