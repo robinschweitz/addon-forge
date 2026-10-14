@@ -5,6 +5,9 @@ from .scenario_plan import load_plan
 
 def run_session(cfg: Config, plan_path: Path, *, approve: bool = False):
     plan = load_plan(plan_path)
+    observer = plan.get("observer", "bridge")
+    if observer == "sdk" and cfg.automation_backend != "wowcontrol":
+        raise ValueError("SDK observer requires wowcontrol backend")
     if not approve:
         return {"status": "plan_only", "plan": plan}
     from .win_login import _test_copy, _read_calibration, _credentials
@@ -41,8 +44,9 @@ def run_session(cfg: Config, plan_path: Path, *, approve: bool = False):
     _credentials(wow)
     deploy(addon, wow)
     prepared = prepare_environment(cfg, start_client=True, login=True,
-                                   enter_character=plan["character"])
-    if prepared.get("status") != "character_verified":
+                                   enter_character=plan["character"], observer=observer)
+    expected_status = "sdk_character_observed" if observer == "sdk" else "character_verified"
+    if prepared.get("status") != expected_status:
         return {"status": "infrastructure_error", "preparation": prepared}
     result = run_plan(cfg, plan_path, approve=True)
     return {"status": result["status"], "preparation": prepared, "plan_result": result}
