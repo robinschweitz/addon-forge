@@ -158,7 +158,11 @@ correct character. Forge therefore **does not issue this Lua identity RPC**
 during startup or `agent wowcontrol-status --player`.
 
 Startup checks `client.getScreen` and two consecutive matching
-`unit.get(player)` results. **This SDK check alone is not verification**:
+`unit.get(player)` results. After first seeing the world, it tolerates a
+transient mismatched name for up to eight seconds (the pinned SDK was observed
+reporting a wrong name immediately after `client.enterWorld` and the correct
+name later in the **same PID**). Persistent mismatches are refused, and SDK-only
+mode never claims addon behavior passed. **This SDK check alone is not verification**:
 `agent prepare` requires a fresh and correlated ForgeTestBridge v2 smoke
 report with exactly the requested player name before it returns
 `character_verified` and before an approved session can continue.
