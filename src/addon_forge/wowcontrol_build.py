@@ -65,6 +65,30 @@ def _prerequisites() -> dict:
             "platform": "Win32"}
 
 
+def _install_prerequisites(tools: dict) -> None:
+    """Opt-in winget installers; may prompt Windows UAC or require a restart."""
+    winget = shutil.which("winget")
+    if not winget:
+        raise RuntimeError("winget missing; install Windows App Installer first")
+    packages = [
+        ("git", "Git.Git", None),
+        ("cmake", "Kitware.CMake", None),
+        ("visual_studio_cpp", "Microsoft.VisualStudio.2022.BuildTools",
+         "--wait --quiet --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"),
+    ]
+    for name, package, override in packages:
+        if tools.get(name):
+            continue
+        command = [winget, "install", "--id", package, "--exact",
+                   "--source", "winget", "--silent", "--accept-package-agreements",
+                   "--accept-source-agreements", "--disable-interactivity"]
+        if override:
+            command += ["--override", override]
+        _invoke(command, timeout=3600)
+    # Tool locations might not be refreshed into this PowerShell session.
+    # _which checks standard installation paths as a fallback.
+
+
 def _pe_machine(path: Path) -> int:
     """Ensure both compiled artifacts really target the 32-bit WoW process."""
     if not path.is_file() or path.is_symlink():
@@ -146,7 +170,7 @@ def _write_local_config(path: Path, paths: dict, realm: str | None, *, backup_di
 
 
 def setup(config_path: Path, *, approve: bool = False, realm: str | None = None,
-          workspace: Path | None = None) -> dict:
+          workspace: Path | None = None, install_prereqs: bool = False) -> dict:
     config_path = config_path.expanduser().resolve()
     destination = (workspace or config_path.parent / ".forge-tools" / "wowcontrol-sdk").expanduser().resolve()
     source = destination / "source"
@@ -157,7 +181,7 @@ def setup(config_path: Path, *, approve: bool = False, realm: str | None = None,
                            "verify x86 PE artifacts", "write SDK paths to existing local TOML"],
                "note": "Compiles third-party native C++; does not install/inject/launch WoW."}
     if not approve:
-        return {"status": "plan_only", **preview}
+        return {"status": "plan_only", "install_prereqs": install_prereqs, **preview}
     if sys.platform != "win32":
         raise RuntimeError("WoWControlSDK native builds require Windows")
     from .config import load_config
@@ -169,10 +193,13 @@ def setup(config_path: Path, *, approve: bool = False, realm: str | None = None,
     if destination.is_symlink() or source.is_symlink():
         raise RuntimeError("Refusing linked SDK build workspace")
     tools = _prerequisites()
+    if install_prereqs and not all(tools[k] for k in ("git", "cmake", "visual_studio_cpp")):
+        _install_prerequisites(tools)
+        tools = _prerequisites()
     if not all(tools[k] for k in ("git", "cmake", "visual_studio_cpp")):
         return {"status": "missing_build_tools", **preview,
                 "tools": tools,
-                "hint": "Install Git, CMake 3.20+ and Visual Studio 2022 C++ build tools (Win32), then retry."}
+                "hint": "Retry with --install-prereqs --approve-build to use winget; Windows may prompt for elevation or reboot."}
     git, cmake = tools["git"], tools["cmake"]
     destination.mkdir(parents=True, exist_ok=True)
     if not source.exists():
