@@ -62,6 +62,9 @@ def make_parser():
     agent = sub.add_parser("agent", help="Agent-facing inspectable local test realm capabilities")
     agent_sub = agent.add_subparsers(dest="action", required=True)
     agent_sub.add_parser("capabilities")
+    session = agent_sub.add_parser("session", help="Start verified WoW and run a bounded addon plan")
+    session.add_argument("plan", type=Path)
+    session.add_argument("--approve-fixtures", action="store_true")
     lifecycle = agent_sub.add_parser("party-lifecycle", help="Run 2-4 persistent peers and verify before/after departure")
     lifecycle.add_argument("--character", required=True)
     lifecycle.add_argument("--peers", type=int, default=3)
@@ -121,6 +124,12 @@ def main(argv=None) -> int:
             if args.action == "capabilities":
                 print(json.dumps(capabilities(), indent=2))
                 return 0
+            if args.action == "session":
+                from .agent_session import run_session
+                result = run_session(load_config(args.config), args.plan,
+                                     approve=args.approve_fixtures)
+                print(json.dumps(result, indent=2))
+                return 0 if result["status"] in ("plan_only", "passed") else 1
             if args.action == "prepare":
                 from .agent_prepare import prepare_environment
                 result = prepare_environment(load_config(args.config), start_client=args.start_client,
