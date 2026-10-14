@@ -123,7 +123,7 @@ def test_sdk_login_pins_rpc_to_test_pid_and_never_uses_secret_in_argv(tmp_path, 
         if method == "client.ping":
             return {"status": "ok"}
         if method == "client.getScreen":
-            return {"screen": "login" if len([x for x in observed if x[0] == method]) == 1 else "charselect"}
+            return {"screen": "login" if len([x for x in observed if x[0] == method]) <= 2 else "charselect"}
         if method == "client.login":
             return {"ok": True}
         if method == "client.getCharacters":
@@ -168,3 +168,94 @@ def test_injector_does_not_launch_without_pywin32(tmp_path, monkeypatch):
                         lambda *args, **kwargs: pytest.fail("Injector launched"))
     with pytest.raises(RuntimeError, match="pywin32"):
         wowcontrol.launch_and_enter(cfg, "Test")
+
+
+def test_sdk_screen_wait_allows_initial_unknown_and_requires_stable_login():
+    from addon_forge.wowcontrol import wait_for_screen
+    observed = iter(["", "", "login", "", "login", "login"])
+    calls = []
+    now = [0.0]
+    def call(method):
+        calls.append(method)
+        return {"screen": next(observed), "loginState": 0, "inWorld": False}
+    def advance(seconds):
+        now[0] += seconds
+    assert wait_for_screen(call, "login", timeout=10, interval=0.5,
+                           clock=lambda: now[0], sleep=advance)["screen"] == "login"
+    assert calls == ["client.getScreen"] * 6
+
+
+def test_sdk_screen_wait_timeout_reports_nonsecret_diagnostics():
+    from addon_forge.wowcontrol import wait_for_screen
+    now = [0.0]
+    def call(method):
+        return {"screen": "", "loginState": 2, "inWorld": False}
+    def advance(seconds):
+        now[0] += seconds
+    with pytest.raises(RuntimeError, match="last screen='', loginState=2") as err:
+        wait_for_screen(call, "login", timeout=1.0, interval=0.5,
+                        clock=lambda: now[0], sleep=advance)
+    assert "No credentials are sent" in str(err.value)
+
+
+def test_sdk_screen_wait_refuses_unverified_charselect_without_waiting():
+    from addon_forge.wowcontrol import wait_for_screen
+    with pytest.raises(RuntimeError, match="unverified account"):
+        wait_for_screen(lambda method: {"screen": "charselect"}, "login",
+                        timeout=0.1, sleep=lambda _: None)
+
+
+def test_sdk_screen_wait_rejects_already_in_world():
+    from addon_forge.wowcontrol import wait_for_screen
+    with pytest.raises(RuntimeError, match="already in-world"):
+        wait_for_screen(lambda method: {"screen": "world", "inWorld": True},
+                        "login", timeout=0.1, sleep=lambda _: None)
+
+
+def test_sdk_screen_wait_never_logs_unexpected_payload():
+    from addon_forge.wowcontrol import wait_for_screen
+    now = [0.0]
+    def advance(seconds):
+        now[0] += seconds
+    with pytest.raises(RuntimeError) as exc:
+        wait_for_screen(lambda method: {"screen": "SECRET", "loginState": "SECRET"},
+                        "login", timeout=0.1, interval=0.2,
+                        clock=lambda: now[0], sleep=advance)
+    assert "SECRET" not in str(exc.value)
+
+
+def test_sdk_client_status_read_only_and_pid_bound(tmp_path, monkeypatch):
+    from addon_forge import wowcontrol, win_login, windows_client
+    cfg = Config(wow_dir=tmp_path / "wow", wine_prefix=tmp_path / "wine",
+                 automation_backend="wowcontrol")
+    monkeypatch.setattr(win_login, "_test_copy", lambda path: path)
+    monkeypatch.setattr(windows_client, "_client_binary", lambda path: path / "Wow.exe")
+    api = Mock()
+    api.find_window.return_value = 12
+    api.window_pid.return_value = 30272
+    monkeypatch.setattr(windows_client, "WindowsAPI", lambda: api)
+    observed = []
+    def rpc(method, *, expected_pid):
+        observed.append((method, expected_pid))
+        return {"screen": "", "inWorld": False, "loginState": 7}
+    status = wowcontrol.client_status(cfg, rpc=rpc)
+    assert status["status"] == "observed"
+    assert status["screen"] == ""
+    assert status["pid"] == 30272
+    assert status["login_state"] == 7
+    assert observed == [("client.getScreen", 30272)]
+
+
+def test_sdk_status_never_displays_unexpected_screen_string(tmp_path, monkeypatch):
+    from addon_forge import wowcontrol, win_login, windows_client
+    cfg = Config(wow_dir=tmp_path / "wow", wine_prefix=tmp_path / "wine")
+    monkeypatch.setattr(win_login, "_test_copy", lambda path: path)
+    monkeypatch.setattr(windows_client, "_client_binary", lambda path: path / "Wow.exe")
+    api = Mock()
+    api.find_window.return_value = 12
+    api.window_pid.return_value = 1
+    monkeypatch.setattr(windows_client, "WindowsAPI", lambda: api)
+    out = wowcontrol.client_status(cfg, rpc=lambda *args, **kwargs:
+                                   {"screen": "SENSITIVE STRING", "loginState": "SENSITIVE"})
+    assert out["screen"] == "<unknown>"
+    assert out["login_state"] is None
