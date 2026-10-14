@@ -89,6 +89,47 @@ running, `agent prepare` will not replace its loaded Lua modules.
 To load new addon files or a changed bridge, close/restart the test client
 before running new tests.
 
+### Experimental no-click character entry (Windows)
+
+You **do not need a patched WoW client** for the first version. When you
+have already saved your *local test-realm* account in Windows Credential Manager
+and calibrated the login form, perform one additional supervised calibration
+on the *character selection* screen, with exactly the target character
+selected but not yet in the world:
+
+```powershell
+.\.venv\Scripts\forge.exe --config forge.local.toml client character calibrate --character Test
+```
+
+Point at two static character-selection UI details and the visible **selected
+character name** when requested. Choose a patch containing the whole short
+name plus stable UI details, not moving animations. This records 3 small RGB
+reference patches and the window dimensions inside the **marked separate test
+client**. Keep resolution/UI scale unchanged.
+
+On later sessions, **close the test client** before running:
+
+```powershell
+.\.venv\Scripts\forge.exe --config forge.local.toml agent prepare --start-client --login --enter-character Test
+```
+
+After the vault-based login succeeds, Forge waits for the exact calibrated
+character selection screen in the **same newly launched executable process**
+and only then presses Enter. It aborts without clicking or pressing Enter if
+the expected process, pixels, name signature, or resolution differs. **This
+new feature is not live-verified yet.** Selecting a character via pixels is
+fragile on animated/customized screens; it can also match another screen if
+the reference patches are not sufficiently distinctive. Subsequent
+`agent run-plan` remains essential to independently verify the true player
+name in ForgeTestBridge v2; a successful button press isn't proof of login.
+
+The linked [awesome-wow-335-clients collection](https://github.com/haha2345/awesome-wow-335-clients)
+includes client modifications, but the full unattended path does not
+require untrusted binary patches. For example, Awesome WotLK mentions
+command-line auto-login (exposing process arguments), while WoWee is an
+independent, incomplete engine with different addon-compatibility
+characteristics. We do **not** download, bundle, or patch any `Wow.exe`.
+
 ## Quick regression: real UI assertions with no new server players
 
 Edit `examples/forge-example-scenario.json` and set `character` to the
@@ -223,7 +264,7 @@ These are **user-observed local results**, not a guarantee on other machines:
 | One AzerothGhost peer appears and is targeted | **Verified** | User-provided peer test passed; run `60bb9bfee84b` |
 | Three-peer bot party / peer departure lifecycle | **Verified live** | v2 target assertions passed at stages `61f0feae27df` and `e88eaee835cd`; bot-only group, GUI player `party.count: 0` |
 | Four-peer party, GUI player membership and addon party frames | **Not verified live** | Separate membership/health/UI assertions still required |
-| Calibrated login + full character selection | **Partial** | Login submission implemented; no autonomous character selection |
+| Calibrated login and selected character entry | **Experimental, not live-verified** | One-time visual calibration then PID-bound login/Enter; in-game identity must be independently checked |
 | Combat, quests, buffs, items and full autonomous QA | **Not implemented** | Future capability work |
 
 Even verified smoke tests cover only their stated conditions. Preserve
