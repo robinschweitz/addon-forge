@@ -1,7 +1,7 @@
 # Autonomous addon QA on a local Windows test realm
 
 > **Status: experimental, updated 2026-10-14.** This document describes
-> commands on branch `feat/local-azerothcore-setup` (draft PR #6).
+> commands on `main` once the verified feature branch is merged.
 > Commands shown are implemented; individual subsystems are **not** all
 > proven on a live game client. See [Verification status](#verification-status).
 
