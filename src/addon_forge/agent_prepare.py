@@ -13,7 +13,12 @@ from .deploy import deploy
 
 
 def prepare_environment(cfg: Config, *, start_client: bool = False,
-                        login: bool = False, enter_character: str | None = None) -> dict:
+                        login: bool = False, enter_character: str | None = None,
+                        observer: str = "bridge") -> dict:
+    if observer not in ("bridge", "sdk"):
+        raise ValueError("Unknown observer")
+    if observer == "sdk" and cfg.automation_backend != "wowcontrol":
+        raise ValueError("SDK-only observer requires wowcontrol backend")
     if enter_character and (not login or not start_client):
         raise ValueError("--enter-character requires both --login and --start-client")
     if login and not start_client:
@@ -38,7 +43,7 @@ def prepare_environment(cfg: Config, *, start_client: bool = False,
 
     root = Path(__file__).resolve().parents[2]
     bridge = root / "wow" / "ForgeTestBridge"
-    if not bridge.is_dir():
+    if observer == "bridge" and not bridge.is_dir():
         raise RuntimeError("Matching ForgeTestBridge source not found")
     # Deploying a changed bridge cannot reload it in a running WoW process.
     # Fail before copying so the user can restart cleanly, not get stale data.
@@ -53,13 +58,17 @@ def prepare_environment(cfg: Config, *, start_client: bool = False,
     if cfg.automation_backend == "wowcontrol" and login and enter_character:
         from .wowcontrol import require_windows_transport
         require_windows_transport()  # No addon deployment or injection on missing pywin32.
-    installed = deploy(bridge, wow)
+    installed = deploy(bridge, wow) if observer == "bridge" else None
     if not start_client:
-        return {"status": "prepared", "bridge_deployed": True,
-                "path": str(installed), "client_started": False}
+        return {"status": "prepared", "bridge_deployed": observer == "bridge",
+                "path": str(installed) if installed else None, "client_started": False}
     if cfg.automation_backend == "wowcontrol" and login and enter_character:
         from .wowcontrol import launch_and_enter
         pid = launch_and_enter(cfg, enter_character)
+        if observer == "sdk":
+            return {"status": "sdk_character_observed", "backend": "wowcontrol",
+                    "pid": pid, "bridge_deployed": False, "client_started": True,
+                    "verification": "SDK unit only; no independent addon telemetry"}
         from .runner import run_smoke
         report = run_smoke(cfg, suite="smoke", required_tests=("bridge_loaded",),
                            out_dir=Path(".forge-runs"))
