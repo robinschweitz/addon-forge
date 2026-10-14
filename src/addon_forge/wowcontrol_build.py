@@ -171,8 +171,16 @@ def _write_local_config(path: Path, paths: dict, realm: str | None, *, backup_di
 
 def setup(config_path: Path, *, approve: bool = False, realm: str | None = None,
           workspace: Path | None = None, install_prereqs: bool = False) -> dict:
-    config_path = config_path.expanduser().resolve()
-    destination = (workspace or config_path.parent / ".forge-tools" / "wowcontrol-sdk").expanduser().resolve()
+    config_path = config_path.expanduser()
+    if approve and config_path.is_symlink():
+        raise RuntimeError("Refusing linked local configuration")
+    config_path = config_path.resolve()
+    root = config_path.parent / ".forge-tools"
+    if approve and root.is_symlink():
+        raise RuntimeError("Refusing linked third-party tools directory")
+    destination = (workspace or root / "wowcontrol-sdk").expanduser().resolve()
+    if approve and not destination.is_relative_to(root.resolve()):
+        raise RuntimeError("SDK workspace must be inside the ignored .forge-tools directory")
     source = destination / "source"
     binaries = source / "bin" / "release"
     preview = {"source": UPSTREAM, "revision": PINNED_SHA, "workspace": str(destination),
@@ -206,7 +214,7 @@ def setup(config_path: Path, *, approve: bool = False, realm: str | None = None,
         _invoke([git, "clone", "--no-checkout", "--filter=blob:none", UPSTREAM, str(source)], timeout=240)
         _invoke([git, "-C", str(source), "fetch", "--depth", "1", "origin", PINNED_SHA], timeout=240)
         _invoke([git, "-C", str(source), "checkout", "--detach", PINNED_SHA], timeout=120)
-    elif not (source / ".git").is_dir():
+    elif not (source / ".git").is_dir() or (source / ".git").is_symlink():
         raise RuntimeError("Existing SDK source is not a Git checkout; refusing to overwrite")
     if _invoke([git, "-C", str(source), "remote", "get-url", "origin"]) != UPSTREAM:
         raise RuntimeError("Unexpected upstream repository in SDK workspace")
