@@ -234,7 +234,7 @@ def setup(config_path: Path, *, approve: bool = False, realm: str | None = None,
         if not _python_transport_ready():
             return {"status": "missing_python_dependencies", **preview,
                     "hint": "Install Forge Windows extras using "
-                            '.\\.venv\\Scripts\\python.exe -m pip install -e ".[windows]" '
+                            r'.\\.venv\\Scripts\\python.exe -m pip install -e ".[windows]" '
                             "and rerun wowcontrol-setup; no injector was launched."}
     git, cmake = tools["git"], tools["cmake"]
     destination.mkdir(parents=True, exist_ok=True)
