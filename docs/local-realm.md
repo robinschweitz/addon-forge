@@ -1,3 +1,12 @@
+# One-command local AzerothCore setup (Windows-first; experimental)
+
+**Start with the [canonical autonomous QA guide](qa-workflow.md)** for daily commands, OpenCode usage, evidence, and verified-vs-experimental features. The sections below are detailed setup and troubleshooting reference.
+
+
+This setup uses official AzerothCore Docker Compose, a **separate copy of WoW**,
+and a separate `forge.local.toml`. Your existing Rising Gods client is never edited.
+The plan command does not clone, copy, build or start anything. No Hetzner charges.
+
 ## Reduced-manual-work controls (Windows, experimental)
 
 The one-time setup remains: a **marked isolated test WoW copy**, your local
@@ -38,12 +47,6 @@ or health changes. That requires a verified invite/accept handshake and
 two-sided party assertions, not blind UI clicks. Reports and screenshots
 are under `.forge-runs`. If a fixture fails, Forge still releases/kills
 its test process without deleting Docker volumes or wiping realm data.
-
-# One-command local AzerothCore setup (Windows-first; experimental)
-
-This setup uses official AzerothCore Docker Compose, a **separate copy of WoW**,
-and a separate `forge.local.toml`. Your existing Rising Gods client is never edited.
-The plan command does not clone, copy, build or start anything. No Hetzner charges.
 
 ## Prerequisites
 
