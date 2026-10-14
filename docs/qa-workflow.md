@@ -173,6 +173,35 @@ not yet been proven safe against this native crash. If the SDK still crashes,
 use the existing Win32 backend and manually enter the test character before
 running a correlated bridge smoke test. Do not use the SDK on a public realm.
 
+### SDK-first observation without ForgeTestBridge (limited)
+
+An opt-in scenario may specify `"observer": "sdk"` instead of the default
+`"bridge"`. This path does **not** deploy, invoke, or inspect ForgeTestBridge.
+It currently supports only `player_in_world` with `peers: 0`; all
+`frame_visible`, `target_player` and `party_count_at_least` requests are
+rejected at plan validation, before injection. It never calls SDK Lua.
+
+Example scenario (place beside its addon folder):
+
+```json
+{
+  "version": 1,
+  "addon": "ForgeExample",
+  "character": "Test",
+  "peers": 0,
+  "observer": "sdk",
+  "checks": [{"type": "player_in_world", "value": true}]
+}
+```
+
+Run preview first, then an approved session using this scenario. The outcome
+is deliberately `"observed"` and `addon_verified: false`, **not** a passed
+addon acceptance test. To assert addon frames, use the bridge observer until
+SDK game-function Lua execution is repaired and separately validated on the
+test client. This mode does not establish that an addon loaded, registered
+frames or behaved correctly. The original scenario without `observer` retains
+its bridge-based acceptance behavior.
+
 ### SDK says the test client is not on the login screen
 
 The SDK injector reports **pipe ready** before the WoW glue UI necessarily
