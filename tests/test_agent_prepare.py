@@ -68,3 +68,28 @@ def test_sdk_request_rejects_unlisted_methods():
     from addon_forge.wowcontrol import request
     with pytest.raises(ValueError, match="Unapproved"):
         request("client.quit", expected_pid=123)
+
+def test_sdk_pid_binding_mismatch_fails():
+    import ctypes
+    from addon_forge.wowcontrol_pipe import verify_server_pid
+    class Kernel:
+        def __init__(self):
+            self.GetNamedPipeServerProcessId = self.check
+        def check(self, handle, output):
+            ctypes.cast(output, ctypes.POINTER(ctypes.c_ulong))[0] = 999
+            return True
+    with pytest.raises(RuntimeError, match="does not match"):
+        verify_server_pid(42, 123, kernel=Kernel())
+
+def test_sdk_bridge_never_accepts_non_forge_code():
+    from addon_forge.windows_client import validate_chat_command
+    for bad in ("/run print('oops')", "/script ReloadUI()", "/logout"):
+        with pytest.raises(ValueError):
+            validate_chat_command(bad)
+
+def test_sdk_unknown_backend_configuration(tmp_path):
+    from addon_forge.config import load_config
+    cfg = tmp_path / "forge.toml"
+    cfg.write_text("[client]\nwow_dir = 'C:/test'\nautomation_backend = 'anything'\n")
+    with pytest.raises(ValueError, match="backend"):
+        load_config(cfg)
