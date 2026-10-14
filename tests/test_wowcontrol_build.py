@@ -119,3 +119,25 @@ def test_opt_in_winget_only_for_missing_packages(monkeypatch):
     assert all("--accept-package-agreements" in argv for argv in invoked)
     assert all("--accept-source-agreements" in argv for argv in invoked)
     assert all(argv[0] == "C:/winget.exe" for argv in invoked)
+
+
+def test_approved_build_rejects_external_workspaces(tmp_path, monkeypatch):
+    monkeypatch.setattr(sdk.sys, "platform", "win32")
+    config = tmp_path / "forge.local.toml"
+    config.write_text("[client]\nwow_dir = 'F:/test-wow'\n")
+    with pytest.raises(RuntimeError, match="ignored .forge-tools"):
+        sdk.setup(config, approve=True, workspace=tmp_path / "outside")
+
+
+def test_approved_build_refuses_linked_configuration(tmp_path, monkeypatch):
+    monkeypatch.setattr(sdk.sys, "platform", "win32")
+    original = tmp_path / "some-other-config.toml"
+    original.write_text("[client]\nwow_dir = 'F:/test-wow'\n")
+    alias = tmp_path / "forge.local.toml"
+    try:
+        alias.symlink_to(original)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks unavailable")
+    with pytest.raises(RuntimeError, match="linked local configuration"):
+        sdk.setup(alias, approve=True)
+    assert original.read_text() == "[client]\nwow_dir = 'F:/test-wow'\n"
