@@ -37,3 +37,18 @@ def test_prepare_does_not_deploy_while_game_open(tmp_path, monkeypatch):
     result = agent_prepare.prepare_environment(config(tmp_path), start_client=True)
     assert result["status"] == "client_running"
     assert result["bridge_deployed"] is False
+
+
+def test_session_import_and_preview_callable():
+    from addon_forge.agent_session import run_session
+    assert callable(run_session)
+
+
+def test_session_preview_no_client_or_credentials(tmp_path):
+    import json
+    from addon_forge.agent_session import run_session
+    path = tmp_path / "scenario.json"
+    addon = tmp_path / "Demo"
+    addon.mkdir()
+    path.write_text(json.dumps({"version": 1, "addon": "Demo", "character": "Test", "peers": 0, "checks": [{"type": "player_in_world", "value": True}]}))
+    assert run_session(config(tmp_path), path)["status"] == "plan_only"

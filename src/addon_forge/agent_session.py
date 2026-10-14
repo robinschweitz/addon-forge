@@ -1,0 +1,44 @@
+"""Windows approved QA session runner."""
+from pathlib import Path
+from .config import Config
+from .scenario_plan import load_plan
+
+def run_session(cfg: Config, plan_path: Path, *, approve: bool = False):
+    plan = load_plan(plan_path)
+    if not approve:
+        return {"status": "plan_only", "plan": plan}
+    from .win_login import _test_copy, _read_calibration, _credentials
+    from .win_character import read_character_calibration
+    from .windows_client import WindowsAPI, _client_binary
+    from .deploy import deploy
+    from .agent_prepare import prepare_environment
+    from .agent_workflow import run_plan
+    from .validate import check_addon, is_valid
+    import sys
+    if sys.platform != "win32":
+        raise RuntimeError("Native Windows is required")
+    wow = _test_copy(cfg.wow_dir)
+    api = WindowsAPI()
+    try:
+        api.find_window(cfg.window_name, _client_binary(wow))
+    except RuntimeError as exc:
+        if "found 0." not in str(exc):
+            raise
+    else:
+        raise RuntimeError("Close test WoW before starting the session")
+
+    addon = (plan_path.resolve().parent / plan["addon"]).resolve()
+    if not addon.is_relative_to(plan_path.resolve().parent) or not addon.is_dir():
+        raise ValueError("Scenario addon must exist alongside plan")
+    if not is_valid(check_addon(addon)):
+        return {"status": "failed", "error": "Invalid addon sources"}
+    _read_calibration(wow)
+    read_character_calibration(wow, plan["character"])
+    _credentials(wow)
+    deploy(addon, wow)
+    prepared = prepare_environment(cfg, start_client=True, login=True,
+                                   enter_character=plan["character"])
+    if prepared.get("status") != "character_verified":
+        return {"status": "infrastructure_error", "preparation": prepared}
+    result = run_plan(cfg, plan_path, approve=True)
+    return {"status": result["status"], "preparation": prepared, "plan_result": result}
