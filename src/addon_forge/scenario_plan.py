@@ -12,12 +12,15 @@ ALLOWED_TYPE = {"frame_visible", "target_player", "player_in_world", "party_coun
 
 
 def validate_plan(data: dict) -> dict:
-    if not isinstance(data, dict) or set(data) != {"version", "addon", "character", "peers", "checks"}:
+    if not isinstance(data, dict) or not {"version", "addon", "character", "peers", "checks"}.issubset(data) or set(data) - {"version", "addon", "character", "peers", "checks", "observer"}:
         raise ValueError("Plan needs version, addon, character, peers and checks, with no extra keys")
     if data["version"] != 1 or not NAME.fullmatch(str(data["addon"])):
         raise ValueError("Expected version 1 and a simple addon name")
     if not CHARACTER.fullmatch(str(data["character"])):
         raise ValueError("Expected the already-in-world graphical test character name")
+    observer = data.get("observer", "bridge")
+    if observer not in ("bridge", "sdk"):
+        raise ValueError("observer must be bridge or sdk")
     peers = data["peers"]
     if type(peers) is not int or not 0 <= peers <= 4:
         raise ValueError("peers must be 0-4")
@@ -47,8 +50,13 @@ def validate_plan(data: dict) -> dict:
             raise ValueError("Duplicate check")
         seen.add(key)
         clean.append({"type": kind, "value": value})
-    return {"version": 1, "addon": data["addon"], "character": data["character"],
-            "peers": peers, "checks": clean}
+    if observer == "sdk" and (peers or any(chk["type"] != "player_in_world" for chk in clean)):
+        raise ValueError("SDK-only observer currently supports only player_in_world with peers=0; UI/addon checks require the bridge")
+    result = {"version": 1, "addon": data["addon"], "character": data["character"],
+              "peers": peers, "checks": clean}
+    if "observer" in data:
+        result["observer"] = observer
+    return result
 
 
 def load_plan(path: Path) -> dict:
