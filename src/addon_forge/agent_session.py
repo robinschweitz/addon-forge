@@ -26,3 +26,19 @@ def run_session(cfg: Config, plan_path: Path, *, approve: bool = False):
             raise
     else:
         raise RuntimeError("Close test WoW before starting the session")
+
+    addon = (plan_path.resolve().parent / plan["addon"]).resolve()
+    if not addon.is_relative_to(plan_path.resolve().parent) or not addon.is_dir():
+        raise ValueError("Scenario addon must exist alongside plan")
+    if not is_valid(check_addon(addon)):
+        return {"status": "failed", "error": "Invalid addon sources"}
+    _read_calibration(wow)
+    read_character_calibration(wow, plan["character"])
+    _credentials(wow)
+    deploy(addon, wow)
+    prepared = prepare_environment(cfg, start_client=True, login=True,
+                                   enter_character=plan["character"])
+    if prepared.get("status") != "character_verified":
+        return {"status": "infrastructure_error", "preparation": prepared}
+    result = run_plan(cfg, plan_path, approve=True)
+    return {"status": result["status"], "preparation": prepared, "plan_result": result}
