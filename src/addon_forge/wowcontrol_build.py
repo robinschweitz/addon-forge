@@ -89,6 +89,26 @@ def _install_prerequisites(tools: dict) -> None:
     # _which checks standard installation paths as a fallback.
 
 
+def _python_transport_ready() -> bool:
+    """Verify the Python interpreter running Forge can actually import pywin32."""
+    import importlib
+    try:
+        importlib.import_module("win32file")
+        importlib.import_module("pywintypes")
+    except (ImportError, OSError):
+        return False
+    return True
+
+
+def _install_python_transport() -> None:
+    """Install only the project's declared Windows extras after explicit approval."""
+    checkout = Path(__file__).resolve().parents[2]
+    if not (checkout / "pyproject.toml").is_file():
+        raise RuntimeError("Cannot locate trusted Addon Forge pyproject.toml")
+    _invoke([sys.executable, "-m", "pip", "install", "-e", ".[windows]"],
+            cwd=checkout, timeout=360)
+
+
 def _pe_machine(path: Path) -> int:
     """Ensure both compiled artifacts really target the 32-bit WoW process."""
     if not path.is_file() or path.is_symlink():
@@ -208,6 +228,14 @@ def setup(config_path: Path, *, approve: bool = False, realm: str | None = None,
         return {"status": "missing_build_tools", **preview,
                 "tools": tools,
                 "hint": "Retry with --install-prereqs --approve-build to use winget; Windows may prompt for elevation or reboot."}
+    if not _python_transport_ready():
+        if install_prereqs:
+            _install_python_transport()
+        if not _python_transport_ready():
+            return {"status": "missing_python_dependencies", **preview,
+                    "hint": "Install Forge Windows extras using "
+                            '.\\.venv\\Scripts\\python.exe -m pip install -e ".[windows]" '
+                            "and rerun wowcontrol-setup; no injector was launched."}
     git, cmake = tools["git"], tools["cmake"]
     destination.mkdir(parents=True, exist_ok=True)
     if not source.exists():
