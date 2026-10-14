@@ -51,7 +51,11 @@ func TestPeerTargetFixture(t *testing.T) {
 		}
 		names = append(names, bot.Name)
 	}
-	if len(names) != count {
+	if count > 1 {
+        e2eharness.FormParty(t, bots[0], bots[1:]...)
+        bots[0].WaitGroupList(t, true, count, 10*time.Second)
+    }
+    if len(names) != count {
 		t.Fatalf("harness created %d players, requested %d", len(names), count)
 	}
 
@@ -79,12 +83,27 @@ func TestPeerTargetFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	fmt.Println("FORGE_PEER_READY")
+    // Optional stage marker for a reusable fixture lifecycle. Python writes
+    // request-leave only after observing the full party; the bot that leaves
+    // is chosen from our own disposable test peers, never the GUI character.
+    leave := os.Getenv("FORGE_PEER_LEAVE")
+    left := os.Getenv("FORGE_PEER_LEFT")
+    didLeave := false
 
 	deadline := time.Now().Add(120 * time.Second)
 	for time.Now().Before(deadline) {
 		if _, err := os.Stat(release); err == nil {
-			return
-		}
+            return
+        }
+        if !didLeave && count > 1 && leave != "" && left != "" {
+            if _, err := os.Stat(leave); err == nil {
+                bots[count-1].LeaveGroup(t)
+                bots[count-1].WaitNotInGroup(t, 10*time.Second)
+                bots[0].WaitGroupList(t, true, count-1, 10*time.Second)
+                if err := os.WriteFile(left, []byte("left"), 0600); err != nil { t.Fatal(err) }
+                didLeave = true
+            }
+        }
 		time.Sleep(200 * time.Millisecond)
 	}
 	t.Fatal("GUI addon test did not release fixture before deadline")
