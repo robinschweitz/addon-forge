@@ -76,8 +76,8 @@ def peer_scenario(cfg: Config, *, character: str,
                   lifecycle: bool = False) -> dict:
     if not NAME.fullmatch(character):
         raise ValueError("Use a 2-12-letter local graphical test character name.")
-    if lifecycle and peers < 2:
-        raise ValueError("Party lifecycle requires two to four peer players")
+    if lifecycle and peers < 3:
+        raise ValueError("Party lifecycle requires three or four peer players")
     if peers < 1 or peers > 4:
         raise ValueError("peers must be between 1 and 4")
     if not suite.isalnum() or not required_tests:
@@ -101,7 +101,8 @@ def peer_scenario(cfg: Config, *, character: str,
         "limitations": [
             "The graphical test character must already be logged in and in the world",
             "Requires Go 1.26+ and a configured local-only AzerothGhost-compatible realm",
-            "Does not test combat, grouping, quest state or arbitrary AI-specified behaviors",
+            "Bot-to-bot parties only; the real WoW character is not a party member",
+            "Does not test combat, quest state or arbitrary AI-specified behaviors",
         ],
     }
     if not approve:
