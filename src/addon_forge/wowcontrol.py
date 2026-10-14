@@ -53,6 +53,8 @@ def launch_and_enter(cfg: Config, character: str, *, rpc=request) -> int:
     if not CHARACTER.fullmatch(character):
         raise ValueError("Invalid test character")
     wow = _test_copy(cfg.wow_dir)
+    if not cfg.wowcontrol_realm or not re.fullmatch(r"[A-Za-z0-9 _-]{2,64}", cfg.wowcontrol_realm):
+        raise ValueError("Configure a specific local wowcontrol_realm before logging in")
     if not cfg.wowcontrol_injector or not cfg.wowcontrol_dll:
         raise ValueError("Configure both wowcontrol_injector and wowcontrol_dll")
     injector, dll = cfg.wowcontrol_injector, cfg.wowcontrol_dll
@@ -60,9 +62,16 @@ def launch_and_enter(cfg: Config, character: str, *, rpc=request) -> int:
         raise RuntimeError("SDK injector and DLL must be regular local files")
     # The injector launches the *marked* test executable, never the original.
     # Do not use --kill, --pipe-cmd, or --wow-args (which could expose secrets).
+    api = WindowsAPI()
+    try:
+        api.find_window(cfg.window_name, _client_binary(wow))
+    except RuntimeError as exc:
+        if "found 0." not in str(exc):
+            raise
+    else:
+        raise RuntimeError("Close the existing test WoW before an SDK startup")
     subprocess.run([str(injector), "--wow", str(_client_binary(wow)), "--dll", str(dll)],
                    cwd=str(wow), check=True, timeout=60)
-    api = WindowsAPI()
     hwnd = api.find_window(cfg.window_name, _client_binary(wow))
     pid = api.window_pid(hwnd)
     account, password = _credentials(wow)
