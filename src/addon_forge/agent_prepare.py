@@ -64,11 +64,25 @@ def prepare_environment(cfg: Config, *, start_client: bool = False,
         if enter_character:
             from .win_character import enter_character as perform_entry
             perform_entry(cfg, enter_character, pid=pid, api=api)
-            status = "world_entry_submitted"
+            from .runner import run_smoke
+            report = run_smoke(cfg, suite="smoke",
+                               required_tests=("bridge_loaded",),
+                               out_dir=Path(".forge-runs"))
+            snapshot = report.details.get("report", {}).get("snapshot", {})
+            observed_name = snapshot.get("player", {}).get("name") if isinstance(snapshot, dict) else None
+            bridge = report.details.get("report", {})
+            if (report.status != "passed" or bridge.get("bridgeVersion") != 2
+                    or bridge.get("schemaVersion") != 2
+                    or not isinstance(observed_name, str)
+                    or observed_name.casefold() != enter_character.casefold()):
+                raise RuntimeError("World entry could not verify character identity "
+                                   "using a fresh ForgeTestBridge v2 report; "
+                                   "no automated scenario should continue.")
+            status = "character_verified"
     else:
         pid = ClientController(cfg).start()
         status = "client_started"
     return {"status": status, "bridge_deployed": True,
             "client_started": True, "pid": pid,
-            "next": "World-entry input does not prove the intended character is in-game. "
-                    "Run a correlated ForgeTestBridge plan to verify its identity."}
+            "next": "World character identity is verified only when status is "
+                    "character_verified. Otherwise run an in-world correlated test."}
