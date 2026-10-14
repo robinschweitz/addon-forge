@@ -206,6 +206,31 @@ test client. This mode does not establish that an addon loaded, registered
 frames or behaved correctly. The original scenario without `observer` retains
 its bridge-based acceptance behavior.
 
+### Create and run your first bridge-independent addon: ForgeClock
+
+`examples/ForgeClock` is an actual WoW 3.3.5a addon, not a test stub.
+It creates a movable clock showing server hours/minutes and local seconds.
+The `/forgeclock` slash command toggles the frame; `/forgeclock show`
+and `/forgeclock hide` explicitly control visibility. It does **not**
+require ForgeTestBridge or SDK Lua calls.
+
+Close the marked test WoW and run:
+
+```powershell
+.\.venv\Scripts\forge.exe --config forge.local.toml agent session examples\forge-clock-sdk-scenario.json --approve-fixtures
+```
+
+The SDK-only session stages the addon before launch and observes the named
+character in the world. This does not attest to addon loading or UI behavior.
+**Visually verify** the ForgeClock rectangle appears near the center of the
+screen, drag it, and manually type `/forgeclock hide`, then
+`/forgeclock show`. If the frame is absent, inspect AddOns on character
+selection, check whether ForgeClock is enabled, and inspect WoW Lua errors.
+
+ForgeClock provides an editable starting point. Once the native SDK's
+game-function Lua execution is repaired, automated UI/frame assertions
+can replace these manual UI acceptance steps.
+
 ### SDK says the test client is not on the login screen
 
 The SDK injector reports **pipe ready** before the WoW glue UI necessarily
