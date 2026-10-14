@@ -58,7 +58,7 @@ def _prerequisites() -> dict:
     vs = ""
     if vswhere.is_file():
         vs = _invoke([str(vswhere), "-latest", "-products", "*", "-requires",
-                      "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+                      "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-version", "[17.0,18.0)",
                       "-property", "installationPath"], timeout=15)
     return {"git": git, "cmake": cmake,
             "visual_studio_cpp": vs or None, "generator": "Visual Studio 17 2022",
@@ -78,12 +78,12 @@ def _pe_machine(path: Path) -> int:
             raise RuntimeError("Invalid PE header offset")
         file.seek(offset)
         pe = file.read(6)
-    if len(pe) != 6 or pe[:4] != b"PE\\0\\0":
+    if len(pe) != 6 or pe[:4] != b"PE" + bytes((0, 0)):
         raise RuntimeError("Invalid PE signature")
     return struct.unpack("<H", pe[4:6])[0]
 
 
-def _write_local_config(path: Path, paths: dict, realm: str | None) -> bool:
+def _write_local_config(path: Path, paths: dict, realm: str | None, *, backup_dir: Path) -> bool:
     """Edit only specific existing [client] keys; never rewrite other tables."""
     if path.is_symlink() or not path.is_file():
         raise RuntimeError("Local configuration must be an existing regular file")
@@ -127,6 +127,13 @@ def _write_local_config(path: Path, paths: dict, realm: str | None) -> bool:
     tomllib.loads(updated)  # refuse malformed output
     if updated == content:
         return bool(chosen_realm)
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup = backup_dir / "forge-local-toml.before-wowcontrol"
+    if not backup.exists():
+        if backup.is_symlink():
+            raise RuntimeError("Refusing linked config backup")
+        with backup.open("x", encoding="utf-8") as file:
+            file.write(content)
     fd, temp = tempfile.mkstemp(prefix=".forge-config-", suffix=".tmp", dir=path.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="") as file:
@@ -192,7 +199,8 @@ def setup(config_path: Path, *, approve: bool = False, realm: str | None = None,
             raise RuntimeError(f"SDK build output is not x86 (machine={machine:#x}): {p}")
         artifacts[key] = {"path": str(p), "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
     enabled = _write_local_config(config_path,
-                                 {k: v["path"] for k, v in artifacts.items()}, realm)
+                                 {k: v["path"] for k, v in artifacts.items()}, realm,
+                                 backup_dir=destination)
     return {"status": "built", "upstream_revision": PINNED_SHA, "artifacts": artifacts,
             "backend_enabled": enabled, "tools": tools,
             "next": ("Close the isolated test WoW, then run a Forge session; SDK injection is opt-in."
