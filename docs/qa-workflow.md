@@ -89,6 +89,21 @@ running, `agent prepare` will not replace its loaded Lua modules.
 To load new addon files or a changed bridge, close/restart the test client
 before running new tests.
 
+### Single-command addon QA session (experimental)
+
+After one-time vault-login and selected-character calibration, close the test
+WoW client and run:
+
+```powershell
+.\\.venv\\Scripts\\forge.exe --config forge.local.toml agent session examples\\forge-example-scenario.json --approve-fixtures
+```
+
+This stages the addon before client startup, launches the isolated test copy,
+logs in, enters the calibrated character, independently verifies the in-game
+identity and runs the requested acceptance plan. A preview is available by
+omitting `--approve-fixtures`. It refuses to run when test WoW is already open.
+This workflow has not yet been verified end-to-end on a real Windows desktop.
+
 ### Experimental no-click character entry (Windows)
 
 You **do not need a patched WoW client** for the first version. When you
