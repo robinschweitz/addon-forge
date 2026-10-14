@@ -54,3 +54,26 @@ def test_check_frame_not_reported_is_not_a_false_pass():
     answer=evaluate(plan(),observed)
     assert answer["status"]=="failed"
     assert answer["checks"][-1]["actual"] is None
+
+
+def test_sdk_only_plan_accepts_world_observation():
+    candidate = {"version": 1, "addon": "SimpleClock", "character": "Test",
+                 "peers": 0, "observer": "sdk",
+                 "checks": [{"type": "player_in_world", "value": True}]}
+    assert validate_plan(candidate) == candidate
+
+
+def test_sdk_only_rejects_frame_checks_before_starting_client():
+    candidate = {"version": 1, "addon": "SimpleClock", "character": "Test",
+                 "peers": 0, "observer": "sdk",
+                 "checks": [{"type": "frame_visible", "value": "ClockFrame"}]}
+    with pytest.raises(ValueError, match="require the bridge"):
+        validate_plan(candidate)
+
+
+def test_sdk_only_rejects_peers():
+    candidate = {"version": 1, "addon": "SimpleClock", "character": "Test",
+                 "peers": 1, "observer": "sdk",
+                 "checks": [{"type": "player_in_world", "value": True}]}
+    with pytest.raises(ValueError, match="only player_in_world"):
+        validate_plan(candidate)
