@@ -148,10 +148,16 @@ Experimental bot-only party lifecycle, with **at least three** peers:
 .\.venv\Scripts\forge.exe --config forge.local.toml agent party-lifecycle --character Test --peers 3 --approve-fixtures
 ```
 
-The new lifecycle attempts to form a **bot-to-bot** party, checks the
-client's targeted peer, makes the last bot leave and checks again.
-These stages are implemented and have Python unit tests, but have
-**not been live-verified** as an end-to-end group scenario.
+The three-peer lifecycle has now been **verified live on Windows**:
+three AzerothGhost Warriors were online; the harness formed their own
+party, removed one member, and Forge received a successful in-client
+`peer_target_visible` assertion both before and after the departure.
+Observed client reports: `61f0feae27df` (`all_peers_online`) and
+`e88eaee835cd` (`peer_departed`), each with ForgeTestBridge v2 and
+no missing required tests. The remaining two peer names were reported
+after the departure. This verifies the **protocol fixture lifecycle and
+continued graphical target observation**, not GUI group-frame behavior.
+Four peers have not been separately verified live.
 
 **Crucial:** the GUI character is *not* automatically part of that bot
 party; don't claim a party-frame addon is verified just because this
@@ -215,7 +221,8 @@ These are **user-observed local results**, not a guarantee on other machines:
 | Real-client smoke `bridge_loaded` and addon assertion | **Verified** | Correlated in-game SavedVariables round trip |
 | `ForgeExample` independent frame/player checks | **Verified** | User-provided v2 report, all checks passed; run `4d29d6d11e33` |
 | One AzerothGhost peer appears and is targeted | **Verified** | User-provided peer test passed; run `60bb9bfee84b` |
-| 3–4 bot party / peer departure lifecycle | **Implemented, not yet verified live** | Python CI regression checks only |
+| Three-peer bot party / peer departure lifecycle | **Verified live** | v2 target assertions passed at stages `61f0feae27df` and `e88eaee835cd`; bot-only group, GUI player `party.count: 0` |
+| Four-peer party, GUI player membership and addon party frames | **Not verified live** | Separate membership/health/UI assertions still required |
 | Calibrated login + full character selection | **Partial** | Login submission implemented; no autonomous character selection |
 | Combat, quests, buffs, items and full autonomous QA | **Not implemented** | Future capability work |
 
