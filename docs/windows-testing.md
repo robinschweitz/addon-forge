@@ -9,7 +9,7 @@ For the verified local AzerothCore and OpenCode workflow, start with [Autonomous
 Use Python 3.11 or newer, Git and the local WoW directory. You do **not** need Nix or Wine to run the local Forge client controller.
 
 ```powershell
-git switch feat/local-azerothcore-setup
+git switch main
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[windows]"
 Copy-Item forge.toml.example forge.toml
