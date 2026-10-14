@@ -14,3 +14,6 @@ projects/
 
 # Local Hetzner account/project configuration
 cloud/hetzner.toml
+
+# Pinned third-party WoWControlSDK source, Windows binaries and local config backup
+.forge-tools/
