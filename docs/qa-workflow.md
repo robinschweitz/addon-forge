@@ -119,9 +119,10 @@ and only then presses Enter. It aborts without clicking or pressing Enter if
 the expected process, pixels, name signature, or resolution differs. **This
 new feature is not live-verified yet.** Selecting a character via pixels is
 fragile on animated/customized screens; it can also match another screen if
-the reference patches are not sufficiently distinctive. Subsequent
-`agent run-plan` remains essential to independently verify the true player
-name in ForgeTestBridge v2; a successful button press isn't proof of login.
+the reference patches are not sufficiently distinctive. The preparation command immediately runs a correlated ForgeTestBridge v2
+smoke report and independently checks the actual in-world player name.
+It reports `character_verified` only after that proof, and otherwise aborts;
+`agent run-plan` is still needed for each addon's behavior assertions.
 
 The linked [awesome-wow-335-clients collection](https://github.com/haha2345/awesome-wow-335-clients)
 includes client modifications, but the full unattended path does not
@@ -264,7 +265,7 @@ These are **user-observed local results**, not a guarantee on other machines:
 | One AzerothGhost peer appears and is targeted | **Verified** | User-provided peer test passed; run `60bb9bfee84b` |
 | Three-peer bot party / peer departure lifecycle | **Verified live** | v2 target assertions passed at stages `61f0feae27df` and `e88eaee835cd`; bot-only group, GUI player `party.count: 0` |
 | Four-peer party, GUI player membership and addon party frames | **Not verified live** | Separate membership/health/UI assertions still required |
-| Calibrated login and selected character entry | **Experimental, not live-verified** | One-time visual calibration then PID-bound login/Enter; in-game identity must be independently checked |
+| Calibrated login and selected character entry | **Experimental, not live-verified** | One-time visual calibration then PID-bound login/Enter and mandatory correlated bridge v2 identity check |
 | Combat, quests, buffs, items and full autonomous QA | **Not implemented** | Future capability work |
 
 Even verified smoke tests cover only their stated conditions. Preserve
