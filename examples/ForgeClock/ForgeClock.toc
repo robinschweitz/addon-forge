@@ -1,0 +1,5 @@
+## Interface: 30300
+## Title: ForgeClock
+## Notes: Bridge-independent clock example for WoW 3.3.5a
+## Version: 1.0.0
+ForgeClock.lua
