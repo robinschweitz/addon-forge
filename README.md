@@ -4,7 +4,11 @@
 
 This repository contains a real, runnable Python CLI, a WoW 3.3.5a test companion addon, a safe SavedVariables report parser, static validators, an X11/Wine client controller, guarded AI generation/repair, tests and a Nix development environment.
 
-**Status (v0.1.0):** Python tests can run on any Linux workstation. The Wine + WoW + AzerothCore integration path is implemented but **has not been validated on a running game client**. The graphical IDE, deterministic combat fixtures and fully hands-off login are future milestones. Never interpret static checks alone as proof an addon works in game.
+**Status (v0.1.0, experimental):** The native Windows graphical WoW 3.3.5a + local AzerothCore smoke/bridge workflow has been **verified live** with an independent v2 SavedVariables snapshot, and a single AzerothGhost peer was created, targeted, and verified in the real GUI. See [Autonomous QA workflow and verification status](docs/qa-workflow.md). Windows/Linux CI uses mocks; the new multi-peer party lifecycle, automated character selection, combat/quest fixtures and generic hands-off AI QA are **not yet verified or implemented** as noted in that guide.
+
+## Autonomous addon QA: start here (Windows local realm)
+
+**[Step-by-step QA workflow, OpenCode integration, test evidence, troubleshooting and live verification status](docs/qa-workflow.md)** is the canonical guide. Start here for `forge agent prepare`, `forge agent run-plan`, `forge agent peer-test` and the experimental `forge agent party-lifecycle`. The setup details remain in [local realm setup](docs/local-realm.md) and [native Windows guide](docs/windows-testing.md). Existing OpenCode configuration can author addons using [AGENTS.md](AGENTS.md); `forge ai` is still a separate OpenAI-compatible API backend.
 
 ## Local AzerothCore realm — automated setup (experimental)
 
@@ -31,7 +35,7 @@ expose public game ports. Review CI and disk prerequisites before installing.
 
 Windows 10/11 can use a **native WoW 3.3.5a client without Wine/WSL** for graphical smoke tests. See [Windows setup and limitations](docs/windows-testing.md). Install from Windows PowerShell with `py -3.11 -m pip install -e ".[windows]"`, configure `[client] wow_dir` in `forge.toml`, then use the existing `forge deploy`, `forge client start`, `forge client screenshot`, and `forge test` commands.
 
-The controller verifies the WoW executable path and foreground window, restricts commands to `/forge` and `/reload`, and reads the same ForgeTestBridge SavedVariables results as Linux/Wine. **Real-client Windows integration has not yet been validated**; Windows CI tests use a mocked Win32 UI.
+The controller verifies the WoW executable path and foreground window, restricts commands to `/forge`, `/reload` and validated `/targetexact NAME`, and reads the same ForgeTestBridge SavedVariables results as Linux/Wine. **Native Windows in-client smoke and one-peer AzerothGhost testing have been verified live** on the isolated local realm; Windows CI itself still uses a mocked Win32 UI. See the [verification matrix](docs/qa-workflow.md#verification-status).
 
 ## Complete Windows/Linux ↔ Hetzner workflow (experimental)
 
