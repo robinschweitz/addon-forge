@@ -150,6 +150,34 @@ interfere with it, so run under a dedicated, trusted desktop login.
 The injected DLL has arbitrary native-code privileges. Review upstream
 source and consider a dedicated disposable Windows VM.
 
+### SDK says the test client is not on the login screen
+
+The SDK injector reports **pipe ready** before the WoW glue UI necessarily
+finishes loading. Older Forge versions did a single early screen check and
+stopped with `forge: SDK client not on login screen`, without submitting
+credentials. Newer Forge versions wait for **two stable** matching
+`client.getScreen` observations, up to 65 seconds for the login screen and
+15 seconds for character selection after `client.login`.
+
+If the injector left your **marked test WoW** open after a failure, obtain
+read-only status *before* closing it:
+
+```powershell
+.\\.venv\\Scripts\\forge.exe --config forge.local.toml agent wowcontrol-status
+```
+
+This verifies the named-pipe server PID against the expected test WoW window
+and reports only `screen` (`login`, `charselect`, `world` or empty), `in_world`
+and the numeric `login_state`. It sends **no credentials or Lua commands**.
+Empty `screen` may mean the client is still starting; if it persists past
+the timeout, inspect the visible test WoW for EULA/first-run dialogs or
+compatibility problems. Forge refuses to reuse an already authenticated
+unknown account or world session. It never auto-accepts legal agreements.
+
+Close **only** the isolated test client before retrying `agent session`.
+The original WoW installation, SDK build artifacts and Docker volumes do not
+need rebuilding or resetting.
+
 As in the traditional backend, reports/screenshots come from the real
 client. For now, addon checks still use Forge's established chat/bridge
 runner; SDK RPC is used for startup and identity, not for executing model
