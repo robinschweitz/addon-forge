@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "addon": "ForgeExample",
+  "character": "Test",
+  "peers": 0,
+  "observer": "sdk",
+  "checks": [
+    {"type": "player_in_world", "value": true}
+  ]
+}
