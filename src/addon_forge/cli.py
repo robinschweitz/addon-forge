@@ -59,6 +59,13 @@ def make_parser():
     agent = sub.add_parser("agent", help="Agent-facing inspectable local test realm capabilities")
     agent_sub = agent.add_subparsers(dest="action", required=True)
     agent_sub.add_parser("capabilities")
+    lifecycle = agent_sub.add_parser("party-lifecycle", help="Run 2-4 persistent peers and verify before/after departure")
+    lifecycle.add_argument("--character", required=True)
+    lifecycle.add_argument("--peers", type=int, default=3)
+    lifecycle.add_argument("--approve-fixtures", action="store_true")
+    prepare = agent_sub.add_parser("prepare", help="Safely deploy bridge and start isolated test WoW if needed")
+    prepare.add_argument("--start-client", action="store_true")
+    prepare.add_argument("--login", action="store_true", help="Use calibrated Windows-vault login for a newly started client")
     workflow = agent_sub.add_parser("run-plan", help="Review or execute a bounded addon acceptance plan")
     workflow.add_argument("plan", type=Path)
     workflow.add_argument("--approve-fixtures", action="store_true")
@@ -110,6 +117,20 @@ def main(argv=None) -> int:
             if args.action == "capabilities":
                 print(json.dumps(capabilities(), indent=2))
                 return 0
+            if args.action == "prepare":
+                from .agent_prepare import prepare_environment
+                result = prepare_environment(load_config(args.config), start_client=args.start_client,
+                                             login=args.login)
+                print(json.dumps(result, indent=2))
+                return 0
+            if args.action == "party-lifecycle":
+                from .peer_scenario import peer_scenario
+                result = peer_scenario(load_config(args.config), character=args.character,
+                                       peers=args.peers, lifecycle=True,
+                                       approve=args.approve_fixtures,
+                                       output_dir=Path(".forge-runs"))
+                print(json.dumps(result, indent=2))
+                return 0 if result["status"] in ("plan_only", "passed") else 1
             if args.action == "run-plan":
                 from .agent_workflow import run_plan
                 result = run_plan(load_config(args.config), args.plan,
