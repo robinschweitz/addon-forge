@@ -59,6 +59,51 @@ def request(method: str, params: dict | None = None, *, expected_pid: int, trans
         transport.CloseHandle(handle)
 
 
+def wait_for_screen(call, expected: str, *, timeout: float = 65,
+                    interval: float = 0.6, clock=None, sleep=None) -> dict:
+    """Wait for WoW glue UI to initialize before sending any credentials.
+
+    Pipe readiness only establishes that the injected DLL is serving RPCs,
+    not that the WoW login/character-selection UI finished loading.
+    """
+    if expected not in ("login", "charselect"):
+        raise ValueError("Only known pre-world states can be awaited")
+    clock = clock or time.monotonic
+    sleep = sleep or time.sleep
+    deadline = clock() + timeout
+    last = {"screen": "<not yet queried>"}
+    stable = 0
+    while True:
+        last = call("client.getScreen")
+        if not isinstance(last, dict):
+            raise RuntimeError("WoWControlSDK returned an invalid screen state")
+        screen = last.get("screen")
+        if screen == expected and last.get("inWorld") is not True:
+            stable += 1
+            if stable >= 2:
+                return last
+        else:
+            stable = 0
+            if last.get("inWorld") is True or screen == "world":
+                raise RuntimeError("WoWControlSDK reports an already in-world client; "
+                                   "refusing automated account login or selection.")
+            if expected == "login" and screen == "charselect":
+                raise RuntimeError("WoWControlSDK reports character selection before login; "
+                                   "refusing to reuse an unverified account/realm.")
+        if clock() >= deadline:
+            # Avoid printing SDK memory addresses, secrets or arbitrary payloads.
+            label = screen if isinstance(screen, str) and screen in (
+                "", "login", "charselect", "world") else "<unknown>"
+            login_state = last.get("loginState")
+            login_state = login_state if type(login_state) is int else "<unknown>"
+            raise RuntimeError(
+                f"WoWControlSDK screen never reached {expected!r}; "
+                f"last screen={label!r}, loginState={login_state!r}. "
+                "Check the isolated WoW window for startup/first-run dialogs. "
+                "No credentials are sent when the login screen cannot be verified.")
+        sleep(interval)
+
+
 def launch_and_enter(cfg: Config, character: str, *, rpc=request) -> int:
     from .win_login import _test_copy, _credentials
     from .windows_client import _client_binary, WindowsAPI
@@ -106,13 +151,11 @@ def launch_and_enter(cfg: Config, character: str, *, rpc=request) -> int:
         return rpc(method, params, expected_pid=pid)
     if call("client.ping").get("status") != "ok":
         raise RuntimeError("SDK pipe unavailable")
-    if call("client.getScreen").get("screen") != "login":
-        raise RuntimeError("SDK client not on login screen")
+    wait_for_screen(call, "login")
     if call("client.login", {"username":account, "password":password,
                             "realmName":cfg.wowcontrol_realm}).get("ok") is not True:
         raise RuntimeError("SDK local login failed")
-    if call("client.getScreen").get("screen") != "charselect":
-        raise RuntimeError("Expected character selection after login")
+    wait_for_screen(call, "charselect", timeout=15)
     characters = call("client.getCharacters").get("characters", [])
     if not any(isinstance(c, dict) and c.get("name") == character for c in characters):
         raise RuntimeError("Requested character is absent from realm")
