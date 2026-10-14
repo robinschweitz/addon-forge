@@ -20,7 +20,7 @@ ALLOWED = frozenset({"client.ping", "client.getScreen", "client.getCharacters",
                      "lua.evaluate"})
 
 
-def request(method: str, params: dict | None = None, *, transport=None) -> dict:
+def request(method: str, params: dict | None = None, *, expected_pid: int, transport=None) -> dict:
     if method not in ALLOWED:
         raise ValueError("Unapproved SDK method")
     if transport is None:
@@ -29,7 +29,7 @@ def request(method: str, params: dict | None = None, *, transport=None) -> dict:
         import win32file
         transport = win32file
     from .wowcontrol_pipe import open_verified_pipe
-    handle = open_verified_pipe(transport)
+    handle = open_verified_pipe(transport, expected_pid)
     try:
         data = json.dumps({"jsonrpc":"2.0", "id":1, "method":method,
                            "params": params or {}}, separators=(",", ":")).encode()
@@ -66,21 +66,23 @@ def launch_and_enter(cfg: Config, character: str, *, rpc=request) -> int:
     hwnd = api.find_window(cfg.window_name, _client_binary(wow))
     pid = api.window_pid(hwnd)
     account, password = _credentials(wow)
-    if rpc("client.ping").get("status") != "ok":
+    def call(method, params=None):
+        return rpc(method, params, expected_pid=pid)
+    if call("client.ping").get("status") != "ok":
         raise RuntimeError("SDK pipe unavailable")
-    if rpc("client.getScreen").get("screen") != "login":
+    if call("client.getScreen").get("screen") != "login":
         raise RuntimeError("SDK client not on login screen")
-    if rpc("client.login", {"username":account, "password":password,
+    if call("client.login", {"username":account, "password":password,
                             "realmName":cfg.wowcontrol_realm}).get("ok") is not True:
         raise RuntimeError("SDK local login failed")
     if rpc("client.getScreen").get("screen") != "charselect":
         raise RuntimeError("Expected character selection after login")
-    characters = rpc("client.getCharacters").get("characters", [])
+    characters = call("client.getCharacters").get("characters", [])
     if not any(isinstance(c, dict) and c.get("name") == character for c in characters):
         raise RuntimeError("Requested character is absent from realm")
-    if rpc("client.enterWorld", {"name":character, "wait":True}).get("ok") is not True:
+    if call("client.enterWorld", {"name":character, "wait":True}).get("ok") is not True:
         raise RuntimeError("SDK world entry failed")
-    identity = rpc("lua.evaluate", {"code":"return UnitName('player')"})
+    identity = call("lua.evaluate", {"code":"return UnitName('player')"})
     if identity.get("ok") is not True or identity.get("result") != character:
         raise RuntimeError("SDK Lua player identity disagrees")
     return pid
