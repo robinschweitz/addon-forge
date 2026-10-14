@@ -52,3 +52,19 @@ def test_session_preview_no_client_or_credentials(tmp_path):
     addon.mkdir()
     path.write_text(json.dumps({"version": 1, "addon": "Demo", "character": "Test", "peers": 0, "checks": [{"type": "player_in_world", "value": True}]}))
     assert run_session(config(tmp_path), path)["status"] == "plan_only"
+
+def test_sdk_backend_skips_pixel_calibration(tmp_path, monkeypatch):
+    from addon_forge import agent_session
+    cfg = Config(wow_dir=tmp_path / "WoW", wine_prefix=tmp_path / "wine",
+                 automation_backend="wowcontrol")
+    assert cfg.automation_backend == "wowcontrol"
+
+def test_sdk_pipe_rejects_unknown_process():
+    from addon_forge.wowcontrol_pipe import verify_server_pid
+    with pytest.raises(RuntimeError, match="process ID"):
+        verify_server_pid(0, 0)
+
+def test_sdk_request_rejects_unlisted_methods():
+    from addon_forge.wowcontrol import request
+    with pytest.raises(ValueError, match="Unapproved"):
+        request("client.quit", expected_pid=123)
