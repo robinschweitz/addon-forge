@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "addon": "ForgeExample",
+  "character": "Forgechar",
+  "peers": 0,
+  "checks": [
+    {"type": "player_in_world", "value": true},
+    {"type": "frame_visible", "value": "ForgeExampleFrame"}
+  ]
+}

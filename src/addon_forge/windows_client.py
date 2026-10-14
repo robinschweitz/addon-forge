@@ -9,6 +9,7 @@ from __future__ import annotations
 import ctypes
 from ctypes import wintypes
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -61,8 +62,12 @@ def _same_executable(actual: str, expected: Path) -> bool:
 
 
 def validate_chat_command(command: str) -> None:
-    if not isinstance(command, str) or not (command == "/reload" or command.startswith("/forge ")):
-        raise ValueError("Automated controller permits only /reload and /forge commands")
+    if not isinstance(command, str) or not (
+        command == "/reload"
+        or command.startswith("/forge ")
+        or re.fullmatch(r"/targetexact [A-Za-z]{2,12}", command)
+    ):
+        raise ValueError("Automated controller permits only /reload, /forge and fixed-name /targetexact commands")
     # Avoid keystrokes that could leave chat, trigger other actions or paste controls.
     if len(command) > 180 or any(ord(c) < 32 or ord(c) > 126 for c in command):
         raise ValueError("Only single-line printable ASCII commands up to 180 characters are permitted")
@@ -96,8 +101,16 @@ class WindowsAPI:
         self.user.GetForegroundWindow.restype = wintypes.HWND
         self.user.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
         self.user.GetWindowRect.restype = wintypes.BOOL
+        self.user.GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
+        self.user.GetCursorPos.restype = wintypes.BOOL
+        self.user.SetCursorPos.argtypes = [ctypes.c_int, ctypes.c_int]
+        self.user.SetCursorPos.restype = wintypes.BOOL
         self.user.VkKeyScanW.argtypes = [wintypes.WCHAR]
         self.user.VkKeyScanW.restype = ctypes.c_short
+        self.user.VkKeyScanExW.argtypes = [wintypes.WCHAR, wintypes.HANDLE]
+        self.user.VkKeyScanExW.restype = ctypes.c_short
+        self.user.GetKeyboardLayout.argtypes = [wintypes.DWORD]
+        self.user.GetKeyboardLayout.restype = wintypes.HANDLE
         self.user.SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(_INPUT), ctypes.c_int]
         self.user.SendInput.restype = wintypes.UINT
         self.kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
@@ -170,13 +183,56 @@ class WindowsAPI:
         if self.user.SendInput(1, ctypes.byref(item), ctypes.sizeof(_INPUT)) != 1:
             raise OSError("Windows SendInput failed; check WoW privileges and desktop session")
 
+    def window_pid(self, hwnd: int) -> int:
+        pid = wintypes.DWORD()
+        self.user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        return pid.value
+
+    def cursor(self) -> tuple[int, int]:
+        p = wintypes.POINT()
+        if not self.user.GetCursorPos(ctypes.byref(p)):
+            raise OSError("Cannot read mouse cursor")
+        return p.x, p.y
+
+    def click(self, hwnd: int, point: tuple[int, int]):
+        left, top, right, bottom = self.rect(hwnd)
+        x, y = point
+        if not (0 <= x < right-left and 0 <= y < bottom-top):
+            raise ValueError("Login click outside verified WoW window")
+        if not self.user.SetCursorPos(left+x, top+y):
+            raise OSError("Cannot position mouse for local login")
+        for flags in (0x0002, 0x0004):  # LEFTDOWN / LEFTUP
+            item = _INPUT(type=0, u=_INPUT_UNION(mi=_MOUSEINPUT(
+                dx=0, dy=0, mouseData=0, dwFlags=flags, time=0, dwExtraInfo=0)))
+            if self.user.SendInput(1, ctypes.byref(item), ctypes.sizeof(_INPUT)) != 1:
+                raise OSError("Mouse click failed")
+        time.sleep(0.1)
+
+    def ctrl_a(self):
+        self._key(0x11)
+        try:
+            self.tap(0x41)
+        finally:
+            self._key(0x11, True)
+
     def tap(self, vk: int):
         self._key(vk)
         self._key(vk, True)
 
-    def type_text(self, text: str):
+    def type_text(self, text: str, *, hwnd: int | None = None):
+        # Key mappings can differ across Windows processes (e.g. German '/' is
+        # Shift+7, US '/' is VK_OEM_2). Query the target WoW thread, not Forge.
+        layout = None
+        if hwnd is not None:
+            thread = self.user.GetWindowThreadProcessId(hwnd, None)
+            if not thread:
+                raise RuntimeError("Cannot identify WoW window's keyboard layout")
+            layout = self.user.GetKeyboardLayout(thread)
+            if not layout:
+                raise RuntimeError("Cannot access WoW keyboard layout")
         for char in text:
-            key = self.user.VkKeyScanW(char)
+            key = (self.user.VkKeyScanExW(char, layout)
+                   if layout is not None else self.user.VkKeyScanW(char))
             if key == -1:
                 raise RuntimeError(f"Current keyboard layout cannot type {char!r}")
             vk = key & 0xFF
@@ -222,8 +278,17 @@ class WindowsClientController:
         hwnd = int(self.window_id())
         self.api.focus(hwnd)
         self.api.tap(0x0D)  # Enter opens in-game chat.
-        self.api.type_text(command)
-        self.api.tap(0x0D)  # Enter sends message to the ForgeTestBridge.
+        # The game handles focus on its render thread. Without a delay, the
+        # first character (notably '/') may be lost, resulting in a SAY.
+        time.sleep(0.18)
+        try:
+            self.api.type_text(command, hwnd=hwnd)
+        except Exception:
+            # Never send a partial slash command as ordinary public chat.
+            self.api.tap(0x1B)  # Escape closes chat without sending.
+            raise
+        time.sleep(0.08)
+        self.api.tap(0x0D)  # Enter submits slash command.
         # Native SendInput does not prove that the game received the command.
         # run_smoke verifies a correlated SavedVariables report after /reload.
 
