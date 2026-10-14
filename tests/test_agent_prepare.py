@@ -138,3 +138,33 @@ def test_sdk_login_pins_rpc_to_test_pid_and_never_uses_secret_in_argv(tmp_path, 
     assert len(launched) == 1
     assert "TOPSECRET" not in repr(launched)
     assert observed[-1][0] == "lua.evaluate"
+
+def test_missing_pywin32_is_a_friendly_preflight_error(monkeypatch):
+    import builtins
+    from addon_forge import wowcontrol
+    monkeypatch.setattr(wowcontrol.sys, "platform", "win32")
+    original_import = builtins.__import__
+
+    def no_win32file(name, *args, **kwargs):
+        if name == "win32file":
+            raise ModuleNotFoundError("No module named win32file")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_win32file)
+    with pytest.raises(RuntimeError, match="pip install -e"):
+        wowcontrol.require_windows_transport()
+
+
+def test_injector_does_not_launch_without_pywin32(tmp_path, monkeypatch):
+    from addon_forge import wowcontrol, win_login
+    cfg = Config(wow_dir=tmp_path / "wow", wine_prefix=tmp_path / "wine",
+                 automation_backend="wowcontrol")
+    monkeypatch.setattr(wowcontrol.sys, "platform", "win32")
+    monkeypatch.setattr(win_login, "_test_copy",
+                        lambda *_: pytest.fail("preflight happened too late"))
+    monkeypatch.setattr(wowcontrol, "require_windows_transport",
+                        lambda: (_ for _ in ()).throw(RuntimeError("pywin32 missing")))
+    monkeypatch.setattr(wowcontrol.subprocess, "run",
+                        lambda *args, **kwargs: pytest.fail("Injector launched"))
+    with pytest.raises(RuntimeError, match="pywin32"):
+        wowcontrol.launch_and_enter(cfg, "Test")
