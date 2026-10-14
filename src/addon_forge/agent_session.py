@@ -32,8 +32,9 @@ def run_session(cfg: Config, plan_path: Path, *, approve: bool = False):
         raise ValueError("Scenario addon must exist alongside plan")
     if not is_valid(check_addon(addon)):
         return {"status": "failed", "error": "Invalid addon sources"}
-    _read_calibration(wow)
-    read_character_calibration(wow, plan["character"])
+    if cfg.automation_backend != "wowcontrol":
+        _read_calibration(wow)
+        read_character_calibration(wow, plan["character"])
     _credentials(wow)
     deploy(addon, wow)
     prepared = prepare_environment(cfg, start_client=True, login=True,
