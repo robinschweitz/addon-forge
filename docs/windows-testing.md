@@ -1,13 +1,15 @@
 # Native Windows graphical WoW tests (experimental)
 
-Addon Forge can control an **authorized, locally installed World of Warcraft 3.3.5a** client on Windows 10/11. It shares the Linux ForgeTestBridge and SavedVariables testing protocol. This is desktop automation, **not unattended login**: start the client, log in manually with a disposable test character and enable `ForgeTestBridge` before testing.
+Addon Forge can control an **authorized, locally installed World of Warcraft 3.3.5a** client on Windows 10/11. It shares the Linux ForgeTestBridge and SavedVariables testing protocol. It is desktop automation. **Optional calibrated credential submission** is supported for a marked local test copy, but selecting a character and entering the world remain manual. See the [current QA workflow](qa-workflow.md).
 
 ## Install on native Windows (PowerShell, not WSL)
+
+For the verified local AzerothCore and OpenCode workflow, start with [Autonomous addon QA](qa-workflow.md).
 
 Use Python 3.11 or newer, Git and the local WoW directory. You do **not** need Nix or Wine to run the local Forge client controller.
 
 ```powershell
-git switch feat/native-windows-wow-testing
+git switch feat/local-azerothcore-setup
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[windows]"
 Copy-Item forge.toml.example forge.toml
@@ -40,7 +42,7 @@ In WoW, choose **Windowed** or **Windowed (Fullscreen)** mode; manually log into
 .\.venv\Scripts\forge.exe test --suite smoke --require-test example_frame_visible
 ```
 
-The test opens WoW chat, sends only `/forge ...` and `/reload`, then checks a matching `WTF/Account/*/SavedVariables/ForgeTestBridge.lua` report after reload. It returns `infrastructure_error` if no matching report appears (not a false pass). PNG screenshots use Pillow.
+The test opens WoW chat and sends restricted `/forge ...`, `/reload` and exact-name `/targetexact` commands, then checks a matching `WTF/Account/*/SavedVariables/ForgeTestBridge.lua` report after reload. It returns `infrastructure_error` if no matching report appears (not a false pass). PNG screenshots use Pillow.
 
 ## Optional auto-login for a private Forge test account (experimental)
 
