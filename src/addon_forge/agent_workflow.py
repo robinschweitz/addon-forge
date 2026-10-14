@@ -19,6 +19,9 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False) -> dict:
     # Must be inside the scenario directory. No user-controlled paths inside plan.
     if not addon.is_relative_to(plan_file.parent.resolve()) or not addon.is_dir():
         raise ValueError(f"Addon folder {addon} not found alongside the scenario")
+    observer = plan.get("observer", "bridge")
+    if observer == "sdk" and cfg.automation_backend != "wowcontrol":
+        raise ValueError("SDK observer requires wowcontrol backend")
     preview = {"plan": plan, "addon_dir": str(addon),
                "operations": ["Validate addon sources", "Deploy into isolated WoW copy",
                               "Run optional 1-4 AzerothGhost peers", "Run in-game suite",
@@ -30,6 +33,9 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False) -> dict:
         return {"status": "failed", "error": "Static validation failed",
                 "diagnostics": [asdict(x) for x in errors]}
     deploy(addon, cfg.wow_dir)
+    if observer == "sdk":
+        from .sdk_observer import run_sdk_observations
+        return {**preview, **run_sdk_observations(cfg, plan)}
     # Reinstall the matching bridge before a plan run. It has a versioned
     # reporting contract and cannot be substituted by an older copy.
     bridge_src = Path(__file__).resolve().parents[2] / "wow" / "ForgeTestBridge"
