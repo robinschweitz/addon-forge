@@ -1,3 +1,44 @@
+## Reduced-manual-work controls (Windows, experimental)
+
+The one-time setup remains: a **marked isolated test WoW copy**, your local
+AzerothCore configuration, a character created on that private realm, and
+optionally saved credentials plus visual login calibration. After that:
+
+```powershell
+cd F:\addon-forge
+git pull --ff-only
+.\.venv\Scripts\forge.exe --config forge.local.toml agent prepare --start-client
+```
+
+This verifies the isolated copy, deploys the current ForgeTestBridge while
+WoW is closed and launches only that client. If you configured the Windows
+Credential Manager account and login-screen calibration previously, use
+`agent prepare --start-client --login` to submit account credentials. It
+**does not** automatically choose a character; account/login can fail closed
+if visual calibration is stale. If WoW is already running, preparation
+reports that fact without attempting to redeploy code into a live process.
+Go toolchain selection, Docker isolation checks and server fixture cleanup
+already happen automatically in approved test commands.
+
+To exercise a staged **bot-to-bot** party lifecycle:
+
+```powershell
+.\.venv\Scripts\forge.exe --config forge.local.toml agent party-lifecycle --character Test --peers 3
+.\.venv\Scripts\forge.exe --config forge.local.toml agent party-lifecycle --character Test --peers 3 --approve-fixtures
+```
+
+The preview doesn't change server state; approved execution creates
+three disposable protocol players, forms their own party, verifies a
+targeted player in WoW, removes the last bot from that party, checks
+the remaining peer in WoW again, then logs out the protocol players.
+Run the real graphical test client in-world before executing.
+AzerothGhost owns this *bot party*; **the GUI character is not yet in
+the group**, so this does **not** prove that an addon reacts to PARTY_MEMBERS_CHANGED
+or health changes. That requires a verified invite/accept handshake and
+two-sided party assertions, not blind UI clicks. Reports and screenshots
+are under `.forge-runs`. If a fixture fails, Forge still releases/kills
+its test process without deleting Docker volumes or wiping realm data.
+
 # One-command local AzerothCore setup (Windows-first; experimental)
 
 This setup uses official AzerothCore Docker Compose, a **separate copy of WoW**,
