@@ -150,37 +150,28 @@ interfere with it, so run under a dedicated, trusted desktop login.
 The injected DLL has arbitrary native-code privileges. Review upstream
 source and consider a dedicated disposable Windows VM.
 
-### SDK logs in, enters the world, then says Lua identity disagrees
+### SDK Lua player identity can crash WoW (observed October 2026)
 
-The SDK's `client.enterWorld(wait=true)` can succeed before the in-game
-player identity is readable. Forge now waits for **two consecutive matching
-player identities** from both `lua.evaluate` and `unit.get` after the
-world-loading transition. A different named character stops the scenario
-immediately. If these read-only APIs are still unavailable after 35
-seconds, Forge reports which channel was unavailable rather than sending
-additional login commands. The ForgeTestBridge v2 in-game report remains
-an independent assertion and is not skipped.
+On the pinned SDK build, `lua.evaluate` of `return UnitName('player')`
+was associated with a native game crash, whereas `unit.get` returned the
+correct character. Forge therefore **does not issue this Lua identity RPC**
+during startup or `agent wowcontrol-status --player`.
 
-If Forge leaves the separate test client open, query the current
-SDK state **without closing/relaunching WoW**:
+Startup checks `client.getScreen` and two consecutive matching
+`unit.get(player)` results. **This SDK check alone is not verification**:
+`agent prepare` requires a fresh and correlated ForgeTestBridge v2 smoke
+report with exactly the requested player name before it returns
+`character_verified` and before an approved session can continue.
+Never skip that independent requirement if the report is unavailable.
 
-```powershell
-.\\.venv\\Scripts\\forge.exe --config forge.local.toml agent wowcontrol-status --player
-```
+`agent wowcontrol-status --player` is diagnostic only; it reads the
+PID-verified screen and SDK unit name without Lua calls or any credentials.
+It is not evidence that an addon or identity has passed QA.
 
-The `--player` option performs only these permitted queries:
-`client.getScreen`, `lua.evaluate` with the fixed literal
-`return UnitName('player')`, and `unit.get` for `player`.
-It does not type, log in, start, stop or mutate anything, and each
-request is checked against the marked test client's PID. It reports
-`lua_ok`, `lua_name`, `unit_exists` and `unit_name`
-(or `null` for unavailable names); no arbitrary Lua error strings
-or credentials are printed.
-
-If both APIs keep showing a missing player despite the visible client being
-in world, that points to a WoWControlSDK runtime/offset issue and
-should **not** be bypassed by declaring the scenario passed. Close only
-the marked test copy before the next approved full session.
+Other SDK `lua.evaluate` operations (including bridge dispatch) have
+not yet been proven safe against this native crash. If the SDK still crashes,
+use the existing Win32 backend and manually enter the test character before
+running a correlated bridge smoke test. Do not use the SDK on a public realm.
 
 ### SDK says the test client is not on the login screen
 
