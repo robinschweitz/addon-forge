@@ -275,6 +275,10 @@ class WindowsClientController:
 
     def command(self, command: str) -> None:
         validate_chat_command(command)
+        if self.cfg.automation_backend == "wowcontrol" and command.startswith("/forge "):
+            from .wowcontrol import bridge_command
+            bridge_command(self.cfg, command)
+            return
         hwnd = int(self.window_id())
         self.api.focus(hwnd)
         self.api.tap(0x0D)  # Enter opens in-game chat.

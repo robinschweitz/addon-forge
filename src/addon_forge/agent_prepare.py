@@ -54,6 +54,22 @@ def prepare_environment(cfg: Config, *, start_client: bool = False,
     if not start_client:
         return {"status": "prepared", "bridge_deployed": True,
                 "path": str(installed), "client_started": False}
+    if cfg.automation_backend == "wowcontrol" and login and enter_character:
+        from .wowcontrol import launch_and_enter
+        pid = launch_and_enter(cfg, enter_character)
+        from .runner import run_smoke
+        report = run_smoke(cfg, suite="smoke", required_tests=("bridge_loaded",),
+                           out_dir=Path(".forge-runs"))
+        bridge_report = report.details.get("report", {})
+        snapshot = bridge_report.get("snapshot", {})
+        player = snapshot.get("player", {}) if isinstance(snapshot, dict) else {}
+        if (report.status != "passed" or bridge_report.get("bridgeVersion") != 2
+                or bridge_report.get("schemaVersion") != 2
+                or not isinstance(player.get("name"), str)
+                or player["name"].casefold() != enter_character.casefold()):
+            raise RuntimeError("SDK login did not independently verify the character in ForgeTestBridge")
+        return {"status": "character_verified", "backend": "wowcontrol", "pid": pid,
+                "bridge_deployed": True, "client_started": True, "run_id": report.run_id}
     if enter_character:
         from .win_character import read_character_calibration
         read_character_calibration(wow, enter_character)
