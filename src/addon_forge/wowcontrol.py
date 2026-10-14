@@ -72,7 +72,18 @@ def launch_and_enter(cfg: Config, character: str, *, rpc=request) -> int:
         raise RuntimeError("Close the existing test WoW before an SDK startup")
     subprocess.run([str(injector), "--wow", str(_client_binary(wow)), "--dll", str(dll)],
                    cwd=str(wow), check=True, timeout=60)
-    hwnd = api.find_window(cfg.window_name, _client_binary(wow))
+    until = time.monotonic() + 45
+    hwnd = None
+    while time.monotonic() < until:
+        try:
+            hwnd = api.find_window(cfg.window_name, _client_binary(wow))
+            break
+        except RuntimeError as exc:
+            if "found 0." not in str(exc):
+                raise
+        time.sleep(0.4)
+    if hwnd is None:
+        raise RuntimeError("Instrumented test client did not create a verified window")
     pid = api.window_pid(hwnd)
     account, password = _credentials(wow)
     def call(method, params=None):
