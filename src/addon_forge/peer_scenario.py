@@ -34,6 +34,8 @@ def _fixture_env(password: str, port: int, target: str, folder: Path, peers: int
         "FORGE_PEER_COUNT": str(peers),
         "FORGE_PEER_READY": str(folder / "ready.json"),
         "FORGE_PEER_RELEASE": str(folder / "release"),
+        "FORGE_PEER_LEAVE": str(folder / "request-leave"),
+        "FORGE_PEER_LEFT": str(folder / "left"),
     })
     return env
 
@@ -70,9 +72,12 @@ def peer_scenario(cfg: Config, *, character: str,
                   approve: bool = False, timeout: int = 100,
                   peers: int = 1, suite: str = "peer",
                   required_tests: tuple[str, ...] = ("peer_target_visible",),
-                  output_dir: Path | None = None) -> dict:
+                  output_dir: Path | None = None,
+                  lifecycle: bool = False) -> dict:
     if not NAME.fullmatch(character):
         raise ValueError("Use a 2-12-letter local graphical test character name.")
+    if lifecycle and peers < 2:
+        raise ValueError("Party lifecycle requires two to four peer players")
     if peers < 1 or peers > 4:
         raise ValueError("peers must be between 1 and 4")
     if not suite.isalnum() or not required_tests:
@@ -83,6 +88,7 @@ def peer_scenario(cfg: Config, *, character: str,
         "scenario": "peer-target",
         "character": character,
         "peers": peers,
+        "lifecycle": lifecycle,
         "suite": suite,
         "required_tests": list(required_tests),
         "steps": [
@@ -111,7 +117,7 @@ def peer_scenario(cfg: Config, *, character: str,
         env = _fixture_env(password, port, character, folder, peers=peers)
         args = [
             "go", "test", "-tags=e2e", "-run", "^TestPeerTargetFixture$",
-            "-count=1", "-v", "-timeout", "130s", "-parallel", "1", "-p", "1",
+            "-count=1", "-v", "-timeout", "260s", "-parallel", "1", "-p", "1",
         ]
         # Don't inherit child stdout containing auth diagnostics or secret DSNs.
         with (folder / "go-output.log").open("wb+") as log:
@@ -136,12 +142,36 @@ def peer_scenario(cfg: Config, *, character: str,
                 client.command("/forge expect " + name)
                 result = run_smoke(cfg, suite=suite, required_tests=required_tests,
                                    out_dir=output_dir)
-                return {
-                    "status": result.status, "peer_name": name, "peer_names": names,
-                    "report": result.__dict__, "note": (
-                        "One verified real protocol peer + one client-side target assertion; "
-                        "not proof of all addon functionality.")
-                }
+                if not lifecycle:
+                    return {
+                        "status": result.status, "peer_name": name, "peer_names": names,
+                        "report": result.__dict__, "note": (
+                            "Verified real protocol peer and client-side target assertion.")}
+                # Do not proceed to the departure stage unless the first
+                # independently correlated in-game assertion passed.
+                stages = [{"step": "all_peers_online", "report": result.__dict__}]
+                if result.status != "passed":
+                    return {"status": result.status, "peer_names": names, "stages": stages}
+                (folder / "request-leave").touch()
+                left = folder / "left"
+                until = time.monotonic() + 25
+                while time.monotonic() < until and not left.is_file():
+                    if proc.poll() is not None:
+                        break
+                    time.sleep(0.2)
+                if not left.is_file():
+                    return {"status": "infrastructure_error", "peer_names": names,
+                            "stages": stages,
+                            "error": "Protocol party departure was not acknowledged"}
+                remaining = names[:-1]
+                client.command("/targetexact " + remaining[0])
+                client.command("/forge expect " + remaining[0])
+                after = run_smoke(cfg, suite=suite, required_tests=required_tests,
+                                  out_dir=output_dir)
+                stages.append({"step": "peer_departed", "report": after.__dict__})
+                return {"status": after.status, "peer_names": names,
+                        "remaining_peer_names": remaining, "stages": stages,
+                        "note": "Bot-to-bot party changed; GUI character was not added to their party."}
             finally:
                 (folder / "release").touch()
                 try:
