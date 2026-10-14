@@ -344,3 +344,56 @@ def test_world_identity_waits_until_actual_world_flag():
     result = wait_for_player_identity(rpc, "Test", timeout=3, interval=0.5,
         clock=lambda: now[0], sleep=lambda delta: now.__setitem__(0, now[0] + delta))
     assert result["status"] == "verified"
+
+
+def test_sdk_player_status_reads_constant_lua_and_unit_pid_bound(tmp_path, monkeypatch):
+    from addon_forge import wowcontrol, win_login, windows_client
+    from addon_forge.cli import make_parser
+    cfg = Config(wow_dir=tmp_path / "wow", wine_prefix=tmp_path / "wine",
+                 automation_backend="wowcontrol")
+    monkeypatch.setattr(win_login, "_test_copy", lambda path: path)
+    monkeypatch.setattr(windows_client, "_client_binary", lambda path: path / "Wow.exe")
+    api = Mock()
+    api.find_window.return_value = 12
+    api.window_pid.return_value = 28732
+    monkeypatch.setattr(windows_client, "WindowsAPI", lambda: api)
+    observed = []
+    def rpc(method, params=None, *, expected_pid):
+        observed.append((method, params, expected_pid))
+        if method == "client.getScreen":
+            return {"screen": "world", "inWorld": True, "loginState": 8}
+        if method == "lua.evaluate":
+            return {"ok": True, "result": "Test"}
+        if method == "unit.get":
+            return {"exists": True, "name": "Test"}
+        raise AssertionError(method)
+    out = wowcontrol.client_status(cfg, inspect_player=True, rpc=rpc)
+    assert out["player"] == {"lua_ok": True, "lua_name": "Test",
+                              "unit_exists": True, "unit_name": "Test"}
+    assert observed == [
+        ("client.getScreen", None, 28732),
+        ("lua.evaluate", {"code": "return UnitName('player')"}, 28732),
+        ("unit.get", {"token": "player"}, 28732),
+    ]
+    opts = make_parser().parse_args(["agent", "wowcontrol-status", "--player"])
+    assert opts.player is True
+
+
+def test_sdk_player_status_disallows_displaying_unknown_names(tmp_path, monkeypatch):
+    from addon_forge import wowcontrol, win_login, windows_client
+    cfg = Config(wow_dir=tmp_path / "wow", wine_prefix=tmp_path / "wine")
+    monkeypatch.setattr(win_login, "_test_copy", lambda path: path)
+    monkeypatch.setattr(windows_client, "_client_binary", lambda path: path / "Wow.exe")
+    api = Mock()
+    api.find_window.return_value = 12
+    api.window_pid.return_value = 28732
+    monkeypatch.setattr(windows_client, "WindowsAPI", lambda: api)
+    def rpc(method, params=None, *, expected_pid):
+        if method == "client.getScreen":
+            return {"screen": "world", "inWorld": True}
+        if method == "lua.evaluate":
+            return {"ok": False, "error": "SECRET"}
+        return {"exists": True, "name": "SECRET\nAND MORE"}
+    out = wowcontrol.client_status(cfg, inspect_player=True, rpc=rpc)
+    assert out["player"] == {"lua_ok": False, "lua_name": None,
+                              "unit_exists": True, "unit_name": None}
