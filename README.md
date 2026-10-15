@@ -15,7 +15,7 @@ Agents use the same loop as typed tools through `forge mcp` (configured in `open
 
 ## Autonomous addon QA: start here (Windows local realm)
 
-**[Step-by-step QA workflow, OpenCode integration, test evidence, troubleshooting and live verification status](docs/qa-workflow.md)** is the canonical guide. The setup details remain in [local realm setup](docs/local-realm.md) and [native Windows guide](docs/windows-testing.md). Agents follow [AGENTS.md](AGENTS.md).
+**[Step-by-step QA workflow, OpenCode integration, test evidence, troubleshooting and live verification status](docs/qa-workflow.md)** is the canonical guide. **[Agent playbook](docs/agent-playbook.md)** collects the verified 3.3.5a and SDK lessons. The setup details remain in [local realm setup](docs/local-realm.md) and [native Windows guide](docs/windows-testing.md). Agents follow [AGENTS.md](AGENTS.md).
 
 ## Local AzerothCore realm — automated setup (experimental)
 

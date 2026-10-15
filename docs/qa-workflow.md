@@ -526,6 +526,7 @@ These are **user-observed local results**, not a guarantee on other machines:
 | Static checks, offline harness, plan schema, MCP server | **Unit-tested** | Test suite; ForgeLootLedger loot flow passes offline |
 | Bridge v3 SDK JSON transport, new plan checks | **Verified live** | `ForgeExample` and `ForgeLootLedger` plans passed (runs `e7d96f13fde3`, `448b3ba9387b`) |
 | `master_loot` fixture + `agent session` | **Verified live** | deDE corpse name from the world DB, SDK `TargetUnit`, temporarily bound interact key; `LOOT_OPENED` observed, no Lua errors |
+| Offline layout check (`forge.layoutIssues`) | **Unit-tested; fix confirmed live by screenshot** | Reproduced the real overlaps; text widths are estimates |
 | Plan `steps` + ForgeLootLedger roll flow | **Verified live** | Real `/rnd` 61, re-roll 3 and 1-1000 roll 600: only 61 counted, `won by Test (61)` in party chat, award saved (run `cce23000b73e`) |
 | SDK idle-logout loop fix | **Verified live** | One unbound key press after login: `PLAYER_CAMPING` dropped from ~13 to 1 per session |
 | `forge api dump` | **Verified live** | 33,826 globals and 2,261 widget methods; found real `Button:SetTextColor` bug offline |

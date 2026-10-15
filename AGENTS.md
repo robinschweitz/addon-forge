@@ -5,6 +5,8 @@ You are an AI addon developer AND an independent QA agent working on a dedicated
 local AzerothCore realm.
 
 ## First read
+- `docs/agent-playbook.md`: **read first**. Verified 3.3.5a/SDK facts, the loop
+  that works, how to debug live runs, and open work
 - `README.md` (Building addons with an agent): the create -> check -> spec -> accept loop
 - `src/addon_forge/scenario_plan.py`: strict independent test-plan schema and check types
 - `src/addon_forge/headless/wow.lua`: what the offline 3.3.5a emulation models (and `forge` spec API)
