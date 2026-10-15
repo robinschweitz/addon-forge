@@ -133,16 +133,47 @@ def test_sdk_login_pins_rpc_to_test_pid_and_never_uses_secret_in_argv(tmp_path, 
         if method == "client.enterWorld":
             return {"ok": True}
         if method == "lua.evaluate":
-            return {"ok": True, "result": "Test"}
+            return {"ok": True, "result": "" if "GetBindingAction" in params["code"] else "dismissed"}
         if method == "unit.get":
             return {"exists": True, "name": "Test"}
         raise AssertionError("Unexpected method")
-    assert wowcontrol.launch_and_enter(cfg, "Test", rpc=rpc) == 1422
+    pressed = []
+    assert wowcontrol.launch_and_enter(cfg, "Test", rpc=rpc, press_idle=lambda: pressed.append(1)) == 1422
+    assert pressed == [1]
     assert all(pid == 1422 for _, _, pid in observed)
     assert len(launched) == 1
     assert "TOPSECRET" not in repr(launched)
-    assert observed[-1][0] == "unit.get"
-    assert not any(method == "lua.evaluate" for method, _, _ in observed)
+    methods = [method for method, _, _ in observed]
+    # Lua is sent only after unit.get identity checks, and only the constant idle-reset code.
+    first_lua = methods.index("lua.evaluate")
+    assert "unit.get" in methods[:first_lua]
+    assert [params["code"] for method, params, _ in observed if method == "lua.evaluate"] == \
+        [wowcontrol.IDLE_KEY_FREE_CODE, wowcontrol.IDLE_POPUP_CODE]
+
+
+def test_idle_reset_presses_only_an_unbound_key_and_cancels_camp():
+    from addon_forge import wowcontrol
+    pressed = []
+    def call(method, params=None):
+        if "GetBindingAction" in params["code"]:
+            return {"ok": True, "result": ""}
+        return {"ok": True, "result": "dismissed"}
+    result = wowcontrol.reset_idle_timer(call, lambda: pressed.append(1), sleep=lambda s: None)
+    assert pressed == [1] and result == {"idle_key": "CTRL-SHIFT-F11", "camp_cancelled": True}
+    assert "StaticPopup_Visible('CAMP')" in wowcontrol.IDLE_POPUP_CODE  # locale-independent
+
+
+def test_idle_reset_refuses_a_bound_key():
+    from addon_forge import wowcontrol
+    pressed = []
+    with pytest.raises(RuntimeError, match="No key was pressed"):
+        wowcontrol.reset_idle_timer(lambda m, p=None: {"ok": True, "result": "TOGGLEAUTORUN"},
+                                    lambda: pressed.append(1), sleep=lambda s: None)
+    assert not pressed
+    with pytest.raises(RuntimeError, match="idle-reset key binding"):
+        wowcontrol.reset_idle_timer(lambda m, p=None: {"ok": False}, lambda: pressed.append(1))
+    assert not pressed
+
 
 def test_missing_pywin32_is_a_friendly_preflight_error(monkeypatch):
     import builtins

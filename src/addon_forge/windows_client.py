@@ -1,7 +1,7 @@
 """Native Windows controller for an authorized WoW 3.3.5a test client.
 
 Win32 input targets only a visible window owned by the configured Wow.exe.
-The test protocol and SavedVariables parsing are shared with Linux/Wine.
+Suites run through the WoWControlSDK; keyboard input is limited to /targetexact.
 This module imports on Linux, but WindowsAPI can only be instantiated on Windows.
 """
 from __future__ import annotations
@@ -101,10 +101,6 @@ class WindowsAPI:
         self.user.GetForegroundWindow.restype = wintypes.HWND
         self.user.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
         self.user.GetWindowRect.restype = wintypes.BOOL
-        self.user.GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
-        self.user.GetCursorPos.restype = wintypes.BOOL
-        self.user.SetCursorPos.argtypes = [ctypes.c_int, ctypes.c_int]
-        self.user.SetCursorPos.restype = wintypes.BOOL
         self.user.VkKeyScanW.argtypes = [wintypes.WCHAR]
         self.user.VkKeyScanW.restype = ctypes.c_short
         self.user.VkKeyScanExW.argtypes = [wintypes.WCHAR, wintypes.HANDLE]
@@ -188,36 +184,21 @@ class WindowsAPI:
         self.user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
         return pid.value
 
-    def cursor(self) -> tuple[int, int]:
-        p = wintypes.POINT()
-        if not self.user.GetCursorPos(ctypes.byref(p)):
-            raise OSError("Cannot read mouse cursor")
-        return p.x, p.y
-
-    def click(self, hwnd: int, point: tuple[int, int]):
-        left, top, right, bottom = self.rect(hwnd)
-        x, y = point
-        if not (0 <= x < right-left and 0 <= y < bottom-top):
-            raise ValueError("Login click outside verified WoW window")
-        if not self.user.SetCursorPos(left+x, top+y):
-            raise OSError("Cannot position mouse for local login")
-        for flags in (0x0002, 0x0004):  # LEFTDOWN / LEFTUP
-            item = _INPUT(type=0, u=_INPUT_UNION(mi=_MOUSEINPUT(
-                dx=0, dy=0, mouseData=0, dwFlags=flags, time=0, dwExtraInfo=0)))
-            if self.user.SendInput(1, ctypes.byref(item), ctypes.sizeof(_INPUT)) != 1:
-                raise OSError("Mouse click failed")
-        time.sleep(0.1)
-
-    def ctrl_a(self):
-        self._key(0x11)
-        try:
-            self.tap(0x41)
-        finally:
-            self._key(0x11, True)
-
     def tap(self, vk: int):
         self._key(vk)
         self._key(vk, True)
+
+    def chord(self, *vks: int):
+        """Press keys in order, release in reverse (e.g. CTRL+SHIFT+F12)."""
+        pressed = []
+        try:
+            for vk in vks:
+                self._key(vk)
+                pressed.append(vk)
+            time.sleep(0.05)
+        finally:
+            for vk in reversed(pressed):
+                self._key(vk, True)
 
     def type_text(self, text: str, *, hwnd: int | None = None):
         # Key mappings can differ across Windows processes (e.g. German '/' is
@@ -274,11 +255,17 @@ class WindowsClientController:
         return str(self.api.find_window(self.cfg.window_name, binary))
 
     def command(self, command: str) -> None:
+        """'/forge ...' goes through the SDK bridge handler. Only '/targetexact NAME'
+        is typed, because targeting is protected and needs a hardware event."""
         validate_chat_command(command)
-        if self.cfg.automation_backend == "wowcontrol" and command.startswith("/forge "):
+        if command.startswith("/forge "):
+            if self.cfg.automation_backend != "wowcontrol":
+                raise RuntimeError("Windows bridge commands need the wowcontrol backend")
             from .wowcontrol import bridge_command
             bridge_command(self.cfg, command)
             return
+        if not command.startswith("/targetexact "):
+            raise ValueError("On Windows only /targetexact is typed; suites run through the SDK")
         hwnd = int(self.window_id())
         self.api.focus(hwnd)
         self.api.tap(0x0D)  # Enter opens in-game chat.
@@ -293,8 +280,31 @@ class WindowsClientController:
             raise
         time.sleep(0.08)
         self.api.tap(0x0D)  # Enter submits slash command.
-        # Native SendInput does not prove that the game received the command.
-        # run_smoke verifies a correlated SavedVariables report after /reload.
+        # Native SendInput does not prove receipt; the bridge suite verifies the target.
+
+    # Fixed, otherwise unused chord that fixtures temporarily bind to INTERACTTARGET.
+    INTERACT_KEY = "CTRL-SHIFT-F12"
+    INTERACT_VKS = (0x11, 0x10, 0x7B)  # VK_CONTROL, VK_SHIFT, VK_F12
+
+    # Unbound chord whose only effect is resetting WoW's inactivity timer.
+    IDLE_KEY = "CTRL-SHIFT-F11"
+    IDLE_VKS = (0x11, 0x10, 0x7A)  # VK_CONTROL, VK_SHIFT, VK_F11
+
+    def _press(self, vks: tuple[int, ...]) -> None:
+        hwnd = int(self.window_id())
+        self.api.focus(hwnd)
+        self.api.chord(*vks)
+
+    def press_interact_key(self) -> None:
+        """Send the single fixture interact chord to the verified WoW window.
+
+        InteractUnit needs a hardware event; SDK Lua alone cannot open loot.
+        """
+        self._press(self.INTERACT_VKS)
+
+    def press_idle_key(self) -> None:
+        """One real key event so WoW stops treating the SDK client as idle."""
+        self._press(self.IDLE_VKS)
 
     def screenshot(self, output: Path) -> Path:
         try:

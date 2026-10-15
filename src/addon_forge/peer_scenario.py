@@ -73,7 +73,8 @@ def peer_scenario(cfg: Config, *, character: str,
                   peers: int = 1, suite: str = "peer",
                   required_tests: tuple[str, ...] = ("peer_target_visible",),
                   output_dir: Path | None = None,
-                  lifecycle: bool = False) -> dict:
+                  lifecycle: bool = False, paths: tuple[str, ...] = (),
+                  owner: str | None = None) -> dict:
     if not NAME.fullmatch(character):
         raise ValueError("Use a 2-12-letter local graphical test character name.")
     if lifecycle and peers < 3:
@@ -95,7 +96,7 @@ def peer_scenario(cfg: Config, *, character: str,
             "Create and log in a temporary AzerothGhost warrior",
             "Teleport the peer to the already in-world graphical test character",
             "Target it using /targetexact in the verified test WoW window",
-            "Assert UnitName/UnitIsPlayer via ForgeTestBridge and correlate SavedVariables",
+            "Assert UnitName/UnitIsPlayer via ForgeTestBridge and a correlated report",
             "Disconnect the protocol peer when the test completes",
         ],
         "limitations": [
@@ -142,7 +143,7 @@ def peer_scenario(cfg: Config, *, character: str,
                 client.command("/targetexact " + name)
                 client.command("/forge expect " + name)
                 result = run_smoke(cfg, suite=suite, required_tests=required_tests,
-                                   out_dir=output_dir)
+                                   out_dir=output_dir, paths=paths, owner=owner)
                 if not lifecycle:
                     return {
                         "status": result.status, "peer_name": name, "peer_names": names,
@@ -168,7 +169,7 @@ def peer_scenario(cfg: Config, *, character: str,
                 client.command("/targetexact " + remaining[0])
                 client.command("/forge expect " + remaining[0])
                 after = run_smoke(cfg, suite=suite, required_tests=required_tests,
-                                  out_dir=output_dir)
+                                  out_dir=output_dir, paths=paths, owner=owner)
                 stages.append({"step": "peer_departed", "report": after.__dict__})
                 return {"status": after.status, "peer_names": names,
                         "remaining_peer_names": remaining, "stages": stages,

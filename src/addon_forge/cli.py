@@ -1,4 +1,4 @@
-"""Addon Forge CLI -- development foundation, not a production IDE."""
+"""Addon Forge CLI: create, check, spec and accept WoW 3.3.5a addons."""
 import argparse
 import json
 from pathlib import Path
@@ -16,20 +16,33 @@ def make_parser():
     parser.add_argument("--version", action="version", version=__version__)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("doctor")
-    check = sub.add_parser("check")
+    check = sub.add_parser("check", help="Static checks: TOC, Lua 5.1 syntax, 3.3.5a API use")
     check.add_argument("addon", type=Path)
+    spec = sub.add_parser("spec", help="Run offline headless specs (addon/tests/*.spec.lua)")
+    spec.add_argument("addon", type=Path)
+    spec.add_argument("--json", action="store_true", help="Print the full JSON result")
+    new = sub.add_parser("new", help="Create an addon skeleton, offline spec and acceptance plan")
+    new.add_argument("name")
+    new.add_argument("--notes", default="Created with Addon Forge")
+    new.add_argument("--character", default="Test")
+    new.add_argument("--root", type=Path, default=Path("projects"))
+    api = sub.add_parser("api", help="WoW 3.3.5a API knowledge")
+    api_sub = api.add_subparsers(dest="action", required=True)
+    lookup = api_sub.add_parser("lookup", help="Does a global or Widget:Method exist on 3.3.5a?")
+    lookup.add_argument("names", nargs="+")
+    api_sub.add_parser("dump", help="Dump _G and widget methods from the in-world SDK test client")
+    mcp = sub.add_parser("mcp", help="Serve Forge tools to an agent over MCP (stdio)")
+    mcp.add_argument("--projects", type=Path, default=Path("projects"))
+    mcp.add_argument("--allow-fixtures", action="store_true",
+                     help="Human approval for real-client plan runs on the disposable realm")
     dep = sub.add_parser("deploy")
     dep.add_argument("addon", type=Path)
     client = sub.add_parser("client")
     client_sub = client.add_subparsers(dest="action", required=True)
-    start_client = client_sub.add_parser("start")
-    start_client.add_argument("--login", action="store_true", help="Launch new test WoW and log in using Windows vault credentials")
-    login = client_sub.add_parser("login", help="Manage Windows-only automated test login")
-    login.add_argument("mode", choices=["save", "calibrate"])
-    login.add_argument("--account", help="Test-only realm account name for save mode")
-    char = client_sub.add_parser("character", help="Calibrate isolated test character selection")
-    char.add_argument("mode", choices=["calibrate"])
-    char.add_argument("--character", required=True)
+    client_sub.add_parser("start")
+    login = client_sub.add_parser("login", help="Store the test account for SDK login in Windows Credential Manager")
+    login.add_argument("mode", choices=["save"])
+    login.add_argument("--account", help="Test-only realm account name")
     video = client_sub.add_parser("windowed", help="Configure test client video settings while WoW is closed")
     video.add_argument("--resolution", default="1280x720")
     cmd = client_sub.add_parser("command")
@@ -78,7 +91,7 @@ def make_parser():
     lifecycle.add_argument("--approve-fixtures", action="store_true")
     prepare = agent_sub.add_parser("prepare", help="Safely deploy bridge and start isolated test WoW if needed")
     prepare.add_argument("--start-client", action="store_true")
-    prepare.add_argument("--login", action="store_true", help="Use calibrated Windows-vault login for a newly started client")
+    prepare.add_argument("--login", action="store_true", help="SDK login with Windows-vault credentials (wowcontrol backend)")
     prepare.add_argument("--enter-character", help="Enter the selected test character after verified login")
     workflow = agent_sub.add_parser("run-plan", help="Review or execute a bounded addon acceptance plan")
     workflow.add_argument("plan", type=Path)
@@ -92,17 +105,26 @@ def make_parser():
     fixture.add_argument("--approve-fixtures", action="store_true")
     realm = sub.add_parser("realm")
     realm.add_argument("action", choices=["up", "down", "status"])
-    ai = sub.add_parser("ai")
-    ai_sub = ai.add_subparsers(dest="action", required=True)
-    create = ai_sub.add_parser("create")
-    create.add_argument("name")
-    create.add_argument("prompt")
-    create.add_argument("--out", type=Path, default=Path("projects"))
-    repair = ai_sub.add_parser("repair")
-    repair.add_argument("addon", type=Path)
-    repair.add_argument("--in-client", action="store_true")
-    repair.add_argument("--max-attempts", type=int, default=3)
     return parser
+
+
+def _print_specs(result: dict) -> None:
+    for run in result["runs"]:
+        label = run["spec"] or "load smoke"
+        print(f"{run['status'].upper():7} {label}")
+        for error in run["load_errors"] + run["errors"]:
+            print("        " + error.replace("\n", "\n        "))
+        for test in run["tests"]:
+            mark = "ok  " if test.get("status") == "passed" else "FAIL"
+            print(f"  {mark} {test['name']}")
+            if test.get("status") != "passed":
+                for line in [test.get("error") or ""] + test.get("errors", []):
+                    if line:
+                        print("        " + line.replace("\n", "\n        "))
+        for d in run["diagnostics"]:
+            if d["severity"] != "info" or run["status"] != "passed":
+                print(f"  {d['severity'].upper()}: {d['where']}: {d['message']}")
+    print(f"{result['passed']}/{result['tests']} spec tests passed in {result['specs']} spec file(s). {result['note']}")
 
 
 def main(argv=None) -> int:
@@ -116,16 +138,27 @@ def main(argv=None) -> int:
                 print("Static checks passed (this does not prove in-client correctness)")
                 return 0
             return 1
-        if args.command == "ai" and args.action == "create":
-            from .ai import create_addon
-            files = create_addon(args.out / args.name, args.prompt)
-            print(json.dumps({"created": files}, indent=2))
-            return 0
-        if args.command == "ai" and args.action == "repair" and not args.in_client:
-            from .ai import repair_addon
-            result = repair_addon(args.addon, max_attempts=args.max_attempts)
-            print(json.dumps(result, indent=2, default=str))
+        if args.command == "spec":
+            from .headless import run_specs
+            result = run_specs(args.addon)
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                _print_specs(result)
             return 0 if result["status"] == "passed" else 1
+        if args.command == "new":
+            from .scaffold import new_addon
+            print(json.dumps(new_addon(args.name, root=args.root, character=args.character,
+                                       notes=args.notes), indent=2))
+            return 0
+        if args.command == "api" and args.action == "lookup":
+            from .wowapi import lookup
+            results = [lookup(name) for name in args.names]
+            print(json.dumps(results, indent=2))
+            return 0 if all(r["exists"] is not False for r in results) else 1
+        if args.command == "mcp":
+            from .mcp_server import serve
+            return serve(args.projects, args.config, allow_fixtures=args.allow_fixtures)
         if args.command == "agent":
             from .agent_realm import capabilities, run_realm_smoke
             if args.action == "wowcontrol-setup":
@@ -205,12 +238,20 @@ def main(argv=None) -> int:
             return operate(args.action, realm)
         cfg = load_config(args.config)
         if args.command == "doctor":
-            requirements = ([("Python", "python"), ("Docker", "docker")]
+            requirements = ([("Python", "python"), ("Docker", "docker"), ("Go", "go")]
                             if sys.platform == "win32" else
                             [("Python", "python3"), ("Wine", "wine"), ("X11 automation", "xdotool"),
-                             ("Lua 5.1 compiler", "luac5.1"), ("Screenshot", "import"), ("Docker", "docker")])
+                             ("Screenshot", "import"), ("Docker", "docker"), ("Go", "go")])
             for key, binary in requirements:
                 print(f"{key:20} {shutil.which(binary) or 'NOT FOUND'}")
+            try:
+                from .lua51 import runtime
+                print(f"{'Embedded Lua':20} {runtime(encoding='utf-8').eval('_VERSION')} (lupa)")
+            except (ImportError, RuntimeError):
+                print(f"{'Embedded Lua':20} NOT FOUND (pip install -e .)")
+            from .wowapi import DUMP_PATH, known_globals
+            dump = known_globals()
+            print(f"{'3.3.5a API dump':20} {f'{len(dump)} globals' if dump else 'none (forge api dump)'}")
             if sys.platform == "win32":
                 try:
                     from PIL import ImageGrab  # noqa: F401
@@ -232,18 +273,15 @@ def main(argv=None) -> int:
             from .deploy import deploy
             print(deploy(args.addon, cfg.wow_dir))
             return 0
-        if args.command == "client" and args.action == "character":
-            from .win_character import calibrate_character
-            print(calibrate_character(load_config(args.config), args.character))
+        if args.command == "api" and args.action == "dump":
+            from .wowcontrol import dump_api
+            print(json.dumps(dump_api(cfg), indent=2))
             return 0
         if args.command == "client" and args.action == "login":
-            from .win_login import calibrate, save_credentials
-            if args.mode == "save":
-                if not args.account:
-                    raise ValueError("Supply --account for client login save")
-                save_credentials(cfg.wow_dir, args.account)
-            else:
-                print(calibrate(cfg))
+            from .win_login import save_credentials
+            if not args.account:
+                raise ValueError("Supply --account for client login save")
+            save_credentials(cfg.wow_dir, args.account)
             return 0
         if args.command == "client" and args.action == "windowed":
             from .client_settings import configure_windowed
@@ -255,11 +293,7 @@ def main(argv=None) -> int:
             from .client import ClientController
             client = ClientController(cfg)
             if args.action == "start":
-                if args.login:
-                    from .win_login import start_and_login
-                    print(f"Client login initiated, PID: {start_and_login(cfg)}")
-                else:
-                    print(f"Client started, PID: {client.start()}")
+                print(f"Client started, PID: {client.start()}")
             elif args.action == "command":
                 client.command(args.text)
                 print("Command sent; game receipt is not guaranteed")
@@ -277,11 +311,6 @@ def main(argv=None) -> int:
                 raise ValueError("[realm] source_dir must point to an existing AzerothCore Docker Compose checkout")
             command = {"up": ["up", "-d", "--build"], "down": ["down"], "status": ["ps"]}[args.action]
             return subprocess.run(["docker", "compose", *command], cwd=cfg.realm_dir, check=False).returncode
-        if args.command == "ai" and args.action == "repair":
-            from .ai import repair_addon
-            result = repair_addon(args.addon, cfg=cfg, in_client=True, max_attempts=args.max_attempts)
-            print(json.dumps(result, indent=2, default=str))
-            return 0 if result["status"] == "passed" else 1
     except (OSError, RuntimeError, ValueError) as exc:
         print(f"forge: {exc}", file=sys.stderr)
         return 2

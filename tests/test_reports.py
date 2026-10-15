@@ -57,6 +57,7 @@ def test_bridge_source_contains_telemetry_contract():
     from pathlib import Path
     source = (Path(__file__).resolve().parents[1] / "wow" /
               "ForgeTestBridge" / "Core.lua").read_text(encoding="utf-8")
-    assert "schemaVersion = 2" in source
+    assert "schemaVersion = 3" in source
+    assert "function Bridge:RunJSON" in source
     assert "report.snapshot = observed" in source
     assert "function Bridge:RegisterFrame" in source

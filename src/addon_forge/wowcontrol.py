@@ -14,10 +14,12 @@ import time
 from .config import Config
 
 PIPE = r"\\.\pipe\WowGameCommand"
+ERROR_MORE_DATA = 234
+MAX_REPLY = 4 * 1024 * 1024
 CHARACTER = re.compile(r"[A-Za-z]{2,12}\Z")
 ALLOWED = frozenset({"client.ping", "client.getScreen", "client.getCharacters",
-                     "client.login", "client.enterWorld", "unit.get",
-                     "lua.evaluate"})
+                      "client.login", "client.enterWorld", "unit.get",
+                      "lua.evaluate"})
 
 
 def require_windows_transport():
@@ -50,8 +52,22 @@ def request(method: str, params: dict | None = None, *, expected_pid: int, trans
         if len(data) > 2048:
             raise ValueError("SDK request too large")
         transport.WriteFile(handle, data)
-        _, reply = transport.ReadFile(handle, 32768)
-        parsed = json.loads(reply)
+        # The SDK pipe is message-mode: a reply larger than one read arrives in
+        # pieces with ERROR_MORE_DATA until the whole message has been read.
+        chunks, total = [], 0
+        while True:
+            status, chunk = transport.ReadFile(handle, 65536)
+            chunks.append(chunk)
+            total += len(chunk)
+            if total > MAX_REPLY:
+                raise RuntimeError("SDK reply exceeds the size limit")
+            if status != ERROR_MORE_DATA:
+                break
+        reply = b"".join(chunks)
+        try:
+            parsed = json.loads(reply)
+        except ValueError as exc:
+            raise RuntimeError(f"SDK returned a truncated or malformed reply ({len(reply)} bytes)") from exc
         if parsed.get("id") != 1 or parsed.get("error"):
             raise RuntimeError("SDK returned a failed or mismatched reply")
         return parsed.get("result", {})
@@ -158,7 +174,7 @@ def wait_for_player_identity(call, character: str, *, timeout: float = 35,
         sleep(interval)
 
 
-def launch_and_enter(cfg: Config, character: str, *, rpc=request) -> int:
+def launch_and_enter(cfg: Config, character: str, *, rpc=request, press_idle=None) -> int:
     from .win_login import _test_copy, _credentials
     from .windows_client import _client_binary, WindowsAPI
     if sys.platform != "win32":
@@ -215,20 +231,146 @@ def launch_and_enter(cfg: Config, character: str, *, rpc=request) -> int:
         raise RuntimeError("Requested character is absent from realm")
     if call("client.enterWorld", {"name":character, "wait":True}).get("ok") is not True:
         raise RuntimeError("SDK world entry failed")
+    # Identity first: no lua.evaluate is sent until unit.get confirms the
+    # character, because Lua during world entry crashed the pinned SDK build.
     wait_for_player_identity(call, character)
+    reset_idle_timer(call, press_idle or _idle_press(cfg))
     return pid
+
+
+def _idle_press(cfg: Config):
+    from .windows_client import WindowsClientController
+    return WindowsClientController(cfg).press_idle_key
+
+
+# WoW measures inactivity from the last real keyboard/mouse input. A client
+# started through the SDK injector has none, so it is "idle" from login and
+# starts an idle logout (CAMP dialog) that the SDK's IdleLogoutHook blocks,
+# which repeats every few seconds and hides other dialogs such as invites.
+# One harmless key press on an unbound chord resets that timer.
+IDLE_KEY = "CTRL-SHIFT-F11"
+IDLE_KEY_FREE_CODE = f"return GetBindingAction('{IDLE_KEY}') or ''"
+# Locale-independent: the idle logout is the CAMP dialog; CancelLogout is not protected.
+IDLE_POPUP_CODE = "if StaticPopup_Visible('CAMP') then CancelLogout() return 'dismissed' end return 'none'"
+
+
+def reset_idle_timer(call, press, *, settle: float = 1.0, sleep=None) -> dict:
+    """Reset the client's inactivity timer with one unbound key press, then
+    cancel an idle-logout dialog that was already showing."""
+    free = call("lua.evaluate", {"code": IDLE_KEY_FREE_CODE})
+    if not isinstance(free, dict) or free.get("ok") is not True:
+        raise RuntimeError("SDK could not read the idle-reset key binding")
+    if free.get("result") not in ("", None):
+        raise RuntimeError(f"{IDLE_KEY} is bound to {free.get('result')!r} in the test client; "
+                           "unbind it so the idle reset cannot trigger an action. No key was pressed.")
+    press()
+    (sleep or time.sleep)(settle)
+    reply = call("lua.evaluate", {"code": IDLE_POPUP_CODE})
+    if not isinstance(reply, dict) or reply.get("ok") is not True:
+        raise RuntimeError("SDK could not inspect the idle logout dialog")
+    return {"idle_key": IDLE_KEY, "camp_cancelled": reply.get("result") == "dismissed"}
+
+def client_pid(cfg: Config) -> int:
+    """PID of the verified, marked test client window (never another WoW)."""
+    from .windows_client import WindowsAPI, _client_binary
+    from .win_login import _test_copy
+    wow = _test_copy(cfg.wow_dir)
+    api = WindowsAPI()
+    return api.window_pid(api.find_window(cfg.window_name, _client_binary(wow)))
+
+
+WATCH_PATH = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}(?:\.[A-Za-z0-9_]{1,64}){0,5}")
+BRIDGE_VERSION = 3
+
+
+def bridge_run(cfg: Config, suite: str, run_id: str, paths: tuple[str, ...] = (), *,
+               rpc=request, pid: int | None = None) -> dict:
+    """Run a bridge suite and receive its JSON report in the same SDK call.
+
+    Replaces the typed '/forge run' + '/reload' + SavedVariables round trip.
+    The Lua is constant apart from validated identifiers and dotted paths.
+    """
+    if not suite.isalnum() or not run_id.isalnum() or len(run_id) > 32:
+        raise ValueError("Suite and run id must be alphanumeric")
+    if len(paths) > 10 or any(not WATCH_PATH.fullmatch(p) for p in paths):
+        raise ValueError("Watch up to 10 dotted global paths such as MyAddonDB.count")
+    pid = pid if pid is not None else client_pid(cfg)
+    watched = "{" + ",".join(json.dumps(p) for p in paths) + "}"
+    code = ("if type(ForgeTestBridge) ~= 'table' or type(ForgeTestBridge.RunJSON) ~= 'function' "
+            "then return 'bridge_missing' end "
+            f"return ForgeTestBridge:RunJSON({json.dumps(suite)}, {json.dumps(run_id)}, {watched})")
+    reply = rpc("lua.evaluate", {"code": code}, expected_pid=pid)
+    if not isinstance(reply, dict) or reply.get("ok") is not True:
+        raise RuntimeError("SDK could not run the ForgeTestBridge suite")
+    raw = reply.get("result")
+    if raw == "bridge_missing":
+        raise RuntimeError("ForgeTestBridge v3 is not loaded; deploy it and restart the test client")
+    try:
+        report = json.loads(raw) if isinstance(raw, str) else None
+    except ValueError as exc:
+        raise RuntimeError("ForgeTestBridge returned malformed JSON") from exc
+    if not isinstance(report, dict):
+        raise RuntimeError("ForgeTestBridge returned no report object")
+    return report
+
+
+# Constant, read-only apart from creating one hidden probe widget per type on the
+# first call. Returns "total|last|entries" so large dumps arrive in chunks.
+API_DUMP_CODE = (
+    "local d = ForgeApiDump "
+    "if not d then d = {} "
+    "for k in pairs(_G) do if type(k) == 'string' then d[#d + 1] = k end end "
+    "local function add(kind, obj) local mt = obj and getmetatable(obj) local idx = mt and mt.__index "
+    "if type(idx) == 'table' then for m in pairs(idx) do if type(m) == 'string' then d[#d + 1] = kind .. ':' .. m end end end end "
+    "for _, kind in ipairs({'Frame','Button','CheckButton','EditBox','Slider','StatusBar','ScrollFrame',"
+    "'MessageFrame','ScrollingMessageFrame','GameTooltip','Cooldown','Model','PlayerModel','ColorSelect','SimpleHTML'}) do "
+    "local ok, f = pcall(CreateFrame, kind) if ok and f then add(kind, f) f:Hide() end end "
+    "add('FontString', UIParent:CreateFontString()) add('Texture', UIParent:CreateTexture()) add('Font', GameFontNormal) "
+    "table.sort(d) ForgeApiDump = d end "
+    "local i, out, size = START, {}, 0 "
+    "while d[i] and size < 20000 do out[#out + 1] = d[i] size = size + #d[i] + 1 i = i + 1 end "
+    "return #d .. '|' .. (i - 1) .. '|' .. table.concat(out, ',')")
+
+
+def dump_api(cfg: Config, *, rpc=request, pid: int | None = None) -> dict:
+    """Dump _G keys and widget methods from the in-world test client to wow/api."""
+    from . import wowapi
+    pid = pid if pid is not None else client_pid(cfg)
+    screen = rpc("client.getScreen", expected_pid=pid)
+    if not isinstance(screen, dict) or not (screen.get("inWorld") is True or screen.get("screen") == "world"):
+        raise RuntimeError("Enter the world with the test character before dumping the API")
+    entries: list[str] = []
+    start = 1
+    for _ in range(400):
+        reply = rpc("lua.evaluate", {"code": API_DUMP_CODE.replace("START", str(start))}, expected_pid=pid)
+        raw = reply.get("result") if isinstance(reply, dict) and reply.get("ok") is True else None
+        parts = raw.split("|", 2) if isinstance(raw, str) else []
+        if len(parts) != 3 or not parts[0].isdigit() or not parts[1].isdigit():
+            raise RuntimeError("Unexpected API dump reply from the SDK")
+        total, last = int(parts[0]), int(parts[1])
+        entries += [e for e in parts[2].split(",") if e]
+        if last >= total:
+            break
+        if last < start:
+            raise RuntimeError("API dump made no progress")
+        start = last + 1
+    else:
+        raise RuntimeError("API dump did not finish")
+    entries = [e for e in entries if e != "ForgeApiDump"]
+    path = wowapi.write_dump(entries)
+    return {"status": "dumped", "path": str(path),
+            "globals": sum(1 for e in entries if ":" not in e),
+            "methods": sum(1 for e in entries if ":" in e),
+            "note": "Includes globals of addons loaded at dump time; dump with only ForgeTestBridge enabled for a clean list."}
+
 
 def bridge_command(cfg: Config, command: str) -> None:
     """Call only the installed Forge bridge slash handler, not arbitrary Lua."""
-    from .windows_client import WindowsAPI, _client_binary, validate_chat_command
-    from .win_login import _test_copy
+    from .windows_client import validate_chat_command
     validate_chat_command(command)
     if not command.startswith("/forge "):
         raise ValueError("Only Forge bridge commands use SDK Lua transport")
-    wow = _test_copy(cfg.wow_dir)
-    api = WindowsAPI()
-    hwnd = api.find_window(cfg.window_name, _client_binary(wow))
-    pid = api.window_pid(hwnd)
+    pid = client_pid(cfg)
     argument = json.dumps(command[len("/forge "):], ensure_ascii=True)
     code = ("if type(SlashCmdList) ~= 'table' or "
             "type(SlashCmdList.FORGETEST) ~= 'function' then "

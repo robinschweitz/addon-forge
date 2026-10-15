@@ -29,14 +29,24 @@ def test_client_uses_verified_window_and_sends_chat(tmp_path):
     api = Mock()
     api.find_window.return_value = 321
     controller = WindowsClientController(cfg(tmp_path), api=api)
-    controller.command("/forge run smoke abc123")
+    controller.command("/targetexact Forgepeer")
     api.find_window.assert_called_once()
     api.focus.assert_called_once_with(321)
     assert api.tap.call_args_list == [
         __import__("unittest.mock", fromlist=["call"]).call(13),
         __import__("unittest.mock", fromlist=["call"]).call(13),
     ]
-    api.type_text.assert_called_once_with("/forge run smoke abc123", hwnd=321)
+    api.type_text.assert_called_once_with("/targetexact Forgepeer", hwnd=321)
+
+
+def test_windows_never_types_bridge_or_reload_commands(tmp_path):
+    api = Mock()
+    controller = WindowsClientController(cfg(tmp_path), api=api)
+    with pytest.raises(RuntimeError, match="wowcontrol"):
+        controller.command("/forge run smoke abc123")
+    with pytest.raises(ValueError, match="targetexact"):
+        controller.command("/reload")
+    api.type_text.assert_not_called()
 
 def test_rejected_command_never_focuses_or_types(tmp_path):
     api = Mock()
@@ -68,6 +78,6 @@ def test_windows_command_escape_on_typing_failure(tmp_path):
     controller = WindowsClientController(cfg(tmp_path), api=api)
     with patch("addon_forge.windows_client.time.sleep"):
         with pytest.raises(RuntimeError, match="target layout"):
-            controller.command("/forge run smoke abc123")
+            controller.command("/targetexact Forgepeer")
     # Opens chat, then closes it without submitting any partial SAY message.
     assert [x.args[0] for x in api.tap.call_args_list] == [13, 27]

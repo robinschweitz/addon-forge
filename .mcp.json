@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "addon-forge": {
+      "command": ".venv/Scripts/forge.exe",
+      "args": ["--config", "forge.local.toml", "mcp"]
+    }
+  }
+}

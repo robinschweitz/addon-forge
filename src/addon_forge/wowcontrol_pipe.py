@@ -24,9 +24,38 @@ def verify_server_pid(handle: int, expected_pid: int, *, kernel=None) -> None:
         raise RuntimeError("SDK pipe owner does not match the marked WoW window PID")
 
 
+ERROR_FILE_NOT_FOUND, ERROR_PIPE_BUSY = 2, 231
+
+
+def _connect(transport, *, timeout: float = 5.0, interval: float = 0.05,
+             clock=None, sleep=None):
+    """Open the SDK pipe, retrying while the SDK is between pipe instances.
+
+    The SDK serves requests on one thread: it creates a pipe instance, answers
+    one request, closes it and only then creates the next. In that gap (or
+    while another request is being answered) CreateFile fails with "file not
+    found" or "pipe busy" even though the SDK is healthy.
+    """
+    import time
+    clock = clock or time.monotonic
+    sleep = sleep or time.sleep
+    deadline = clock() + timeout
+    while True:
+        try:
+            return transport.CreateFile(PIPE, transport.GENERIC_READ | transport.GENERIC_WRITE,
+                                        0, None, transport.OPEN_EXISTING, 0, None)
+        except Exception as exc:
+            code = getattr(exc, "winerror", None) or (exc.args[0] if exc.args else None)
+            if code not in (ERROR_FILE_NOT_FOUND, ERROR_PIPE_BUSY):
+                raise
+            if clock() >= deadline:
+                raise RuntimeError("WoWControlSDK pipe did not become available within "
+                                   f"{timeout:.0f}s; is the injected test client still running?") from exc
+            sleep(interval)
+
+
 def open_verified_pipe(transport, expected_pid: int):
-    handle = transport.CreateFile(PIPE, transport.GENERIC_READ | transport.GENERIC_WRITE,
-                                  0, None, transport.OPEN_EXISTING, 0, None)
+    handle = _connect(transport)
     try:
         verify_server_pid(int(handle), expected_pid)
     except Exception:
