@@ -1,23 +1,27 @@
 # Autonomous addon QA on a local Windows test realm
 
-> **Status: experimental, updated 2026-10-14.** This document describes
+> **Status: experimental, updated 2026-10-15.** This document describes
 > commands on `main` once the verified feature branch is merged.
 > Commands shown are implemented; individual subsystems are **not** all
 > proven on a live game client. See [Verification status](#verification-status).
 
 ## What belongs where?
 
-- **OpenCode:** reads [AGENTS.md](../AGENTS.md) and creates/revises addon code
-  and independent acceptance plans. It uses your existing OpenCode provider
-  setup. Native `forge ai create` and `forge ai repair` **do not** yet use
-  OpenCode automatically: they require `FORGE_AI_MODEL` and
-  `FORGE_AI_API_KEY` for an OpenAI-compatible endpoint.
+- **OpenCode (or another agent):** reads [AGENTS.md](../AGENTS.md) and
+  creates/revises addon code, offline specs and independent acceptance plans,
+  calling Forge through the `addon-forge` MCP server (`opencode.json`).
+  The former `forge ai` OpenAI-compatible backend was removed.
 - **Python Forge CLI:** deploys addons, guards the isolated client and Docker
   realm, launches approved fixtures, correlates reports, evaluates checks,
   archives evidence. It never executes model-generated shell/SQL commands.
-- **ForgeTestBridge:** a development-only, Lua 5.1 / Interface 30300 addon
-  installed in the **separate test client**; captures live UI state using
-  3.3.5a APIs and writes SavedVariables on `/reload`.
+- **Offline harness:** `forge check` (embedded Lua 5.1, bytecode API checks)
+  and `forge spec` (headless 3.3.5a emulation) run in under a second without
+  a client and gate every real-client run.
+- **ForgeTestBridge (v3):** a development-only, Lua 5.1 / Interface 30300 addon
+  installed in the **separate test client**; captures live UI state, chat,
+  event counts, watched SavedVariables paths and Lua errors using 3.3.5a APIs.
+  On Windows it returns the report as JSON through the SDK in one call; on
+  Wine it writes SavedVariables on `/reload`.
 - **AzerothGhost:** real protocol clients connected to the disposable local
   AzerothCore server. They are not copies of the graphical WoW executable.
 - **Original WoW installation:** out of scope. Never patch `Wow.exe`, alter
@@ -27,8 +31,8 @@
 
 Follow [Local realm setup](local-realm.md) for an isolated client, AzerothCore
 and `forge.local.toml`. Follow [Windows testing](windows-testing.md) for
-Windows dependencies, optional credentials in Windows Credential Manager
-and optional calibrated visual login.
+Windows dependencies and optional test-account credentials in Windows
+Credential Manager for SDK login.
 
 Minimum requirements for **server fixtures**: running, loopback-only local
 AzerothCore Docker Compose with Forge-generated `.env`; Go's module-selected
@@ -57,8 +61,9 @@ docker compose logs --tail 40 ac-worldserver
 
 ## Optional WoWControlSDK backend (experimental, Windows only)
 
-This is an **alternative to pixel-calibrated login**, not a replacement for
-ForgeTestBridge or AzerothGhost. The external project
+This is the Windows automation backend (login, character entry, bridge
+transport and the API dump); it does not replace ForgeTestBridge or
+AzerothGhost. The external project
 [WoWControlSDK](https://github.com/Zerik-Official/WoWControlSDK) controls a
 real graphical WoW 3.3.5a client using a DLL and local Windows named-pipe
 JSON-RPC. It provides API login, named character entry, Lua evaluation and
@@ -265,6 +270,35 @@ runner; SDK RPC is used for startup and identity, not for executing model
 supplied arbitrary Lua. This preserves independent acceptance evidence.
 A fully scriptable policy-checked Lua/actions facade remains future work.
 
+## The offline loop (no client needed)
+
+Every addon change should pass these before any real-client run; `agent
+run-plan` re-runs both and stops early if either fails.
+
+```powershell
+.\.venv\Scripts\forge.exe new RaidTimer                 # addon + tests/RaidTimer.spec.lua + RaidTimer-acceptance.json
+.\.venv\Scripts\forge.exe check projects\RaidTimer      # Lua 5.1 syntax, 3.3.5a API use, accidental globals
+.\.venv\Scripts\forge.exe spec projects\RaidTimer       # headless 3.3.5a emulation + offline specs
+.\.venv\Scripts\forge.exe api lookup IsInGroup Button:SetTextColor
+```
+
+`forge check` knows a built-in list of APIs that are definitely absent from
+3.3.5a. For complete coverage, dump the real client's globals and widget
+methods once (read-only Lua over the SDK, client in world, ideally with only
+ForgeTestBridge enabled):
+
+```powershell
+.\.venv\Scripts\forge.exe --config forge.local.toml api dump
+```
+
+The list is written to `wow/api/globals-30300.txt` (git-ignored, local data).
+Afterwards unknown globals are flagged by `check`, and the offline harness
+makes calls to widget methods the real widget lacks fail like the client does.
+
+Offline results are **fast feedback, not acceptance**: the emulation reports
+what it does not model (`not emulated offline` notes), and only the bridge
+snapshot from the real client can pass a plan.
+
 ## Daily Windows workflow
 
 From the checkout root in native Windows PowerShell:
@@ -281,80 +315,33 @@ separate test client:
 .\.venv\Scripts\forge.exe --config forge.local.toml agent prepare --start-client
 ```
 
-Once Windows Credential Manager and the test **login-screen calibration**
-are configured, this can also submit stored local credentials:
-
-```powershell
-.\.venv\Scripts\forge.exe --config forge.local.toml agent prepare --start-client --login
-```
-
-The login path is **experimental**, requires an unlocked Windows desktop,
-and refuses to enter a password unless visual checks match. It neither
-confirms a successful login nor selects a realm or character.
-
-**Still required manually:** enable newly deployed addons at character
-selection if needed, select your local test character and enter the game
-world. Keep the window accessible and foregroundable. If the game is already
-running, `agent prepare` will not replace its loaded Lua modules.
-To load new addon files or a changed bridge, close/restart the test client
-before running new tests.
-
-### Single-command addon QA session (experimental)
-
-After one-time vault-login and selected-character calibration, close the test
-WoW client and run:
-
-```powershell
-.\\.venv\\Scripts\\forge.exe --config forge.local.toml agent session examples\\forge-example-scenario.json --approve-fixtures
-```
-
-This stages the addon before client startup, launches the isolated test copy,
-logs in, enters the calibrated character, independently verifies the in-game
-identity and runs the requested acceptance plan. A preview is available by
-omitting `--approve-fixtures`. It refuses to run when test WoW is already open.
-This workflow has not yet been verified end-to-end on a real Windows desktop.
-
-### Experimental no-click character entry (Windows)
-
-You **do not need a patched WoW client** for the first version. When you
-have already saved your *local test-realm* account in Windows Credential Manager
-and calibrated the login form, perform one additional supervised calibration
-on the *character selection* screen, with exactly the target character
-selected but not yet in the world:
-
-```powershell
-.\.venv\Scripts\forge.exe --config forge.local.toml client character calibrate --character Test
-```
-
-Point at two static character-selection UI details and the visible **selected
-character name** when requested. Choose a patch containing the whole short
-name plus stable UI details, not moving animations. This records 3 small RGB
-reference patches and the window dimensions inside the **marked separate test
-client**. Keep resolution/UI scale unchanged.
-
-On later sessions, **close the test client** before running:
+With the WoWControlSDK backend and a saved Credential Manager test account,
+preparation can also log in and enter the world through the SDK, then
+verify the in-world identity with a correlated bridge report:
 
 ```powershell
 .\.venv\Scripts\forge.exe --config forge.local.toml agent prepare --start-client --login --enter-character Test
 ```
 
-After the vault-based login succeeds, Forge waits for the exact calibrated
-character selection screen in the **same newly launched executable process**
-and only then presses Enter. It aborts without clicking or pressing Enter if
-the expected process, pixels, name signature, or resolution differs. **This
-new feature is not live-verified yet.** Selecting a character via pixels is
-fragile on animated/customized screens; it can also match another screen if
-the reference patches are not sufficiently distinctive. The preparation command immediately runs a correlated ForgeTestBridge v2
-smoke report and independently checks the actual in-world player name.
-It reports `character_verified` only after that proof, and otherwise aborts;
-`agent run-plan` is still needed for each addon's behavior assertions.
+It reports `character_verified` only after that proof, and otherwise aborts.
+Credentials are passed over the PID-verified SDK pipe, never typed or put on
+a command line. The former pixel-calibrated keyboard login and character
+selection were removed. If the game is already running, `agent prepare` will
+not replace its loaded Lua modules; to load new addon files or a changed
+bridge, close/restart the test client before running new tests.
 
-The linked [awesome-wow-335-clients collection](https://github.com/haha2345/awesome-wow-335-clients)
-includes client modifications, but the full unattended path does not
-require untrusted binary patches. For example, Awesome WotLK mentions
-command-line auto-login (exposing process arguments), while WoWee is an
-independent, incomplete engine with different addon-compatibility
-characteristics. We do **not** download, bundle, or patch any `Wow.exe`.
+### Single-command addon QA session (experimental)
+
+With the test WoW client closed:
+
+```powershell
+.\.venv\Scripts\forge.exe --config forge.local.toml agent session projects\RaidTimer-acceptance.json --approve-fixtures
+```
+
+This stages the addon before client startup, launches the isolated test copy
+through the SDK, logs in, enters the plan's character, independently verifies
+the in-game identity and runs the acceptance plan. A preview is available by
+omitting `--approve-fixtures`. It refuses to run when test WoW is already open.
 
 ## Quick regression: real UI assertions with no new server players
 
@@ -385,13 +372,55 @@ After entering the world:
 ```
 
 The first command is a **read-only preview**. The approved command checks
-sources, deploys the addon and bridge, sends a correlated in-game smoke
-suite, reads a version 2 SavedVariables snapshot, and evaluates the
-independent JSON checks. The approval flag also authorizes server fixture
+sources, runs the offline specs, deploys the addon and bridge, runs a
+correlated in-game smoke suite, receives the bridge v3 report, and evaluates
+the independent JSON checks. The approval flag also authorizes server fixture
 mutations when `peers > 0`. It doesn't automatically turn on a disabled
 addon or restart an already-running WoW process.
 
 Reports/screenshot evidence go into `examples\.forge-runs`.
+
+### Plan check reference
+
+| Check | Keys | Passes when the bridge snapshot shows |
+| --- | --- | --- |
+| `player_in_world` | `value: true` | the player unit exists |
+| `frame_visible` | `value: "FrameName"` | the registered frame is shown |
+| `frame_text_contains` | `frame`, `value` | the registered frame/FontString text contains `value` |
+| `global_equals` | `path`, `value` | a dotted global path (e.g. `MyDB.history.1.item`) equals a string/number/boolean/null |
+| `chat_contains` | `value` | a recent default-chat line contains `value` |
+| `event_fired` | `value: "EVENT_NAME"` | the event fired at least once since the bridge loaded |
+| `no_lua_errors` | `value: true` | the bridge captured no Lua errors |
+| `party_count_at_least` | `value: 0-4` | the GUI player's party size |
+| `target_player` | `value: true` (needs `peers`) | the target is a player |
+
+`"steps"` act in the real client after fixtures and before the bridge suite
+(bridge observer only; at most 20 steps and 180 s of waits). Each type maps to
+one fixed SDK action:
+
+| Step | Value | Action |
+| --- | --- | --- |
+| `slash` | `"/myaddon start"` | Runs one of **the addon's own** slash commands (checked against its `SLASH_*` definitions) |
+| `roll` | `[low, high]` | `RandomRoll(low, high)` as the test character (a real server `/rnd`) |
+| `wait` | seconds (≤ 60) | Lets timers and server messages arrive |
+| `click` | `"FrameName"` | Clicks a visible frame the addon registered with `ForgeTestBridge:RegisterFrame` |
+
+A step the client does not perform (missing command, hidden button) fails the
+plan with `stage: "steps"` before the suite runs.
+
+`"fixtures": ["master_loot"]` (bridge observer, `peers: 0`) keeps a real
+master-loot window open on the GUI character while the suite runs: a
+temporary AzerothGhost bot invites the character, sets master loot, and kills
+the fixed Crimson Templar. It targets the corpse by its client-locale name
+(looked up in the world DB) with SDK `TargetUnit`, then opens it with
+`InteractUnit` or one press of a temporarily bound CTRL-SHIFT-F12 interact key
+(previous binding restored). **Verified live** on the deDE test client.
+
+Because an SDK-launched client has never received real input, WoW treats it as
+idle from login; the SDK blocks the resulting logout, so the idle dialog would
+repeat all session and hide other dialogs (auto-declining party invites).
+Forge therefore sends one press of the unbound CTRL-SHIFT-F11 chord after login
+and before fixtures, after checking via the SDK that it is unbound.
 
 ## Multiplayer scenarios (test account/character state may persist)
 
@@ -433,19 +462,20 @@ joined the correct group and that UI frames/events match real game state.
 
 ## Have OpenCode build and test an addon
 
-Run `opencode` from the Forge checkout; its `AGENTS.md` gives it the
-repository's addon/test contract. Example user instruction:
+Run `opencode` from the Forge checkout. `AGENTS.md` gives it the
+repository's addon/test contract and `opencode.json` registers the
+`addon-forge` MCP server (`forge_new`, `forge_check`, `forge_spec`,
+`forge_api_lookup`, `forge_plan_preview`, `forge_run_plan`). Example
+instruction:
 
-> Build a WotLK 3.3.5a party addon under projects/MyParty, register observed
-> frames with ForgeTestBridge, write a measurable acceptance plan beside
-> the addon folder, preview the plan and run only authorized tests. Don't
-> weaken failing tests. Report coverage gaps, retain test evidence and fix
-> code issues, not infrastructure issues.
+> Build a WotLK 3.3.5a party addon under projects/MyParty with offline specs,
+> register observed frames with ForgeTestBridge, write a measurable
+> acceptance plan beside the addon folder, and get check and spec green.
+> Preview the plan. Don't weaken failing tests. Report coverage gaps.
 
-OpenCode can **author and drive these CLI workflows**, but a universal,
-fully unattended `forge agent build-and-test` command, native
-`forge ai --backend opencode`, character selection, and model-planned
-combat/quest/party scenarios are **not yet implemented**.
+`forge_run_plan` refuses to touch the client unless **you** started the
+server with `forge mcp --allow-fixtures`; an agent cannot grant itself that
+approval. Combat/quest scenarios are **not yet implemented**.
 
 ## Interpreting test outcomes
 
@@ -456,11 +486,13 @@ combat/quest/party scenarios are **not yet implemented**.
 | `infrastructure_error` | No reliable correlated evidence; no conclusion about addon correctness |
 | `plan_only` | Dry-run preview; **nothing was tested or changed** |
 
-The bridge report is in `WTF/Account/*/SavedVariables/ForgeTestBridge.lua`
-inside the **isolated** client. Python correlates it with a random run ID
-after `/reload`, and collects a JSON report and (when available) PNG
-screenshot. Each snapshot can include player/target class, health, level,
-party membership/count and registered frame visibility/dimensions.
+On Windows the bridge report arrives as JSON from `ForgeTestBridge:RunJSON`
+over the SDK; on Wine it is read from
+`WTF/Account/*/SavedVariables/ForgeTestBridge.lua` after `/reload`. Python
+correlates it with a random run ID and stores a JSON report and (when
+available) PNG screenshot. Each snapshot can include player/target unit
+data, party/raid counts, registered frame visibility/size/text, recent chat,
+event counts, watched global values and captured Lua errors.
 
 **Fail closed:** a missing/mismatched snapshot, outdated `bridgeVersion`,
 stale report, wrong character, or unexpected client window must not be
@@ -471,13 +503,14 @@ evidence, not a substitute for independent assertions.
 
 | Symptom | Check / action |
 | --- | --- |
-| `Old ForgeTestBridge loaded` / no v2 snapshot | Close test WoW, redeploy bridge, restart and re-enable it |
+| `Old ForgeTestBridge loaded` / `ForgeTestBridge v3 is not loaded` | Close test WoW, redeploy bridge, restart and re-enable it |
+| Offline stage fails in `run-plan` | Run `forge spec projects\Addon`; fix the addon (or stub an un-emulated API in the spec), never delete the check |
 | `forge test` has no report | Ensure in-world, bridge enabled and client foregroundable; see [SavedVariables troubleshooting](local-realm.md) |
 | Warden preflight error | Check the local-only Docker override and actual worldserver logs |
 | Wrong Go version | Run `go version` **inside** AzerothCore's `e2e` folder with `GOTOOLCHAIN=auto` |
 | Peer count mismatch | Update Forge; Go and Python readiness formats must agree |
 | `party-lifecycle` fails | Capture the exact stage and errors; do not reset Docker or weaken checks |
-| Auto-login fails | Keep the Windows session unlocked; recalibrate only the marked test client |
+| SDK login fails | Keep the Windows session unlocked; see [SDK says the test client is not on the login screen](#sdk-says-the-test-client-is-not-on-the-login-screen) |
 
 ## Verification status
 
@@ -490,7 +523,12 @@ These are **user-observed local results**, not a guarantee on other machines:
 | One AzerothGhost peer appears and is targeted | **Verified** | User-provided peer test passed; run `60bb9bfee84b` |
 | Three-peer bot party / peer departure lifecycle | **Verified live** | v2 target assertions passed at stages `61f0feae27df` and `e88eaee835cd`; bot-only group, GUI player `party.count: 0` |
 | Four-peer party, GUI player membership and addon party frames | **Not verified live** | Separate membership/health/UI assertions still required |
-| Calibrated login and selected character entry | **Experimental, not live-verified** | One-time visual calibration then PID-bound login/Enter and mandatory correlated bridge v2 identity check |
+| Static checks, offline harness, plan schema, MCP server | **Unit-tested** | Test suite; ForgeLootLedger loot flow passes offline |
+| Bridge v3 SDK JSON transport, new plan checks | **Verified live** | `ForgeExample` and `ForgeLootLedger` plans passed (runs `e7d96f13fde3`, `448b3ba9387b`) |
+| `master_loot` fixture + `agent session` | **Verified live** | deDE corpse name from the world DB, SDK `TargetUnit`, temporarily bound interact key; `LOOT_OPENED` observed, no Lua errors |
+| Plan `steps` + ForgeLootLedger roll flow | **Verified live** | Real `/rnd` 61, re-roll 3 and 1-1000 roll 600: only 61 counted, `won by Test (61)` in party chat, award saved (run `cce23000b73e`) |
+| SDK idle-logout loop fix | **Verified live** | One unbound key press after login: `PLAYER_CAMPING` dropped from ~13 to 1 per session |
+| `forge api dump` | **Verified live** | 33,826 globals and 2,261 widget methods; found real `Button:SetTextColor` bug offline |
 | Combat, quests, buffs, items and full autonomous QA | **Not implemented** | Future capability work |
 
 Even verified smoke tests cover only their stated conditions. Preserve

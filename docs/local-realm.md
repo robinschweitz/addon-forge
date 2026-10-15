@@ -11,7 +11,7 @@ The plan command does not clone, copy, build or start anything. No Hetzner charg
 
 The one-time setup remains: a **marked isolated test WoW copy**, your local
 AzerothCore configuration, a character created on that private realm, and
-optionally saved credentials plus visual login calibration. After that:
+optionally saved test-account credentials for SDK login. After that:
 
 ```powershell
 cd F:\addon-forge
@@ -20,11 +20,11 @@ git pull --ff-only
 ```
 
 This verifies the isolated copy, deploys the current ForgeTestBridge while
-WoW is closed and launches only that client. If you configured the Windows
-Credential Manager account and login-screen calibration previously, use
-`agent prepare --start-client --login` to submit account credentials. It
-**does not** automatically choose a character; account/login can fail closed
-if visual calibration is stale. If WoW is already running, preparation
+WoW is closed and launches only that client. With the WoWControlSDK backend
+and a saved Credential Manager account, use
+`agent prepare --start-client --login --enter-character NAME` to log in and
+enter the world through the SDK, followed by a correlated bridge identity
+check. If WoW is already running, preparation
 reports that fact without attempting to redeploy code into a live process.
 Go toolchain selection, Docker isolation checks and server fixture cleanup
 already happen automatically in approved test commands.

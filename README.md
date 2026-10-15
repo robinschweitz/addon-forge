@@ -1,14 +1,21 @@
 # Addon Forge
 
-**Experimental Linux-first WotLK 3.3.5a addon development and test toolkit.**
+**Experimental WotLK 3.3.5a (build 12340) addon creation and test suite.**
 
-This repository contains a real, runnable Python CLI, a WoW 3.3.5a test companion addon, a safe SavedVariables report parser, static validators, an X11/Wine client controller, guarded AI generation/repair, tests and a Nix development environment.
+Addon Forge gives a human or an AI agent a short, verifiable loop for building WoW 3.3.5a addons:
 
-**Status (v0.1.0, experimental):** The native Windows graphical WoW 3.3.5a + local AzerothCore smoke/bridge workflow has been **verified live** with an independent v2 SavedVariables snapshot, and a single AzerothGhost peer was created, targeted, and verified in the real GUI. See [Autonomous QA workflow and verification status](docs/qa-workflow.md). Windows/Linux CI uses mocks; the new multi-peer party lifecycle, automated character selection, combat/quest fixtures and generic hands-off AI QA are **not yet verified or implemented** as noted in that guide.
+1. **Create**: `forge new MyAddon` scaffolds a Lua 5.1 addon, an offline spec and an acceptance plan.
+2. **Check (milliseconds)**: `forge check` compiles every file with a real embedded Lua 5.1 and reads the bytecode for APIs that do not exist on 3.3.5a (`C_Timer`, `IsInGroup`, `table.unpack`, `:SetColorTexture`, ...) with file:line hints for the 3.3.5a replacement.
+3. **Spec (sub-second)**: `forge spec` runs the addon in a headless 3.3.5a emulation: real load order, SavedVariables timing, events, OnUpdate time, slash commands, clicks, chat, units, groups, loot and `/reload`.
+4. **Accept (real client)**: `forge agent run-plan` gates on 2 and 3, deploys, optionally runs realm fixtures, runs the in-game ForgeTestBridge suite over the WoWControlSDK and judges an independent snapshot against the plan's checks.
+
+Agents use the same loop as typed tools through `forge mcp` (configured in `opencode.json` and `.mcp.json`).
+
+**Status (v0.1.0, experimental):** Steps 1-3 run on any OS and are covered by the test suite. The native Windows graphical client + local AzerothCore bridge workflow and a single AzerothGhost peer were **verified live** earlier with bridge v2. The bridge v3 SDK transport (JSON report in one SDK call), the richer plan checks and the `master_loot` fixture are implemented and unit-tested but **not yet verified live**. See [Autonomous QA workflow and verification status](docs/qa-workflow.md).
 
 ## Autonomous addon QA: start here (Windows local realm)
 
-**[Step-by-step QA workflow, OpenCode integration, test evidence, troubleshooting and live verification status](docs/qa-workflow.md)** is the canonical guide. Start here for `forge agent prepare`, `forge agent run-plan`, `forge agent peer-test` and the experimental `forge agent party-lifecycle`. The setup details remain in [local realm setup](docs/local-realm.md) and [native Windows guide](docs/windows-testing.md). Existing OpenCode configuration can author addons using [AGENTS.md](AGENTS.md); `forge ai` is still a separate OpenAI-compatible API backend.
+**[Step-by-step QA workflow, OpenCode integration, test evidence, troubleshooting and live verification status](docs/qa-workflow.md)** is the canonical guide. The setup details remain in [local realm setup](docs/local-realm.md) and [native Windows guide](docs/windows-testing.md). Agents follow [AGENTS.md](AGENTS.md).
 
 ## Local AzerothCore realm — automated setup (experimental)
 
@@ -35,7 +42,7 @@ expose public game ports. Review CI and disk prerequisites before installing.
 
 Windows 10/11 can use a **native WoW 3.3.5a client without Wine/WSL** for graphical smoke tests. See [Windows setup and limitations](docs/windows-testing.md). Install from Windows PowerShell with `py -3.11 -m pip install -e ".[windows]"`, configure `[client] wow_dir` in `forge.toml`, then use the existing `forge deploy`, `forge client start`, `forge client screenshot`, and `forge test` commands.
 
-The controller verifies the WoW executable path and foreground window, restricts commands to `/forge`, `/reload` and validated `/targetexact NAME`, and reads the same ForgeTestBridge SavedVariables results as Linux/Wine. **Native Windows in-client smoke and one-peer AzerothGhost testing have been verified live** on the isolated local realm; Windows CI itself still uses a mocked Win32 UI. See the [verification matrix](docs/qa-workflow.md#verification-status).
+On Windows, suites run through the WoWControlSDK (`automation_backend = "wowcontrol"`): the bridge returns its report as JSON in the same call, with no `/reload` or SavedVariables round trip. The only typed input left is a validated `/targetexact NAME`, used by peer fixtures because targeting is a protected action. Login also goes through the SDK; the former pixel-calibrated keyboard login was removed. Windows CI uses a mocked Win32 UI and SDK. See the [verification matrix](docs/qa-workflow.md#verification-status).
 
 ## Complete Windows/Linux ↔ Hetzner workflow (experimental)
 
@@ -78,7 +85,7 @@ python -m addon_forge.cli check examples/ForgeExample
 
 The single main Nix configuration file is **`flake.nix`**. It defines:
 
-- `nix develop`: Python, pytest, Lua 5.1, Wine, xdotool, ImageMagick, GitHub CLI, Docker CLI/Compose.
+- `nix develop`: Python, pytest, Wine, xdotool, ImageMagick, GitHub CLI, Docker CLI/Compose.
 - `nix build`: packaged `forge` CLI.
 - `nix run -- --help`: run the CLI.
 - `nix flake check`: Python tests.
@@ -120,49 +127,57 @@ forge deploy examples/ForgeExample
 forge client start
 ```
 
-Log in manually, enable both addons in the add-on list, and reach the world. The bridge exports an account-wide `ForgeTestReport` SavedVariable after a reload. It only supports its own `/forge run SUITE RUN_ID` test command; it cannot arbitrarily read/write files or network.
+Log in, enable both addons in the add-on list, and reach the world. The bridge only supports its own `/forge run SUITE RUN_ID` command and the SDK `ForgeTestBridge:RunJSON` call; it cannot read/write files or the network.
 
 ```bash
 forge client screenshot .forge-runs/first.png
 forge test --suite smoke --require-test example_frame_visible
 ```
 
-`forge test` sends `/forge run smoke <random-id>`, then `/reload`, waits for a **matching** SavedVariables report under `WTF/Account/*/SavedVariables/ForgeTestBridge.lua`, checks assertion results and Lua errors, and saves JSON/screenshot artifacts. A missing report is an **infrastructure error**, not an addon failure. Requires a live X11 session and the client already **in-world**. `forge client command` deliberately restricts automated chat input to `/forge` and `/reload`.
+`forge test` runs the suite with a random run id and checks the **matching** report's assertions and captured Lua errors, saving JSON/screenshot artifacts. On Windows the report comes back through the SDK; on Wine/Linux it is read from `WTF/Account/*/SavedVariables/ForgeTestBridge.lua` after `/reload`. A missing report is an **infrastructure error**, not an addon failure.
 
-## AI usage
+## Building addons with an agent
 
-Point the CLI to an **OpenAI-compatible chat completions API**. Credentials live only in environment variables, not in `forge.toml`:
+`forge ai` (a separate OpenAI-compatible backend) was removed in favour of the agent loop above. Point your agent at the MCP server; `opencode.json` and `.mcp.json` already register it:
 
 ```bash
-export FORGE_AI_BASE_URL='https://api.openai.com/v1'
-export FORGE_AI_MODEL='YOUR_JSON_CAPABLE_MODEL'
-export FORGE_AI_API_KEY='YOUR_API_KEY'
-
-forge ai create SimpleTracker 'Make a minimal movable WotLK unit tracker'
-forge ai repair projects/SimpleTracker --max-attempts 3
-# After bridge is deployed, test character is in-world and addon is enabled:
-forge ai repair projects/SimpleTracker --in-client --max-attempts 3
+forge --config forge.local.toml mcp            # check/spec/new/api tools; real-client runs refused
+forge --config forge.local.toml mcp --allow-fixtures   # human opt-in: forge_run_plan may use the realm
 ```
 
-In-client repair requires a `forge.spec.json` contract listing `required_tests` with at least one addon-specific assertion (see the example). The AI cannot modify the contract.
+Offline specs live in `projects/MyAddon/tests/*.spec.lua` and are never deployed:
 
-The AI can change only `.toc`, `.lua`, `.xml` files within the addon directory. It has no shell interface. The source is restored on failed repair. In-client mode requires a *previously enabled* addon; newly generated addons may require a client restart and manual enable first. Model API support for `response_format: json_object` varies; configure a compatible provider.
+```lua
+before_load(function() forge.setSaved("MyAddonDB", { logins = 2 }) end)
 
-**Security notes:** Use this with a private test realm where you are authorized to automate the client. Model output is untrusted; review generated Lua before entering a public/private multiplayer realm. The test bridge should not be included in release archives. Project-specific tests and broader security sandboxing remain planned work.
+test("/myaddon toggles the window", function()
+    forge.slash("/myaddon")
+    expect("MyAddonFrame").toBeHidden()
+end)
+```
+
+The harness API: `forge.fire(event, ...)`, `forge.advance(seconds)`, `forge.slash(text)`, `forge.click(frame)`, `forge.clickText(text)`, `forge.type(editbox, text)`, `forge.press(editbox, "ENTER")`, `forge.unit(token, fields)`, `forge.party{...}`, `forge.raid{...}`, `forge.item(id, fields)`, `forge.openLoot{...}`, `forge.roll(name, value)`, `forge.combat(true)`, `forge.stub(name, value)`, `forge.saved(name)`, `forge.reload()`, `forge.chat()`, `forge.sent()`. Expectations: `toBe`, `toEqual`, `toContain`, `toMatch`, `toBeNil`, `toBeTruthy`, `toBeFalsy`, `toBeGreaterThan`, `toBeShown`, `toBeHidden`.
+
+Addon and spec code run sandboxed (no `os`/`io`/Python access, instruction budget, memory cap). The emulation is not the client: anything it does not model is reported (unknown globals, unmodelled widget methods and templates) so the real-client plan stays the final gate. Run `forge api dump` once with the test client in world to record the real `_G` and widget method lists in `wow/api/` (git-ignored); checks and specs then flag anything that does not exist on 3.3.5a.
+
+**Security notes:** Use this with a private test realm where you are authorized to automate the client. Model output is untrusted; review generated Lua before entering a public/private multiplayer realm. The test bridge should not be included in release archives.
 
 ## Commands
 
 ```text
 forge doctor
+forge new NAME [--notes TEXT] [--character NAME]
 forge check PATH_TO_ADDON
+forge spec PATH_TO_ADDON [--json]
+forge api lookup NAME|Widget:Method ...
+forge api dump
+forge mcp [--allow-fixtures]
 forge deploy PATH_TO_ADDON
-forge client start
-forge client command '/reload'
-forge client screenshot OUTPUT.png
-forge realm up|down|status
+forge client start | screenshot OUTPUT.png | login save --account NAME
 forge test --suite smoke --require-test example_frame_visible
-forge ai create NAME 'DESCRIPTION'
-forge ai repair PATH_TO_ADDON [--in-client] [--max-attempts 3]
+forge agent run-plan PLAN.json [--approve-fixtures]
+forge agent session PLAN.json [--approve-fixtures]
+forge realm up|down|status
 ```
 
 ## Publish to GitHub
@@ -178,16 +193,14 @@ For the downloadable `addon-forge.git.bundle`, first run `git clone addon-forge.
 ## Roadmap
 
 - [x] Python CLI, configuration loader, static TOC/API checks
-- [x] Restricted client input, screenshots, Wine process start
-- [x] In-game bridge, SavedVariables parser, report correlation
-- [x] AI create/repair logic and rollback
+- [x] Embedded Lua 5.1 syntax + bytecode global analysis; 3.3.5a API dump and lookup
+- [x] Headless 3.3.5a emulation with offline specs, gating real-client runs
+- [x] In-game bridge, SDK JSON transport (v3), report correlation
+- [x] Data-only acceptance plans with UI/text/SavedVariables/chat/event/error checks and named fixtures
+- [x] MCP tool server and `forge new` scaffold
 - [x] Nix flake for development shell/package/NixOS module
-- [x] Evaluate the NixOS module and boot a lightweight NixOS test VM in CI; commit `flake.lock`
-- [ ] Verify real Wine + WoW 3.3.5a client round trip
-- [ ] Test realm fixtures and controlled real combat event tests
-- [ ] Client readiness detection and automated account/character login
-- [ ] Desktop UI (Tauri + React)
-- [ ] Per-project immutable acceptance tests, stronger agent sandboxing
+- [ ] Verify bridge v3 SDK transport and `master_loot` fixture live
+- [ ] Combat and quest fixtures
 - [ ] Reproducible realm image and DB seeding
 
 ## License

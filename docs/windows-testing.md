@@ -1,6 +1,6 @@
 # Native Windows graphical WoW tests (experimental)
 
-Addon Forge can control an **authorized, locally installed World of Warcraft 3.3.5a** client on Windows 10/11. It shares the Linux ForgeTestBridge and SavedVariables testing protocol. It is desktop automation. **Optional calibrated credential submission** is supported for a marked local test copy, but selecting a character and entering the world remain manual. See the [current QA workflow](qa-workflow.md).
+Addon Forge can control an **authorized, locally installed World of Warcraft 3.3.5a** client on Windows 10/11. It uses the same ForgeTestBridge as Linux, but on Windows suites run through the WoWControlSDK: the bridge report comes back as JSON in one call, with no `/reload`. SDK login and character entry are available for a marked local test copy. See the [current QA workflow](qa-workflow.md).
 
 ## Install on native Windows (PowerShell, not WSL)
 
@@ -42,16 +42,13 @@ In WoW, choose **Windowed** or **Windowed (Fullscreen)** mode; manually log into
 .\.venv\Scripts\forge.exe test --suite smoke --require-test example_frame_visible
 ```
 
-The test opens WoW chat and sends restricted `/forge ...`, `/reload` and exact-name `/targetexact` commands, then checks a matching `WTF/Account/*/SavedVariables/ForgeTestBridge.lua` report after reload. It returns `infrastructure_error` if no matching report appears (not a false pass). PNG screenshots use Pillow.
+With `automation_backend = "wowcontrol"` (see [the SDK section](qa-workflow.md#optional-wowcontrolsdk-backend-experimental-windows-only)) the test calls `ForgeTestBridge:RunJSON` over the PID-verified SDK pipe and checks the returned report's run id, assertions and captured Lua errors. It returns `infrastructure_error` if no matching report arrives (not a false pass). The only keyboard input left on Windows is a validated `/targetexact NAME` for peer fixtures. PNG screenshots use Pillow.
 
-## Optional auto-login for a private Forge test account (experimental)
+## SDK login for a private Forge test account (experimental)
 
-This workflow applies **only** to a separate, marked Forge test client on
-**Windows native Python**. It does not modify Rising Gods or log into public
-realms, and never stores passwords in `forge.local.toml`.
-
-Install the optional Windows dependencies and make sure the test client is in
-**windowed mode** with a stable size (e.g. 1280x720). From PowerShell:
+This applies **only** to a separate, marked Forge test client on **Windows
+native Python** with the WoWControlSDK backend. It does not modify Rising Gods
+or log into public realms, and never stores passwords in `forge.local.toml`.
 
 ```powershell
 cd F:\addon-forge
@@ -59,46 +56,13 @@ cd F:\addon-forge
 .\.venv\Scripts\forge.exe --config forge.local.toml client login save --account FORGETEST
 ```
 
-The password is requested privately and saved using **Windows Credential
-Manager** through the Windows keyring backend. Do not enter your Rising Gods
-credentials. Only disposable *local test realm* accounts are supported.
-
-**One-time visual calibration:** Start the copied test WoW client **normally**
-and wait at the account/password login screen. Make sure both fields are
-empty and the window is not changing size. Run:
-
-```powershell
-.\.venv\Scripts\forge.exe --config forge.local.toml client login calibrate
-```
-
-Follow four prompts, placing the mouse over two distinct, **static,
-high-contrast login-panel features** (not fields, passwords or animated
-background), then the center of the account field, then the password field.
-Move the mouse to the requested spot and press Enter in PowerShell for each.
-Forge saves only two tiny image patches and four locations in the test-client
-folder as `.addon-forge-login-calibration.json`, **never the password**.
-
-Close WoW, then start with automatic credential entry:
-
-```powershell
-.\.venv\Scripts\forge.exe --config forge.local.toml client start --login
-```
-
-Forge refuses to type unless the new WoW.exe process and its visible window
-match the configured path and its login panel matches the calibration in
-three consecutive observations. It rechecks the panel after focusing it
-and before typing the password. If the screen is unexpected or the game
-window resolution has changed, it stops **without typing credentials**.
-Do not use the keyboard/mouse during automatic login. This submits the
-account/password form; **realm selection and character selection remain
-manual**. Automatic login isn't tested on a live client yet.
-
-Security limitations: visual recognition is heuristic, not a proof of
-game state. Only use disposable private-realm passwords. This command
-cannot run on a locked Windows session, and does not support unattended
-Windows service operation. The user can revoke stored credentials via
-Windows Credential Manager. To recalibrate, delete only the calibration
-JSON file in the separate test client's root; no game files are removed.
+The password is requested privately and saved in **Windows Credential
+Manager**. Do not enter your Rising Gods credentials. Only disposable *local
+test realm* accounts are supported. `agent prepare --start-client --login
+--enter-character NAME` and `agent session PLAN` then launch the marked client
+through the SDK injector and log in over the SDK pipe: credentials are never
+typed, put on a command line or logged. The former pixel-calibrated keyboard
+login (`client login calibrate`, `client start --login`) was removed.
 
 ## Security and limitations
 
@@ -107,4 +71,4 @@ JSON file in the separate test client's root; no game files are removed.
 - Foreground activation is verified before sending keys. Do not use the keyboard or mouse during the short automated test.
 - The current Win32 keyboard backend handles only printable ASCII commands and the **active keyboard layout** must be able to type each character. DirectX exclusive fullscreen and certain graphics backends may block ImageGrab or simulated input; choose windowed mode for testing.
 - This is a first implementation with mocked Windows UI tests; **no real WoW Windows session has been exercised in CI**. Manual testing on a 3.3.5a client is required before considering native input/screenshot behavior validated.
-- It does **not** configure realmlist, automatically log in, create an account, or connect to the remote Hetzner realm. That realm currently binds login/world ports to loopback, so use a separate secure worker/tunnel design instead of exposing game ports publicly.
+- It does **not** configure realmlist, create an account, or connect to the remote Hetzner realm. That realm currently binds login/world ports to loopback, so use a separate secure worker/tunnel design instead of exposing game ports publicly.
