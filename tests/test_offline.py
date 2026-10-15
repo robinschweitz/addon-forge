@@ -188,3 +188,34 @@ def test_feature_detection_read_of_missing_method_is_not_an_error(tmp_path, monk
     result = run_addon(root)
     assert result["status"] == "passed", result
     assert any(d["severity"] == "info" and "Frame:GetText" in d["message"] for d in result["diagnostics"])
+
+
+def test_layout_check_finds_overlap_overflow_and_respects_explicit_lines(tmp_path):
+    root = addon(tmp_path, """
+local f = CreateFrame("Frame", "ProbeFrame", UIParent)
+f:SetWidth(200) f:SetHeight(100) f:SetPoint("CENTER")
+f:SetBackdrop({ insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+local a = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+a:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -10) a:SetText("HEADER")
+ProbeB = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+ProbeB:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -12) ProbeB:SetText("OVERLAPPING")
+local wide = CreateFrame("Button", "ProbeWide", f) wide:SetWidth(250) wide:SetHeight(10)
+wide:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 10, 10)
+local two = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+two:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -40) two:SetText("line one\\nline two")
+""", spec="""
+test("issues", function()
+    local issues = forge.layoutIssues("ProbeFrame")
+    expect(table.concat(issues, "|")).toContain('FontString "HEADER" overlaps FontString "OVERLAPPING"')
+    expect(table.concat(issues, "|")).toContain("ProbeWide sticks out of ProbeFrame")
+    expect(#issues).toBe(2)
+    local r = forge.rect("ProbeFrame")
+    expect(r.width).toBe(200)
+    expect(select(4, ProbeFrame:GetRect())).toBe(100)
+    ProbeB:Hide()
+    forge.frame("ProbeWide"):SetWidth(100)
+    expect(forge.layoutIssues("ProbeFrame")).toEqual({})
+end)
+""")
+    result = run_specs(root)
+    assert result["status"] == "passed", result["runs"][1]

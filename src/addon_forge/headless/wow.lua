@@ -243,6 +243,95 @@ function Region:SetAlpha(a) state[self].alpha = a end
 function Region:GetAlpha() return state[self].alpha end
 function Region:SetDrawLayer(layer) state[self].layer = layer end
 
+---------------------------------------------------------------- layout
+-- Resolves anchors into rectangles (WoW coordinates: y grows upward, UIParent
+-- is 1280x720). FontString sizes are estimated from text length and font size,
+-- so layout checks catch overlaps and overflow, not exact pixels.
+local POINT_X = { TOPLEFT = "L", LEFT = "L", BOTTOMLEFT = "L", TOP = "C", CENTER = "C", BOTTOM = "C",
+                  TOPRIGHT = "R", RIGHT = "R", BOTTOMRIGHT = "R" }
+local POINT_Y = { TOPLEFT = "T", TOP = "T", TOPRIGHT = "T", LEFT = "C", CENTER = "C", RIGHT = "C",
+                  BOTTOMLEFT = "B", BOTTOM = "B", BOTTOMRIGHT = "B" }
+local FONT_SIZES = { GameFontNormalSmall = 10, GameFontHighlightSmall = 10, GameFontDisableSmall = 10,
+                     GameFontNormal = 12, GameFontHighlight = 12, GameFontDisable = 12,
+                     GameFontNormalLarge = 16, GameFontHighlightLarge = 16, ChatFontNormal = 14 }
+
+local function plainText(text)
+    text = sgsub(text or "", "|c%x%x%x%x%x%x%x%x", "")
+    text = sgsub(text, "|r", "")
+    text = sgsub(text, "|H.-|h(.-)|h", "%1")
+    return text
+end
+
+local function fontSize(obj)
+    local s = state[obj]
+    if s.font and tonumber(s.font[2]) then return tonumber(s.font[2]) end
+    local fo = s.fontObject
+    if type(fo) == "string" then return FONT_SIZES[fo] or 12 end
+    if fo and state[fo] then return tonumber(state[fo].font and state[fo].font[2]) or FONT_SIZES[state[fo].name] or 12 end
+    return 12
+end
+
+-- Width of the longest explicit line ("\n") and the number of explicit lines.
+local function textWidth(obj)
+    local widest, lines = 0, 0
+    for line in string.gmatch(plainText(state[obj].text) .. "\n", "([^\n]*)\n") do
+        lines = lines + 1
+        if #line > widest then widest = #line end
+    end
+    return widest * fontSize(obj) * 0.6, math.max(lines, 1)
+end
+
+local resolving = {}
+local function rectOf(obj)
+    local s = state[obj]
+    if not s then return nil end
+    if obj == W.env.UIParent then return { l = 0, t = 720, r = 1280, b = 0 } end
+    if #s.points == 0 or resolving[obj] then return nil end
+    resolving[obj] = true
+    local L, R, T, B, CX, CY
+    for _, p in ipairs(s.points) do
+        local rel = p[2] or W.env.UIParent
+        local rr = rectOf(rel)
+        if rr then
+            local rp = p[3] or p[1]
+            local x = (POINT_X[rp] == "L" and rr.l) or (POINT_X[rp] == "R" and rr.r) or (rr.l + rr.r) / 2
+            local y = (POINT_Y[rp] == "T" and rr.t) or (POINT_Y[rp] == "B" and rr.b) or (rr.t + rr.b) / 2
+            x, y = x + (p[4] or 0), y + (p[5] or 0)
+            local px, py = POINT_X[p[1]], POINT_Y[p[1]]
+            if px == "L" then L = x elseif px == "R" then R = x else CX = x end
+            if py == "T" then T = y elseif py == "B" then B = y else CY = y end
+        end
+    end
+    resolving[obj] = nil
+    local w, h = s.width, s.height
+    if s.type == "FontString" then
+        local tw, explicit = textWidth(obj)
+        local size = fontSize(obj)
+        if not w or w == 0 then w = (L and R) and (R - L) or tw end
+        if not h or h == 0 then
+            local lines = explicit
+            if L and R and R > L and s.wordWrap ~= false then
+                lines = math.max(explicit, math.ceil(tw / (R - L)) + explicit - 1)
+            end
+            h = lines * size
+        end
+    end
+    w, h = w or 0, h or 0
+    if L and R then w = R - L elseif L then R = L + w elseif R then L = R - w
+    elseif CX then L, R = CX - w / 2, CX + w / 2 else return nil end
+    if T and B then h = T - B elseif T then B = T - h elseif B then T = B + h
+    elseif CY then T, B = CY + h / 2, CY - h / 2 else return nil end
+    return { l = L, t = T, r = R, b = B }
+end
+H.rectOf = rectOf
+
+function Region:GetLeft() local r = rectOf(self); return r and r.l end
+function Region:GetRight() local r = rectOf(self); return r and r.r end
+function Region:GetTop() local r = rectOf(self); return r and r.t end
+function Region:GetBottom() local r = rectOf(self); return r and r.b end
+function Region:GetCenter() local r = rectOf(self); if r then return (r.l + r.r) / 2, (r.t + r.b) / 2 end end
+function Region:GetRect() local r = rectOf(self); if r then return r.l, r.b, r.r - r.l, r.t - r.b end end
+
 -- FontString
 local FontString = class("FontString", "Region")
 function FontString:SetText(text) state[self].text = text ~= nil and tostring(text) or nil end
@@ -259,9 +348,10 @@ function FontString:SetJustifyV(v) state[self].justifyV = v end
 function FontString:SetShadowColor() end
 function FontString:SetShadowOffset() end
 function FontString:SetNonSpaceWrap() end
-function FontString:SetWordWrap() end
+function FontString:SetWordWrap(v) state[self].wordWrap = v and true or false end
+function FontString:CanWordWrap() return state[self].wordWrap ~= false and 1 or nil end
 function FontString:SetSpacing() end
-function FontString:GetStringWidth() return #(state[self].text or "") * 6 end
+function FontString:GetStringWidth() return (textWidth(self)) end
 function FontString:GetStringHeight() return 12 end
 
 -- Texture
@@ -958,6 +1048,66 @@ function forge.clickText(text, button)
     while obj and not Methods[state[obj].type].Click do obj = state[obj].parent end
     if not obj then error("Text " .. tostring(text) .. " is not inside a clickable frame", 2) end
     obj:Click(button)
+end
+function forge.rect(frame)
+    local r = rectOf(asFrame(frame))
+    if r then return { left = r.l, top = r.t, right = r.r, bottom = r.b, width = r.r - r.l, height = r.t - r.b } end
+end
+
+local function describe(obj)
+    local s = state[obj]
+    if s.name then return s.name end
+    local text = s.text or (s.fontString and state[s.fontString].text)
+    if type(text) == "string" and text ~= "" then
+        return s.type .. ' "' .. ssub(plainText(text), 1, 28) .. '"'
+    end
+    return s.type .. " in " .. (s.parent and describe(s.parent) or "?")
+end
+
+-- Layout problems under `root`: visible siblings that overlap, and visible
+-- children that stick out of their parent (inside a backdrop's insets).
+-- Textures are backgrounds by nature and are ignored.
+function forge.layoutIssues(root, tolerance)
+    tolerance = tolerance or 1
+    local issues = {}
+    local function visibleKids(frame)
+        local kids = {}
+        for _, kid in ipairs(state[frame].children) do
+            local ks = state[kid]
+            local text = ks.type == "FontString" and ks.text
+            if ks.type ~= "Texture" and kid:IsVisible() and not (ks.type == "FontString" and (text == nil or text == "")) then
+                local r = rectOf(kid)
+                if r and r.r - r.l > 0 and r.t - r.b > 0 then table.insert(kids, { obj = kid, r = r }) end
+            end
+        end
+        return kids
+    end
+    local function walk(frame)
+        local pr = rectOf(frame)
+        local inset = 0
+        local bd = state[frame].backdrop
+        if type(bd) == "table" and type(bd.insets) == "table" then inset = tonumber(bd.insets.left) or 0 end
+        local kids = visibleKids(frame)
+        for i, a in ipairs(kids) do
+            if pr then
+                local out = math.max(pr.l + inset - a.r.l, a.r.r - (pr.r - inset), a.r.t - (pr.t - inset), pr.b + inset - a.r.b)
+                if out > tolerance then
+                    table.insert(issues, sformat("%s sticks out of %s by %d px", describe(a.obj), describe(frame), math.ceil(out)))
+                end
+            end
+            for j = i + 1, #kids do
+                local b = kids[j]
+                local ox = math.min(a.r.r, b.r.r) - math.max(a.r.l, b.r.l)
+                local oy = math.min(a.r.t, b.r.t) - math.max(a.r.b, b.r.b)
+                if ox > tolerance and oy > tolerance then
+                    table.insert(issues, sformat("%s overlaps %s", describe(a.obj), describe(b.obj)))
+                end
+            end
+            if Methods[state[a.obj].type].CreateFontString then walk(a.obj) end
+        end
+    end
+    walk(asFrame(root))
+    return issues
 end
 function forge.setSaved(name, value) if not W.reloaded then W.saved[name] = value end end
 function forge.type(editbox, text)
