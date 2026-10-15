@@ -6,6 +6,30 @@ import tempfile
 
 from .validate import check_addon, is_valid
 
+SKIP = {".git", "__pycache__", ".pytest_cache", "tests", ".forge-runs"}
+
+
+def _files(root: Path) -> dict[str, bytes]:
+    out = {}
+    if not root.is_dir():
+        return out
+    for path in root.rglob("*"):
+        rel = path.relative_to(root)
+        if path.is_file() and not SKIP & set(rel.parts):
+            out[rel.as_posix().lower()] = path.read_bytes()
+    return out
+
+
+def differs(addon: Path, wow_dir: Path) -> bool:
+    """True when deploying would change what is installed in the client.
+
+    A running client keeps the addon code it loaded at startup, so a change
+    means the client must restart (or /reload) before tests see it.
+    """
+    addon = addon.expanduser().resolve()
+    installed = wow_dir.expanduser().resolve() / "Interface" / "AddOns" / addon.name
+    return _files(addon) != _files(installed)
+
 
 def deploy(addon: Path, wow_dir: Path) -> Path:
     addon = addon.expanduser().resolve()
@@ -26,7 +50,7 @@ def deploy(addon: Path, wow_dir: Path) -> Path:
     try:
         # copy contents, not the source directory itself
         for item in addon.iterdir():
-            if item.name in {".git", "__pycache__", ".pytest_cache"}:
+            if item.name in SKIP:
                 continue
             target = temp / item.name
             if item.is_dir():

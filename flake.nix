@@ -16,6 +16,7 @@
         pyproject = true;
         src = self;
         build-system = [ python.pkgs.setuptools python.pkgs.wheel ];
+        dependencies = [ python.pkgs.lupa ]; # embedded Lua 5.1 for checks and offline specs
         doCheck = false; # Run tests explicitly using nix develop --command pytest.
       };
     in {
@@ -38,6 +39,7 @@
           forgePackage
           python
           python.pkgs.pytest
+          python.pkgs.lupa
           python.pkgs.setuptools
           python.pkgs.wheel
           lua5_1
@@ -119,7 +121,7 @@
         '';
       };
         python-tests = pkgs.runCommand "forge-python-tests" {
-        nativeBuildInputs = [ python python.pkgs.pytest ];
+        nativeBuildInputs = [ python python.pkgs.pytest python.pkgs.lupa ];
       } ''
         cd ${self}
         export PYTHONPATH=${self}/src

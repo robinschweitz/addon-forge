@@ -5,11 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "addon-forge"
 version = "0.1.0"
-description = "Local-first WotLK 3.3.5a addon test and AI repair toolkit"
+description = "Local-first WotLK 3.3.5a addon creation and test suite"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-dependencies = []
+dependencies = ["lupa>=2.2"]  # embedded Lua 5.1 for checks and offline specs
 
 [project.optional-dependencies]
 windows = ["Pillow>=10", "keyring>=25", "pywin32>=306"]
@@ -19,6 +19,9 @@ forge = "addon_forge.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+addon_forge = ["headless/*.lua"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

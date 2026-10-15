@@ -12,6 +12,9 @@ forge.local.toml
 projects/
 *.zip
 
+# 3.3.5a API list dumped from the local test client ('forge api dump')
+wow/api/
+
 # Local Hetzner account/project configuration
 cloud/hetzner.toml
 
