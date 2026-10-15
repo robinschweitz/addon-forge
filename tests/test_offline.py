@@ -158,11 +158,8 @@ def test_spec_files_are_not_deployed_or_loaded(tmp_path):
     assert not any("tests/" in d.message for d in check_addon(root))
 
 
-def test_forge_loot_ledger_offline_flow():
-    ledger = ROOT / "projects" / "ForgeLootLedger"
-    if not (ledger / "tests").is_dir():
-        pytest.skip("local project addons are not part of the repository")
-    result = run_specs(ledger)
+def test_forge_loot_ledger_reference_addon_passes_all_specs():
+    result = run_specs(ROOT / "examples" / "ForgeLootLedger")
     assert result["status"] == "passed", result
 
 

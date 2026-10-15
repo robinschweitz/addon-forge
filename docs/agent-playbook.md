@@ -1,7 +1,8 @@
 # Agent playbook: building 3.3.5a addons that actually work
 
-Hard-won knowledge from building and live-verifying `ForgeLootLedger`
-(October 2026). Read this before creating, repairing or testing an addon, and
+Hard-won knowledge from building and live-verifying
+[`examples/ForgeLootLedger`](../examples/ForgeLootLedger) (October 2026), the reference addon:
+its specs and acceptance plan show every technique below in use. Read this before creating, repairing or testing an addon, and
 before changing the Forge test pipeline. Facts here were observed on the real
 isolated test client (German `deDE`, build 12340) unless marked otherwise.
 
@@ -106,4 +107,4 @@ isolated test client (German `deDE`, build 12340) unless marked otherwise.
 - Offline text widths are estimates (0.6 em per character); confirm UI with a
   live screenshot.
 - `flake.nix` gained `python.pkgs.lupa`; not yet built with Nix.
-- `projects/` is git-ignored, so project addons and their specs are local only.
+- `projects/` is git-ignored: new addons there are local only until moved to `examples/` or their own repo.

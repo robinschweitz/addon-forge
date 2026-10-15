@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "addon": "ForgeLootLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": ["master_loot"],
+  "steps": [
+    {"type": "slash", "value": "/forgeloot start"},
+    {"type": "wait", "value": 1},
+    {"type": "roll", "value": [1, 100]},
+    {"type": "roll", "value": [1, 100]},
+    {"type": "roll", "value": [1, 1000]},
+    {"type": "wait", "value": 33},
+    {"type": "click", "value": "ForgeLootLedgerAward"},
+    {"type": "wait", "value": 1}
+  ],
+  "checks": [
+    {"type": "player_in_world", "value": true},
+    {"type": "frame_visible", "value": "ForgeLootLedgerFrame"},
+    {"type": "event_fired", "value": "LOOT_OPENED"},
+    {"type": "chat_contains", "value": "/rnd now! 30 seconds"},
+    {"type": "chat_contains", "value": "15 seconds left"},
+    {"type": "chat_contains", "value": " - 5 seconds left!"},
+    {"type": "chat_contains", "value": "won by Test ("},
+    {"type": "global_equals", "path": "ForgeLootLedgerDB.history.1.recipient", "value": "Test"},
+    {"type": "global_equals", "path": "ForgeLootLedgerDB.history.1.rolls", "value": 1},
+    {"type": "frame_text_contains", "frame": "ForgeLootLedgerHistory1", "value": "item:20513"},
+    {"type": "frame_text_contains", "frame": "ForgeLootLedgerHistory1", "value": "Test  (1 rolls)"},
+    {"type": "no_lua_errors", "value": true}
+  ]
+}
