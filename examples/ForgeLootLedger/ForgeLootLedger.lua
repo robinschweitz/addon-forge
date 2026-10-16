@@ -792,6 +792,7 @@ local function onLootMessage(message)
         if not record.confirmed and record.state ~= "deleted" and record.itemID == itemID
             and lower(record.recipient) == lower(name) then
             record.confirmed = true
+            status:SetText(string.format("Award #%d confirmed: %s received the item.", record.id, record.recipient))
             updateHistory()
             return
         end
@@ -800,14 +801,32 @@ end
 
 -- Trades: items the master looter kept ("held") move to the trade partner once
 -- the trade completes. Trades between other players are not visible here.
-local function snapshotTrade()
-    if not trade or trade.closedAt then return end
+local function tradeItems()
     local items = {}
     for slot = 1, 6 do
         local itemID = itemIDFromLink(GetTradePlayerItemLink(slot))
         if itemID then table.insert(items, itemID) end
     end
-    trade.items = items
+    return items
+end
+
+local function snapshotTrade()
+    if not trade or trade.closedAt then return end
+    trade.partner = trade.partner or UnitName("NPC")
+    trade.items = tradeItems()
+end
+
+-- The items offered when the player accepts are what the trade hands over: any
+-- later change unaccepts the trade. On completion the slots empty (live run
+-- 1445c70cd623), so the last slot snapshot alone can miss the traded item.
+hooksecurefunc("AcceptTrade", function()
+    if not trade or trade.closedAt then return end
+    trade.partner = trade.partner or UnitName("NPC")
+    trade.accepted = tradeItems()
+end)
+
+local function rememberTrade(partner, offered, result)
+    ensureDatabase().lastTrade = { partner = partner or "-", offered = offered, result = result, at = time() }
 end
 
 local function applyTrade(partner, itemIDs)
@@ -827,11 +846,18 @@ local function applyTrade(partner, itemIDs)
 end
 
 local function onTradeComplete()
-    if not trade or not trade.partner or (trade.closedAt and GetTime() - trade.closedAt > TRADE_GRACE) then
+    if not trade then
+        rememberTrade(nil, 0, "no trade window seen")
+        return
+    end
+    local items = trade.accepted or trade.items
+    if not trade.partner or (trade.closedAt and GetTime() - trade.closedAt > TRADE_GRACE) then
+        rememberTrade(trade.partner, table.getn(items), trade.partner and "too late" or "no partner")
         trade = nil
         return
     end
-    local moved = applyTrade(trade.partner, trade.items)
+    local moved = applyTrade(trade.partner, items)
+    rememberTrade(trade.partner, table.getn(items), "moved " .. table.getn(moved))
     trade = nil
     for _, record in ipairs(moved) do
         say(string.format("trade recorded: #%d %s -> %s", record.id, record.item, record.recipient))
@@ -845,6 +871,7 @@ local function onInfoMessage(...)
     if message == ERR_TRADE_COMPLETE then
         onTradeComplete()
     elseif message == ERR_TRADE_CANCELLED then
+        if trade then rememberTrade(trade.partner, table.getn(trade.items), "cancelled") end
         trade = nil
     end
 end
