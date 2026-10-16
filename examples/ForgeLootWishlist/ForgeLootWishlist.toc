@@ -1,0 +1,7 @@
+## Interface: 30300
+## Title: ForgeLootWishlist
+## Notes: Your loot wishlist: roll prompts or auto-rolls on wishlisted items, and who got what this raid
+## Author: Addon Forge
+## Version: 1.0.0
+## SavedVariables: ForgeLootWishlistDB
+ForgeLootWishlist.lua
