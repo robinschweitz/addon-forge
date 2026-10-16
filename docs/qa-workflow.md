@@ -415,6 +415,16 @@ ForgeLootWishlist: they pass the same static and offline gates, are deployed
 with the addon, steps may run their slash commands, and their Lua errors fail
 the plan like the addon's own.
 
+`"member": "Raidmember"` makes a **two-player plan**: after the main client,
+the session starts a second test client and logs in that character with the
+"member" credentials (create them once with `forge local-realm create-member
+--account-name FORGEMEMBER --character Raidmember`). Steps and checks take an
+optional `"client": "member"` to act on and observe that client; each
+client's checks are judged against its own bridge snapshot, and screenshots
+of it are saved as `step-NAME-member.png`. The `master_loot` fixture summons
+the member next to the corpse and invites them too. Two clients need the
+Forge build of the SDK (`tools/wowcontrol-sdk/`).
+
 `peer_roll` and `peer_trade` need `"fixtures": ["master_loot"]`. A step the
 client or bot does not perform (missing command, hidden button, trade not
 completed) fails the plan with `stage: "steps"` and a log of the steps run.

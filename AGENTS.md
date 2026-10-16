@@ -33,7 +33,8 @@ The CLI equivalents are listed below.
    boxes, `screenshot`, and with
    `master_loot` the bot's `peer_roll` and `peer_trade`) to drive the addon in
    the real client before checks. A scenario needing a second addon lists it in
-   `companions`. Never weaken checks to make a failing addon pass.
+   `companions`; one needing a second real player sets `"member"` (a second
+   client) and marks its steps/checks with `"client": "member"`. Never weaken checks to make a failing addon pass.
 3. Write offline specs in `projects/AddOnName/tests/*.spec.lua` covering the
    behaviour the plan checks (events, slash commands, clicks, timers,
    SavedVariables and `/reload`). Specs are fast feedback, not acceptance.

@@ -1,0 +1,159 @@
+{
+  "version": 1,
+  "addon": "ForgeLootWishlist",
+  "companions": [
+    "ForgeLootLedger"
+  ],
+  "character": "Test",
+  "member": "Raidmember",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/forgeloot newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/flw",
+      "client": "member"
+    },
+    {
+      "type": "click",
+      "value": "ForgeLootWishlistImportOpen",
+      "client": "member"
+    },
+    {
+      "type": "paste",
+      "value": [
+        "ForgeLootWishlistImportText",
+        "WL1;Raidmember;1792130000\n20513;ms;30;1;Member crest"
+      ],
+      "client": "member"
+    },
+    {
+      "type": "click",
+      "value": "ForgeLootWishlistImportButton",
+      "client": "member"
+    },
+    {
+      "type": "slash",
+      "value": "/flw auto off",
+      "client": "member"
+    },
+    {
+      "type": "slash",
+      "value": "/forgeloot start"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "screenshot",
+      "value": "two_prompt",
+      "client": "member"
+    },
+    {
+      "type": "click",
+      "value": "ForgeLootWishlistRoll",
+      "client": "member"
+    },
+    {
+      "type": "wait",
+      "value": 30
+    },
+    {
+      "type": "screenshot",
+      "value": "two_lead_winner"
+    },
+    {
+      "type": "click",
+      "value": "ForgeLootLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 4
+    },
+    {
+      "type": "screenshot",
+      "value": "two_received",
+      "client": "member"
+    }
+  ],
+  "checks": [
+    {
+      "type": "chat_contains",
+      "value": "Raidmember würfelt. Ergebnis: "
+    },
+    {
+      "type": "chat_contains",
+      "value": "(31-130)"
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootLedgerDB.history.1.recipient",
+      "value": "Raidmember"
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootLedgerDB.history.1.confirmed",
+      "value": true
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootLedgerDB.history.1.low",
+      "value": 31
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    },
+    {
+      "type": "event_fired",
+      "value": "CHAT_MSG_ADDON",
+      "client": "member"
+    },
+    {
+      "type": "chat_contains",
+      "value": "/rnd now! 30 seconds",
+      "client": "member"
+    },
+    {
+      "type": "chat_contains",
+      "value": "won by Raidmember (",
+      "client": "member"
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootWishlistDB.chars.Raidmember.items.1.itemID",
+      "value": 20513,
+      "client": "member"
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootWishlistDB.chars.Raidmember.items.1.received",
+      "value": true,
+      "client": "member"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "ForgeLootWishlistRaid1",
+      "value": "item:20513",
+      "client": "member"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "ForgeLootWishlistRaid1",
+      "value": "->  Raidmember",
+      "client": "member"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true,
+      "client": "member"
+    }
+  ]
+}

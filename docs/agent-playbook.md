@@ -183,6 +183,21 @@ Terminal tab; a run started in another window must be pasted.
   ledger's main plan still passes (`62c5291c833d`). Plans list the ledger in
   `companions` and paste the wishlist with a `paste` step. Still offline only:
   a member on a second client, tie-break auto-rolls.
+- **Two real clients** (2026-10-16): `"member"` plans start a second injected
+  client for the FORGEMEMBER account (character Raidmember). The stock SDK
+  could not do this: every DLL served the same pipe name and the second
+  client's pipe never answered (735 of 735 probe connections reached the first
+  client), and its window lookup compared a thread ID with the process ID.
+  The Forge SDK build (`tools/wowcontrol-sdk/forge-sdk.patch`) serves
+  per-process pipes; the injector then runs with `--no-pipe --wait`. Worldserver
+  console account creation needs a TTY that `docker attach` lacks when run by
+  an agent; `forge local-realm create-member` uses the AzerothGhost SRP6
+  helper instead and never touches an existing account. First two-player run
+  passed 13/13 (`e79dce3d73c2` lead, `c92f8b278d93` member): the member's
+  wishlist prompt, a 31-130 roll from the member's client, the master-loot
+  handout to the member, and the member's "who got what" list over addon
+  messages. All test-client addons load on both clients (the member also has
+  ForgeLootLedger open), and a new character shows the WoW welcome tutorial.
 - ForgeLootLedger 1.4 / ForgeLootWishlist 1.1 (open items: PARK, roll later,
   OPEN ITEMS list) passed live: parking flow `b0ba9606fdba` (PARK with the
   master looter, later ROLL, wishlist prompt during the later roll, winner on
