@@ -37,6 +37,7 @@ TOP_KEYS = {"version", "addon", "character", "peers", "checks", "observer", "fix
 # data, not code: each type maps to one fixed, validated SDK action.
 SLASH = re.compile(r"/[a-z][a-z0-9]{1,19}(?: [A-Za-z0-9 _-]{1,60})?\Z")
 MAX_STEPS, MAX_WAIT_TOTAL = 20, 180
+PEER_STEPS = {"peer_roll", "peer_trade"}
 
 
 def _step(item: dict) -> dict:
@@ -46,10 +47,16 @@ def _step(item: dict) -> dict:
     if kind == "slash":
         if not isinstance(value, str) or not SLASH.fullmatch(value):
             raise ValueError("slash step: one addon slash command such as '/myaddon start'")
-    elif kind == "roll":
+    elif kind in ("roll", "peer_roll"):
         if (not isinstance(value, list) or len(value) != 2 or any(type(v) is not int for v in value)
                 or not 1 <= value[0] <= value[1] <= 10000):
-            raise ValueError("roll step value must be [low, high] with 1 <= low <= high <= 10000")
+            raise ValueError(f"{kind} step value must be [low, high] with 1 <= low <= high <= 10000")
+    elif kind == "peer_trade":
+        if type(value) is not int or not 1 <= value <= 999999:
+            raise ValueError("peer_trade step value must be the item ID to trade to the fixture's bot")
+    elif kind == "screenshot":
+        if not isinstance(value, str) or not NAME.fullmatch(value):
+            raise ValueError("screenshot step value must be a short name such as 'roll_log'")
     elif kind == "wait":
         if not isinstance(value, (int, float)) or isinstance(value, bool) or not 0 < value <= 60:
             raise ValueError("wait step value must be seconds in (0, 60]")
@@ -57,7 +64,8 @@ def _step(item: dict) -> dict:
         if not isinstance(value, str) or not NAME.fullmatch(value):
             raise ValueError("click step value must be a frame name registered with ForgeTestBridge")
     else:
-        raise ValueError(f"Unsupported step {kind!r}; use slash, roll, wait or click")
+        raise ValueError(f"Unsupported step {kind!r}; use slash, roll, wait, click, screenshot, "
+                         "peer_roll or peer_trade")
     return {"type": kind, "value": value}
 
 
@@ -133,6 +141,9 @@ def validate_plan(data: dict) -> dict:
         raise ValueError(f"steps may wait at most {MAX_WAIT_TOTAL} seconds in total")
     if steps and observer != "bridge":
         raise ValueError("Steps run with the bridge observer")
+    if any(s["type"] in PEER_STEPS for s in steps) and "master_loot" not in fixtures:
+        raise ValueError("peer_roll and peer_trade steps drive the master_loot fixture's bot; "
+                         "add \"fixtures\": [\"master_loot\"]")
     checks = data["checks"]
     if not isinstance(checks, list) or not 1 <= len(checks) <= 20:
         raise ValueError("Provide 1-20 independent checks")

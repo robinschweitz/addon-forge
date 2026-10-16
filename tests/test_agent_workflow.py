@@ -249,3 +249,92 @@ def test_failed_step_fails_the_plan_before_the_suite(tmp_path, monkeypatch):
     monkeypatch.setattr("addon_forge.agent_workflow.run_smoke", never)
     result = run_plan(cfg, plan, approve=True)
     assert result["status"] == "failed" and result["stage"] == "steps"
+
+
+def test_peer_and_screenshot_steps_are_validated():
+    ok = validate_plan({**BASE, "fixtures": ["master_loot"], "steps": [
+        {"type": "peer_roll", "value": [1, 100]}, {"type": "peer_trade", "value": 20513},
+        {"type": "screenshot", "value": "roll_log"}],
+        "checks": [{"type": "player_in_world", "value": True}]})
+    assert [s["type"] for s in ok["steps"]] == ["peer_roll", "peer_trade", "screenshot"]
+    for bad in ({"type": "peer_roll", "value": [0, 100]}, {"type": "peer_trade", "value": True},
+                {"type": "peer_trade", "value": "20513"}, {"type": "peer_trade", "value": 0},
+                {"type": "screenshot", "value": "../x"}, {"type": "screenshot", "value": ""}):
+        with pytest.raises(ValueError):
+            validate_plan({**BASE, "fixtures": ["master_loot"], "steps": [bad],
+                           "checks": [{"type": "player_in_world", "value": True}]})
+    with pytest.raises(ValueError, match="master_loot"):
+        validate_plan({**BASE, "steps": [{"type": "peer_roll", "value": [1, 100]}],
+                       "checks": [{"type": "player_in_world", "value": True}]})
+
+
+class FakePeer:
+    name = "Flobot"
+
+    def __init__(self, results=None):
+        self.sent, self.results = [], results or {}
+
+    def send(self, action, **args):
+        self.sent.append(action)
+        return len(self.sent)
+
+    def wait(self, number, timeout):
+        return self.results.get(self.sent[number - 1], "ok")
+
+    def wait_armed(self, number, timeout):
+        self.sent.append("armed?")
+        return "ok"
+
+    def roll(self, low, high):
+        self.sent.append(f"roll {low}-{high}")
+        return "ok"
+
+
+def lua_client(answers):
+    codes = []
+    def rpc(method, params=None, *, expected_pid):
+        codes.append(params["code"])
+        for needle, answer in answers:
+            if needle in params["code"]:
+                return {"ok": True, "result": answer}
+        return {"ok": True, "result": "ok"}
+    return rpc, codes
+
+
+def test_peer_trade_runs_the_trade_handshake_in_order():
+    from addon_forge.plan_steps import run_steps
+    peer = FakePeer()
+    rpc, codes = lua_client([("GetContainerNumSlots", "0:3")])
+    log = run_steps([{"type": "peer_roll", "value": [1, 100]}, {"type": "peer_trade", "value": 20513}],
+                    9, rpc=rpc, sleep=lambda s: None, peer=peer)
+    assert [e["result"] for e in log] == ["ok", "ok"]
+    assert peer.sent == ["roll 1-100", "open_trade", "armed?", "accept_trade"]
+    assert "== '20513'" in codes[0]
+    assert 'UnitName(\'party\' .. i) == "Flobot"' in codes[1]
+    assert "PickupContainerItem(0, 3) ClickTradeButton(1)" in codes[3]
+    assert codes[4] == "AcceptTrade() return 'ok'"
+
+
+def test_peer_trade_reports_where_it_stopped():
+    from addon_forge.plan_steps import StepFailed, run_steps
+    step = [{"type": "peer_trade", "value": 20513}]
+    rpc, _ = lua_client([("GetContainerNumSlots", "missing")])
+    with pytest.raises(StepFailed, match="item_not_in_bags:missing"):
+        run_steps(step, 9, rpc=rpc, sleep=lambda s: None, peer=FakePeer())
+    rpc, _ = lua_client([("GetContainerNumSlots", "1:12")])
+    with pytest.raises(StepFailed, match="bot_accept:trade_not_completed") as failure:
+        run_steps(step, 9, rpc=rpc, sleep=lambda s: None,
+                  peer=FakePeer({"accept_trade": "trade_not_completed:TRADE_CANCELED"}))
+    assert failure.value.log[0]["result"].startswith("bot_accept:")
+    with pytest.raises(StepFailed, match="no_fixture_peer"):
+        run_steps(step, 9, rpc=rpc, sleep=lambda s: None)
+
+
+def test_screenshot_step_saves_under_its_name():
+    from addon_forge.plan_steps import StepFailed, run_steps
+    shots = []
+    log = run_steps([{"type": "screenshot", "value": "roll_log"}], 9, rpc=None,
+                    screenshot=lambda name: shots.append(name) or Path(f"step-{name}.png"))
+    assert shots == ["roll_log"] and log[0]["path"] == "step-roll_log.png"
+    with pytest.raises(StepFailed, match="no_screenshot_support"):
+        run_steps([{"type": "screenshot", "value": "x"}], 9, rpc=None)

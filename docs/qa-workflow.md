@@ -404,9 +404,14 @@ one fixed SDK action:
 | `roll` | `[low, high]` | `RandomRoll(low, high)` as the test character (a real server `/rnd`) |
 | `wait` | seconds (≤ 60) | Lets timers and server messages arrive |
 | `click` | `"FrameName"` | Clicks a visible frame the addon registered with `ForgeTestBridge:RegisterFrame` |
+| `screenshot` | `"name"` | Saves the client window as `.forge-runs/step-name.png` at that moment |
+| `peer_roll` | `[low, high]` | The `master_loot` fixture's bot sends a real `/rnd` (`MSG_RANDOM_ROLL`), seen by the whole party |
+| `peer_trade` | item ID | Trades that item from the test character's bags to the fixture's bot; both sides accept |
 
-A step the client does not perform (missing command, hidden button) fails the
-plan with `stage: "steps"` before the suite runs.
+`peer_roll` and `peer_trade` need `"fixtures": ["master_loot"]`. A step the
+client or bot does not perform (missing command, hidden button, trade not
+completed) fails the plan with `stage: "steps"` and a log of the steps run.
+The bridge suite also saves a final `RUN_ID.png` after the steps.
 
 `"fixtures": ["master_loot"]` (bridge observer, `peers: 0`) keeps a real
 master-loot window open on the GUI character while the suite runs: a

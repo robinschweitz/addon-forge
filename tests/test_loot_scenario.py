@@ -1,3 +1,4 @@
+import json
 """Loot fixture handshakes fail closed and never claim an unverified capture."""
 import subprocess
 from pathlib import Path
@@ -203,3 +204,33 @@ def test_unexpected_popup_name_is_never_used_in_lua(monkeypatch):
     with pytest.raises(RuntimeError):
         loot_scenario._accept_invite(7, rpc=rpc, timeout=0)
     assert not any("os.exit" in c for c in codes)
+
+
+def test_fixture_peer_numbers_commands_and_reads_results(tmp_path):
+    clock, sleep = fake_clock()
+    peer = loot_scenario.FixturePeer(tmp_path, Proc(), "Flobot", clock=clock, sleep=sleep)
+    first = peer.send("roll", min=1, max=100)
+    assert json.loads((tmp_path / "cmd-001.json").read_text()) == {"action": "roll", "min": 1, "max": 100}
+    assert peer.wait(first, timeout=1) == "timeout"
+    (tmp_path / "cmd-001.done.json").write_text('{"result": "ok"}')
+    assert peer.wait(first, timeout=1) == "ok"
+    assert peer.send("open_trade") == 2
+    with pytest.raises(ValueError):
+        peer.send("run_sql")
+
+
+def test_fixture_peer_reports_an_exited_fixture_and_rejects_bad_names(tmp_path):
+    clock, sleep = fake_clock()
+    peer = loot_scenario.FixturePeer(tmp_path, Proc(exited=1), "Flobot", clock=clock, sleep=sleep)
+    assert peer.roll(1, 100) == "fixture_exited"
+    with pytest.raises(RuntimeError, match="bot name"):
+        loot_scenario.FixturePeer(tmp_path, Proc(), "Bad'); x", clock=clock, sleep=sleep)
+
+
+def test_fixture_peer_waits_until_the_bot_listens(tmp_path):
+    clock, sleep = fake_clock()
+    peer = loot_scenario.FixturePeer(tmp_path, Proc(), "Flobot", clock=clock, sleep=sleep)
+    opening = peer.send("open_trade")
+    assert peer.wait_armed(opening, timeout=1) == "timeout"
+    (tmp_path / "cmd-001.armed").write_text("{}")
+    assert peer.wait_armed(opening, timeout=1) == "ok"

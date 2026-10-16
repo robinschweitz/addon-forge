@@ -33,6 +33,12 @@ def _offline(addon: Path) -> dict:
             "passed": result["passed"], "failures": failures}
 
 
+def _step_screenshot(cfg: Config, evidence_dir: Path, name: str) -> Path:
+    from .windows_client import WindowsClientController
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    return WindowsClientController(cfg).screenshot(evidence_dir / f"step-{name}.png")
+
+
 def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
              deployed_before_start: bool = False) -> dict:
     plan = load_plan(plan_file)
@@ -88,12 +94,14 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
     paths = watch_paths(plan)
     fixtures = {}
     step_log = []
+    peer = None
     with ExitStack() as stack:
         if "master_loot" in plan.get("fixtures", []):
             from .loot_scenario import master_loot_fixture
             try:
                 fixtures["master_loot"] = stack.enter_context(
                     master_loot_fixture(cfg, character=plan["character"], output=evidence_dir))
+                peer = fixtures["master_loot"].pop("peer", None)
             except RuntimeError as exc:
                 return {"status": "infrastructure_error", "stage": "fixture", **preview,
                         "offline": offline, "error": f"master_loot fixture failed: {exc}"}
@@ -101,9 +109,11 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
             from .plan_steps import StepFailed, run_steps
             from .wowcontrol import client_pid
             try:
-                step_log = run_steps(plan["steps"], client_pid(cfg))
+                step_log = run_steps(plan["steps"], client_pid(cfg), peer=peer,
+                                     screenshot=lambda name: _step_screenshot(cfg, evidence_dir, name))
             except StepFailed as exc:
                 return {"status": "failed", "stage": "steps", **preview, "offline": offline,
+                        "steps": getattr(exc, "log", []),
                         "fixtures": fixtures, "error": str(exc)}
         # Newly deployed addons need a reload or restart and must be enabled. Stop
         # instead of treating an unregistered addon as success.

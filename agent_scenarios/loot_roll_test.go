@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
 	"time"
@@ -46,15 +49,120 @@ func TestLootRollFixture(t *testing.T) {
 	if err := writeStateAtomic(ready, map[string]any{"status": "master_loot_ready", "item": e2eharness.ItemGroupLootFixture, "corpse": corpse, "names": names}); err != nil {
 		t.Fatalf("could not publish loot readiness: %v", err)
 	}
-	// Plans may run steps (rolls, waits) while the loot window stays open.
-	deadline := time.Now().Add(150 * time.Second)
+	// Plans may run steps (rolls, waits, peer actions) while the loot window
+	// stays open. Peer actions arrive as numbered command files.
+	commands := os.Getenv("FORGE_LOOT_COMMANDS")
+	deadline := time.Now().Add(240 * time.Second)
+	next := 1
 	for time.Now().Before(deadline) {
 		if _, err := os.Stat(release); err == nil {
 			return
 		}
-		time.Sleep(200 * time.Millisecond)
+		if commands != "" {
+			path := filepath.Join(commands, fmt.Sprintf("cmd-%03d.json", next))
+			if data, err := os.ReadFile(path); err == nil {
+				armed := filepath.Join(commands, fmt.Sprintf("cmd-%03d.armed", next))
+				result := runPeerCommand(bot, data, func() { _ = writeStateAtomic(armed, map[string]any{"armed": true}) })
+				t.Logf("peer command %d: %s -> %s", next, data, result)
+				done := filepath.Join(commands, fmt.Sprintf("cmd-%03d.done.json", next))
+				if err := writeStateAtomic(done, map[string]any{"result": result}); err != nil {
+					t.Fatalf("could not publish peer command result: %v", err)
+				}
+				next++
+				continue
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatal("loot fixture was not released after client capture")
+}
+
+// msgRandomRoll is MSG_RANDOM_ROLL (AzerothCore Opcodes.h, 0x1FB): the client
+// sends uint32 min, uint32 max and the server broadcasts the result to the group.
+const msgRandomRoll = 0x1FB
+
+type peerCommand struct {
+	Action string `json:"action"`
+	Min    uint32 `json:"min"`
+	Max    uint32 `json:"max"`
+}
+
+// runPeerCommand performs one fixed bot action and returns "ok" or a short
+// reason. Failures are reported to the plan, never fatal for the fixture.
+// armed is called once the bot listens for trade statuses: the graphical client
+// must not initiate a trade before that, or BEGIN_TRADE arrives unobserved.
+func runPeerCommand(bot *e2eharness.ScenarioBot, data []byte, armed func()) string {
+	var cmd peerCommand
+	if err := json.Unmarshal(data, &cmd); err != nil {
+		return "bad_command"
+	}
+	switch cmd.Action {
+	case "roll":
+		if cmd.Min < 1 || cmd.Min > cmd.Max || cmd.Max > 10000 {
+			return "bad_range"
+		}
+		payload := make([]byte, 8)
+		binary.LittleEndian.PutUint32(payload[0:], cmd.Min)
+		binary.LittleEndian.PutUint32(payload[4:], cmd.Max)
+		if err := bot.World.SendPacketRaw(msgRandomRoll, payload); err != nil {
+			return "send_failed"
+		}
+		return "ok"
+	case "open_trade":
+		// The graphical client initiates; the bot answers BEGIN_TRADE.
+		statuses, cancel := watchTrade(bot.World)
+		defer cancel()
+		armed()
+		if !waitStatus(statuses, client.TradeStatusBeginTrade, 15*time.Second) {
+			return "no_begin_trade"
+		}
+		if err := bot.World.BeginTrade(); err != nil {
+			return "begin_failed"
+		}
+		if !waitStatus(statuses, client.TradeStatusOpenWindow, 5*time.Second) {
+			return "no_open_window"
+		}
+		return "ok"
+	case "accept_trade":
+		statuses, cancel := watchTrade(bot.World)
+		defer cancel()
+		if err := bot.World.AcceptTrade(); err != nil {
+			return "accept_failed"
+		}
+		if !waitStatus(statuses, client.TradeStatusTradeComplete, 20*time.Second) {
+			return "trade_not_completed:" + client.TradeStatusName(bot.World.LastTradeStatus().Status)
+		}
+		return "ok"
+	}
+	return "unknown_action"
+}
+
+// watchTrade delivers every SMSG_TRADE_STATUS from now on, so short-lived
+// statuses are not missed between polls.
+func watchTrade(w *client.WorldClient) (<-chan uint32, func()) {
+	statuses := make(chan uint32, 32)
+	cancel := w.AddTradeStatusHook(func(info client.TradeStatusInfo) {
+		select {
+		case statuses <- info.Status:
+		default:
+		}
+	})
+	return statuses, cancel
+}
+
+func waitStatus(statuses <-chan uint32, want uint32, timeout time.Duration) bool {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	for {
+		select {
+		case status := <-statuses:
+			if status == want {
+				return true
+			}
+		case <-timer.C:
+			return false
+		}
+	}
 }
 
 // writeStateAtomic replaces the handshake file in one rename so the polling

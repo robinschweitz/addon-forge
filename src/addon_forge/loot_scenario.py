@@ -164,6 +164,64 @@ def _poll_lua(code: str, pid: int, accept, *, timeout: float, rpc=request):
         time.sleep(0.2)
 
 
+class FixturePeer:
+    """The fixture's party bot, driven through numbered command files.
+
+    The Go fixture executes ``cmd-NNN.json`` in order and answers with
+    ``cmd-NNN.done.json``; actions are fixed (roll, open_trade, accept_trade).
+    """
+
+    ACTIONS = {"roll", "open_trade", "accept_trade"}
+
+    def __init__(self, folder: Path, proc, name: str, *, clock=time.monotonic, sleep=time.sleep):
+        if not CHARACTER.fullmatch(name or ""):
+            raise RuntimeError("Loot fixture reported an invalid bot name")
+        self.folder, self.proc, self.name = folder, proc, name
+        self.count = 0
+        self._clock, self._sleep = clock, sleep
+
+    def send(self, action: str, **args) -> int:
+        if action not in self.ACTIONS:
+            raise ValueError(f"Unknown peer action {action!r}")
+        self.count += 1
+        path = self.folder / f"cmd-{self.count:03d}.json"
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"action": action, **args}), encoding="utf-8")
+        tmp.replace(path)
+        return self.count
+
+    def wait(self, number: int, timeout: float) -> str:
+        done = self.folder / f"cmd-{number:03d}.done.json"
+        deadline = self._clock() + timeout
+        while True:
+            state = _read_state(done)
+            if state is not None:
+                result = state.get("result")
+                return result if isinstance(result, str) else "bad_result"
+            if self.proc.poll() is not None:
+                return "fixture_exited"
+            if self._clock() >= deadline:
+                return "timeout"
+            self._sleep(0.1)
+
+    def wait_armed(self, number: int, timeout: float) -> str:
+        """Wait until the bot listens for the command's server responses."""
+        armed = self.folder / f"cmd-{number:03d}.armed"
+        deadline = self._clock() + timeout
+        while not armed.exists():
+            if (self.folder / f"cmd-{number:03d}.done.json").exists():
+                return "finished_early"
+            if self.proc.poll() is not None:
+                return "fixture_exited"
+            if self._clock() >= deadline:
+                return "timeout"
+            self._sleep(0.05)
+        return "ok"
+
+    def roll(self, low: int, high: int) -> str:
+        return self.wait(self.send("roll", min=int(low), max=int(high)), timeout=10)
+
+
 def _stop(proc, release: Path) -> None:
     release.touch()
     try:
@@ -177,7 +235,8 @@ PLAN = {"fixture": "master_loot", "changes": [
     "Creates one temporary AzerothGhost bot and a temporary party with the graphical test character",
     "Spawns, kills and cleans up the fixed Crimson Templar loot fixture",
     "Designates the graphical character as master looter for Abyssal Crest (item 20513)",
-    "Keeps the real master-loot window open while the plan's bridge suite runs"],
+    "Keeps the real master-loot window open while the plan's bridge suite runs",
+    "Lets peer_roll / peer_trade plan steps make the bot /rnd or accept a trade"],
     "limitations": ["Uses SDK game-thread Lua for invite acceptance",
                     "Targets the corpse by its client-locale name (from the world DB) with protected "
                     "TargetUnit; opens loot with InteractUnit or, failing that, one press of a "
@@ -216,12 +275,13 @@ def master_loot_fixture(cfg, *, character: str, output: Path):
         ready, release = folder / "ready.json", folder / "release"
         env = _fixture_env(password, port, character, folder)
         env.update({"FORGE_LOOT_READY": str(ready), "FORGE_LOOT_RELEASE": str(release),
+                    "FORGE_LOOT_COMMANDS": str(folder),
                     "FORGE_CLIENT_LOCALE": locale if isinstance(locale, str) and locale.isalpha() else "enUS"})
         with (output / "loot-fixture.log").open("wb+") as log:
-            proc = subprocess.Popen(["go", "test", "-tags=e2e", "-run", "^TestLootRollFixture$", "-count=1", "-v", "-timeout", "300s", "-p", "1", "-parallel", "1"], cwd=Path(__file__).resolve().parents[2] / "agent_scenarios", env=env, stdout=log, stderr=subprocess.STDOUT)
+            proc = subprocess.Popen(["go", "test", "-tags=e2e", "-run", "^TestLootRollFixture$", "-count=1", "-v", "-timeout", "420s", "-p", "1", "-parallel", "1"], cwd=Path(__file__).resolve().parents[2] / "agent_scenarios", env=env, stdout=log, stderr=subprocess.STDOUT)
             try:
                 try:
-                    _wait_for_status(ready, "invite_sent", proc, timeout=55)
+                    invited = _wait_for_status(ready, "invite_sent", proc, timeout=55)
                     invite_image = _accept_invite(pid, screenshot=lambda: WindowsClientController(cfg).screenshot(
                         output / "loot-invite.png"))
                     state = _wait_for_status(ready, "master_loot_ready", proc, timeout=80)
@@ -237,7 +297,8 @@ def master_loot_fixture(cfg, *, character: str, output: Path):
                     tail = log.read()[-4000:].decode("utf-8", "replace")
                     raise RuntimeError(str(exc) + "\nFixture log:\n" + tail) from exc
                 yield {**PLAN, "item": state.get("item"), "corpse_name": corpse, "loot_items": items,
-                       "screenshot": str(image), "invite_screenshot": str(invite_image)}
+                       "screenshot": str(image), "invite_screenshot": str(invite_image),
+                       "peer": FixturePeer(folder, proc, invited.get("bot"))}
             finally:
                 _stop(proc, release)
                 _leave_party(pid)
