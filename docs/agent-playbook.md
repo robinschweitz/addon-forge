@@ -41,7 +41,9 @@ agent runs live sessions itself:
    human's desktop and sends keypresses; nobody may type or use WoW for the
    ~2 minutes it takes.
 2. Close any running test client first (only `F:\Wow\wow_second`, never
-   another WoW installation).
+   another WoW installation). A session leaves the client running when it
+   ends, and the next `agent session` refuses to start ("Close test WoW before
+   starting the session"): check the process path, then stop that process.
 3. Run the session in the background from the repository root and read the
    JSON result and the `.forge-runs/` evidence yourself.
 4. Report pass/fail with the run ID and what the checks proved.
@@ -106,6 +108,24 @@ Terminal tab; a run started in another window must be pasted.
   `"15 seconds left"`. Use distinctive text (`" - 5 seconds left!"`).
 - Ties cannot be forced live (the server chooses `/rnd` results); cover them
   offline.
+- The `master_loot` fixture's bot rolls with `peer_roll`: `MSG_RANDOM_ROLL`
+  is opcode `0x1FB` with `uint32 min, uint32 max` (AzerothCore `Opcodes.h`,
+  `HandleRandomRollOpcode`); the server broadcasts the result to the group, so
+  the client sees a normal "X würfelt. Ergebnis: N (1-100)" line. Verified
+  live in run `b2b299f6e36e`, where the bot won and `GiveMasterLoot` to it was
+  confirmed by the deDE `LOOT_ITEM` line ("X bekommt Beute: ...").
+- `peer_trade` trades from the graphical character to the bot. The bot must be
+  listening before the client calls `InitiateTrade`, or `BEGIN_TRADE` arrives
+  unobserved (the fixture writes `cmd-NNN.armed` first). A just-looted BoP item
+  (Abyssal Crest) is tradable to a party member who was present.
+- On trade completion the client fires `TRADE_PLAYER_ITEM_CHANGED` again
+  (twice in total for one item), `TRADE_CLOSED` twice and one
+  `UI_INFO_MESSAGE`. An addon that reads its trade slots at the last item
+  change saw no items and recorded nothing (run `1445c70cd623`); snapshot the
+  offer in a `hooksecurefunc("AcceptTrade", ...)` hook instead (passed in run
+  `b1b2079d8755`).
+- A session's final screenshot (`RUN_ID.png`) shows the end state; use
+  `screenshot` steps for anything in between.
 
 ## How to debug a failing live run
 
@@ -124,10 +144,6 @@ Terminal tab; a run started in another window must be pasted.
 
 ## Open work
 
-- Bot `/rnd` for multi-player live roll tests: AzerothGhost has
-  `SendPacketRaw`; `MSG_RANDOM_ROLL` (believed 0x1FB, payload `uint32 min,
-  uint32 max`; unverified) would let a peer roll.
-- Screenshot after plan steps (today only before steps, at loot open).
 - Combat and quest fixtures.
 - ForgeLootLedger 1.1 (loot tracking from RaidSync): the real `GiveMasterLoot`
   handout, its deDE `LOOT_ITEM_SELF` confirmation ("Ihr erhaltet Beute: ..."),
@@ -136,10 +152,12 @@ Terminal tab; a run started in another window must be pasted.
   live in run `cf79987a1d8a`; the CLEAR button itself is verified offline only.
   The plan starts with `/forgeloot newraid confirm`,
   because SavedVariables persist between live runs and old awards would
-  otherwise satisfy the checks.
-  Trade tracking needs a second player that trades; no fixture does that yet.
-  `|` in EditBox text is believed to start escapes (`|T`, `|c`), which is why
-  RS2 uses `;` (not confirmed with a screenshot).
+  otherwise satisfy the checks. Two more plans cover the bot:
+  `ForgeLootLedger-peer-acceptance.json` (the bot wins; run `b2b299f6e36e`) and
+  `ForgeLootLedger-trade-acceptance.json` (held item traded to the bot; run
+  `b1b2079d8755`). Still offline only: ties, CLEAR, trades between other
+  players. RS2 uses `;` because `|` starts EditBox escapes (`|T`, `|c`); the
+  `;` export renders cleanly in the live screenshot.
 - Offline text widths are estimates (0.6 em per character); confirm UI with a
   live screenshot.
 - `flake.nix` gained `python.pkgs.lupa`; not yet built with Nix.
