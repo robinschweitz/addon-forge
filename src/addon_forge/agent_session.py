@@ -45,10 +45,22 @@ def run_session(cfg: Config, plan_path: Path, *, approve: bool = False):
     _credentials(wow)
     for deployed in (addon, *companions):
         deploy(deployed, wow)   # before the client starts, so it loads current code
+    from . import clients
+    clients.clear()
+    if plan.get("member"):
+        _credentials(wow, "member")   # fail before starting anything without member credentials
     prepared = prepare_environment(cfg, start_client=True, login=True,
                                    enter_character=plan["character"], observer=observer)
     expected_status = "sdk_character_observed" if observer == "sdk" else "character_verified"
     if prepared.get("status") != expected_status:
         return {"status": "infrastructure_error", "preparation": prepared}
+    if plan.get("member"):
+        from .wowcontrol import client_pid, launch_and_enter
+        clients.register("main", client_pid(cfg))
+        try:
+            prepared["member_pid"] = launch_and_enter(cfg, plan["member"], role="member")
+        except RuntimeError as exc:
+            return {"status": "infrastructure_error", "preparation": prepared,
+                    "error": f"Member client for {plan['member']} did not enter the world: {exc}"}
     result = run_plan(cfg, plan_path, approve=True, deployed_before_start=True)
     return {"status": result["status"], "preparation": prepared, "plan_result": result}

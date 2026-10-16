@@ -245,7 +245,7 @@ PLAN = {"fixture": "master_loot", "changes": [
 
 
 @contextmanager
-def master_loot_fixture(cfg, *, character: str, output: Path):
+def master_loot_fixture(cfg, *, character: str, output: Path, member: str | None = None):
     """Hold a real master-loot window open on the graphical client for the duration."""
     if not CHARACTER.fullmatch(character):
         raise ValueError("Invalid test character")
@@ -258,6 +258,15 @@ def master_loot_fixture(cfg, *, character: str, output: Path):
     output.mkdir(parents=True, exist_ok=True)
     realm = cfg.realm_dir.resolve()
     password, port = _preflight(realm)
+    member_pid = None
+    if member:
+        from . import clients
+        if not CHARACTER.fullmatch(member) or member == character:
+            raise ValueError("Invalid member character")
+        member_pid = clients.pid_of("member")
+        if not member_pid:
+            raise RuntimeError("The member client is not running")
+        request("lua.evaluate", {"code": LEAVE_PARTY_CODE}, expected_pid=member_pid)
     left = request("lua.evaluate", {"code": LEAVE_PARTY_CODE}, expected_pid=pid)
     if left.get("ok") is not True:
         raise RuntimeError("SDK could not submit stale-party cleanup")
@@ -276,6 +285,7 @@ def master_loot_fixture(cfg, *, character: str, output: Path):
         env = _fixture_env(password, port, character, folder)
         env.update({"FORGE_LOOT_READY": str(ready), "FORGE_LOOT_RELEASE": str(release),
                     "FORGE_LOOT_COMMANDS": str(folder),
+                    "FORGE_MEMBER_CHARACTER": member or "",
                     "FORGE_CLIENT_LOCALE": locale if isinstance(locale, str) and locale.isalpha() else "enUS"})
         with (output / "loot-fixture.log").open("wb+") as log:
             proc = subprocess.Popen(["go", "test", "-tags=e2e", "-run", "^TestLootRollFixture$", "-count=1", "-v", "-timeout", "420s", "-p", "1", "-parallel", "1"], cwd=Path(__file__).resolve().parents[2] / "agent_scenarios", env=env, stdout=log, stderr=subprocess.STDOUT)
@@ -284,6 +294,10 @@ def master_loot_fixture(cfg, *, character: str, output: Path):
                     invited = _wait_for_status(ready, "invite_sent", proc, timeout=55)
                     invite_image = _accept_invite(pid, screenshot=lambda: WindowsClientController(cfg).screenshot(
                         output / "loot-invite.png"))
+                    if member_pid:
+                        _wait_for_status(ready, "member_invite_sent", proc, timeout=55)
+                        _accept_invite(member_pid, screenshot=lambda: WindowsClientController(cfg, role="member")
+                                       .screenshot(output / "loot-invite-member.png"))
                     state = _wait_for_status(ready, "master_loot_ready", proc, timeout=80)
                     try:
                         corpse, items = _open_corpse(
@@ -302,3 +316,5 @@ def master_loot_fixture(cfg, *, character: str, output: Path):
             finally:
                 _stop(proc, release)
                 _leave_party(pid)
+                if member_pid:
+                    _leave_party(member_pid)

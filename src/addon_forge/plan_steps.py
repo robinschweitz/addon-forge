@@ -116,21 +116,31 @@ def _trade_to_peer(item_id: int, peer, lua, sleep) -> str:
 
 
 def run_steps(steps: list[dict], pid: int, *, rpc=None, sleep=time.sleep, peer=None,
-              screenshot=None) -> list[dict]:
+              screenshot=None, pids: dict | None = None) -> list[dict]:
     """Run steps in order; stop at the first one the client did not perform.
 
     `peer` is the master_loot fixture's bot (peer_roll, peer_trade); `screenshot`
-    saves the client window under a name and returns the file path.
+    saves a client window under a name and returns the file path. In a
+    two-player plan `pids` maps "member" to the second client's process, and a
+    step with "client": "member" runs there.
     """
     rpc = rpc or request  # resolved at call time so the transport can be replaced
+    pids = {"main": pid, **(pids or {})}
+    current = {"pid": pid}
 
     def lua(code: str):
-        reply = rpc("lua.evaluate", {"code": code}, expected_pid=pid)
+        reply = rpc("lua.evaluate", {"code": code}, expected_pid=current["pid"])
         return reply.get("result") if isinstance(reply, dict) and reply.get("ok") is True else "sdk_error"
 
     log = []
     for index, step in enumerate(steps, 1):
         kind, value = step["type"], step["value"]
+        client = step.get("client", "main")
+        if client not in pids:
+            error = StepFailed(f"Step {index} {kind} needs the {client} client, which is not running")
+            error.log = log
+            raise error
+        current["pid"] = pids[client]
         entry = {**step}
         if kind == "wait":
             sleep(value)
@@ -140,7 +150,7 @@ def run_steps(steps: list[dict], pid: int, *, rpc=None, sleep=time.sleep, peer=N
                 result = "no_screenshot_support"
             else:
                 try:
-                    entry["path"] = str(screenshot(value))
+                    entry["path"] = str(screenshot(value) if client == "main" else screenshot(value, client))
                     result = "ok"
                 except (OSError, RuntimeError) as exc:
                     result = f"screenshot_failed:{type(exc).__name__}"

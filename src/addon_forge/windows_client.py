@@ -131,8 +131,24 @@ class WindowsAPI:
         finally:
             self.kernel.CloseHandle(handle)
 
-    def find_window(self, title: str, binary: Path) -> int:
-        matches: list[int] = []
+    def find_window(self, title: str, binary: Path, pid: int | None = None) -> int:
+        """The visible test-client window; with `pid` (or a registered main
+        client, see clients.py) the window of that process."""
+        if pid is None:
+            from . import clients
+            pid = clients.pid_of("main")
+        matches = [hwnd for hwnd, owner in self.find_windows(title, binary) if pid is None or owner == pid]
+        if len(matches) != 1:
+            raise RuntimeError(
+                f"Expected exactly one visible {binary.name} window matching {title!r}"
+                + (f" for process {pid}" if pid is not None else "")
+                + f"; found {len(matches)}. Run WoW in windowed mode and close other clients."
+            )
+        return matches[0]
+
+    def find_windows(self, title: str, binary: Path) -> list[tuple[int, int]]:
+        """(hwnd, pid) of every visible test-client window."""
+        matches: list[tuple[int, int]] = []
 
         @self.callback_type
         def visit(hwnd, _):
@@ -149,17 +165,12 @@ class WindowsAPI:
             self.user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
             process_path = self._process_path(pid.value)
             if process_path and _same_executable(process_path, binary):
-                matches.append(int(hwnd))
+                matches.append((int(hwnd), int(pid.value)))
             return True
 
         if not self.user.EnumWindows(visit, 0):
             raise RuntimeError("Could not enumerate Windows desktop windows")
-        if len(matches) != 1:
-            raise RuntimeError(
-                f"Expected exactly one visible {binary.name} window matching {title!r}; "
-                f"found {len(matches)}. Run WoW in windowed mode and close other clients."
-            )
-        return matches[0]
+        return matches
 
     def focus(self, hwnd: int) -> None:
         if self.user.IsIconic(hwnd):
@@ -241,9 +252,10 @@ class WindowsAPI:
 
 
 class WindowsClientController:
-    def __init__(self, cfg: Config, api: WindowsAPI | None = None):
+    def __init__(self, cfg: Config, api: WindowsAPI | None = None, role: str = "main"):
         self.cfg = cfg
         self.api = api if api is not None else WindowsAPI()
+        self.role = role
 
     def start(self) -> int:
         binary = _client_binary(self.cfg.wow_dir)
@@ -251,8 +263,9 @@ class WindowsClientController:
         return process.pid
 
     def window_id(self) -> str:
+        from . import clients
         binary = _client_binary(self.cfg.wow_dir)
-        return str(self.api.find_window(self.cfg.window_name, binary))
+        return str(self.api.find_window(self.cfg.window_name, binary, pid=clients.pid_of(self.role)))
 
     def command(self, command: str) -> None:
         """'/forge ...' goes through the SDK bridge handler. Only '/targetexact NAME'

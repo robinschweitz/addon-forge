@@ -174,7 +174,15 @@ def wait_for_player_identity(call, character: str, *, timeout: float = 35,
         sleep(interval)
 
 
-def launch_and_enter(cfg: Config, character: str, *, rpc=request, press_idle=None) -> int:
+def launch_and_enter(cfg: Config, character: str, *, rpc=request, press_idle=None,
+                     role: str = "main") -> int:
+    """Start an injected test client and enter the world with `character`.
+
+    role "main" requires that no test client runs yet. role "member" starts a
+    second client next to the running main one (a two-player plan) and logs in
+    with the credentials of the "member" slot.
+    """
+    from . import clients
     from .win_login import _test_copy, _credentials
     from .windows_client import _client_binary, WindowsAPI
     if sys.platform != "win32":
@@ -194,33 +202,47 @@ def launch_and_enter(cfg: Config, character: str, *, rpc=request, press_idle=Non
     # The injector launches the *marked* test executable, never the original.
     # Do not use --kill, --pipe-cmd, or --wow-args (which could expose secrets).
     api = WindowsAPI()
-    try:
-        api.find_window(cfg.window_name, _client_binary(wow))
-    except RuntimeError as exc:
-        if "found 0." not in str(exc):
-            raise
-    else:
+    binary = _client_binary(wow)
+    existing = {owner for _, owner in api.find_windows(cfg.window_name, binary)}
+    if role == "main" and existing:
         raise RuntimeError("Close the existing test WoW before an SDK startup")
-    subprocess.run([str(injector), "--wow", str(_client_binary(wow)), "--dll", str(dll)],
+    if role == "member" and clients.pid_of("main") not in existing:
+        raise RuntimeError("Start the main test client before the member client")
+    # The Forge SDK build serves a per-process pipe the injector cannot name in
+    # advance, so it waits a fixed time (the DLL needs ~0.1 s) before resuming.
+    timing = ["--no-pipe", "--wait", "1500" if role == "main" else "3000"]
+    subprocess.run([str(injector), "--wow", str(binary), "--dll", str(dll), *timing],
                    cwd=str(wow), check=True, timeout=60)
     until = time.monotonic() + 45
-    hwnd = None
+    pid = None
     while time.monotonic() < until:
-        try:
-            hwnd = api.find_window(cfg.window_name, _client_binary(wow))
+        new = [owner for _, owner in api.find_windows(cfg.window_name, binary) if owner not in existing]
+        if len(new) > 1:
+            raise RuntimeError("More than one new test client window appeared")
+        if new:
+            pid = new[0]
             break
-        except RuntimeError as exc:
-            if "found 0." not in str(exc):
-                raise
         time.sleep(0.4)
-    if hwnd is None:
+    if pid is None:
         raise RuntimeError("Instrumented test client did not create a verified window")
-    pid = api.window_pid(hwnd)
-    account, password = _credentials(wow)
+    clients.register(role, pid)
+    account, password = _credentials(wow, role)
     def call(method, params=None):
         return rpc(method, params, expected_pid=pid)
-    if call("client.ping").get("status") != "ok":
-        raise RuntimeError("SDK pipe unavailable")
+    # A second client's SDK pipe needs a moment; until then only the main
+    # client's pipe answers (and is rejected by its process ID).
+    ping_until = time.monotonic() + (30 if role == "main" else 90)
+    last_error = "no reply"
+    while True:
+        try:
+            ready = call("client.ping").get("status") == "ok"
+        except RuntimeError as exc:
+            ready, last_error = False, str(exc)
+        if ready:
+            break
+        if time.monotonic() >= ping_until:
+            raise RuntimeError(f"SDK pipe unavailable (last: {last_error})")
+        time.sleep(0.5)
     wait_for_screen(call, "login")
     if call("client.login", {"username":account, "password":password,
                             "realmName":cfg.wowcontrol_realm}).get("ok") is not True:
@@ -234,13 +256,13 @@ def launch_and_enter(cfg: Config, character: str, *, rpc=request, press_idle=Non
     # Identity first: no lua.evaluate is sent until unit.get confirms the
     # character, because Lua during world entry crashed the pinned SDK build.
     wait_for_player_identity(call, character)
-    reset_idle_timer(call, press_idle or _idle_press(cfg))
+    reset_idle_timer(call, press_idle or _idle_press(cfg, role))
     return pid
 
 
-def _idle_press(cfg: Config):
+def _idle_press(cfg: Config, role: str = "main"):
     from .windows_client import WindowsClientController
-    return WindowsClientController(cfg).press_idle_key
+    return WindowsClientController(cfg, role=role).press_idle_key
 
 
 # WoW measures inactivity from the last real keyboard/mouse input. A client
@@ -270,13 +292,15 @@ def reset_idle_timer(call, press, *, settle: float = 1.0, sleep=None) -> dict:
         raise RuntimeError("SDK could not inspect the idle logout dialog")
     return {"idle_key": IDLE_KEY, "camp_cancelled": reply.get("result") == "dismissed"}
 
-def client_pid(cfg: Config) -> int:
-    """PID of the verified, marked test client window (never another WoW)."""
+def client_pid(cfg: Config, role: str = "main") -> int:
+    """PID of the verified, marked test client window (never another WoW);
+    in a two-player plan, the client registered for `role`."""
+    from . import clients
     from .windows_client import WindowsAPI, _client_binary
     from .win_login import _test_copy
     wow = _test_copy(cfg.wow_dir)
     api = WindowsAPI()
-    return api.window_pid(api.find_window(cfg.window_name, _client_binary(wow)))
+    return api.window_pid(api.find_window(cfg.window_name, _client_binary(wow), pid=clients.pid_of(role)))
 
 
 WATCH_PATH = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}(?:\.[A-Za-z0-9_]{1,64}){0,5}")

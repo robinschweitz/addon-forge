@@ -34,6 +34,24 @@ func TestLootRollFixture(t *testing.T) {
 	if group.MemberCount < 2 {
 		t.Fatal("graphical character did not join party")
 	}
+	// A two-player plan's second client: summoned next to the corpse-to-be (loot
+	// is only distributed to members in range) and invited into the party.
+	if member := os.Getenv("FORGE_MEMBER_CHARACTER"); member != "" {
+		if !safeName.MatchString(member) || member == target {
+			t.Fatal("invalid member character")
+		}
+		bot.GM(t, ".summon "+member)
+		if err := bot.World.GroupInvite(member); err != nil {
+			t.Fatalf("member group invite: %v", err)
+		}
+		if err := writeStateAtomic(ready, map[string]any{"status": "member_invite_sent", "bot": bot.Name}); err != nil {
+			t.Fatalf("could not publish member invite readiness: %v", err)
+		}
+		group = bot.WaitGroupList(t, true, 3, 45*time.Second)
+		if group.MemberCount < 3 {
+			t.Fatal("member character did not join party")
+		}
+	}
 	var master uint64
 	for _, member := range group.Members {
 		if member.Name == target {

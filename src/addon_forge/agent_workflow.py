@@ -33,10 +33,30 @@ def _offline(addon: Path) -> dict:
             "passed": result["passed"], "failures": failures}
 
 
-def _step_screenshot(cfg: Config, evidence_dir: Path, name: str) -> Path:
+def _step_screenshot(cfg: Config, evidence_dir: Path, name: str, client: str = "main") -> Path:
     from .windows_client import WindowsClientController
     evidence_dir.mkdir(parents=True, exist_ok=True)
-    return WindowsClientController(cfg).screenshot(evidence_dir / f"step-{name}.png")
+    suffix = "" if client == "main" else "-" + client
+    return WindowsClientController(cfg, role=client).screenshot(evidence_dir / f"step-{name}{suffix}.png")
+
+
+def _member_suite(cfg: Config, plan: dict, evidence_dir: Path) -> dict:
+    """Run the bridge suite on the member client and judge it like the main one."""
+    import uuid
+    from .runner import judge
+    from .wowcontrol import bridge_run, client_pid
+    owners = (plan["addon"], *plan.get("companions", ()))
+    run_id = uuid.uuid4().hex[:12]
+    try:
+        report = bridge_run(cfg, "smoke", run_id, watch_paths(plan, "member"), pid=client_pid(cfg, "member"))
+        result = asdict(judge(report, run_id, ("bridge_loaded",), owners))
+    except RuntimeError as exc:
+        return {"status": "infrastructure_error", "run_id": run_id, "details": {"error": str(exc)}}
+    try:
+        _step_screenshot(cfg, evidence_dir, run_id, "member")
+    except (OSError, RuntimeError):
+        pass  # evidence only
+    return result
 
 
 def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
@@ -64,6 +84,8 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
         operations.append(f"Run {plan['peers']} AzerothGhost peer(s)")
     if plan.get("steps"):
         operations.append("Run steps: " + ", ".join(f"{s['type']} {s['value']}" for s in plan["steps"]))
+    if plan.get("member"):
+        operations.append(f"Second player: {plan['member']} on a second test client (member credentials)")
     operations += ["Run in-game bridge suite", "Check independent snapshot assertions"]
     preview = {"plan": plan, "addon_dir": str(addon), "operations": operations}
     if plan.get("steps"):
@@ -111,12 +133,14 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
     fixtures = {}
     step_log = []
     peer = None
+    member_test = None
     with ExitStack() as stack:
         if "master_loot" in plan.get("fixtures", []):
             from .loot_scenario import master_loot_fixture
             try:
                 fixtures["master_loot"] = stack.enter_context(
-                    master_loot_fixture(cfg, character=plan["character"], output=evidence_dir))
+                    master_loot_fixture(cfg, character=plan["character"], output=evidence_dir,
+                                        member=plan.get("member")))
                 peer = fixtures["master_loot"].pop("peer", None)
             except RuntimeError as exc:
                 return {"status": "infrastructure_error", "stage": "fixture", **preview,
@@ -125,8 +149,10 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
             from .plan_steps import StepFailed, run_steps
             from .wowcontrol import client_pid
             try:
-                step_log = run_steps(plan["steps"], client_pid(cfg), peer=peer,
-                                     screenshot=lambda name: _step_screenshot(cfg, evidence_dir, name))
+                pids = {"member": client_pid(cfg, "member")} if plan.get("member") else None
+                step_log = run_steps(plan["steps"], client_pid(cfg), peer=peer, pids=pids,
+                                     screenshot=lambda name, client="main": _step_screenshot(
+                                         cfg, evidence_dir, name, client))
             except StepFailed as exc:
                 return {"status": "failed", "stage": "steps", **preview, "offline": offline,
                         "steps": getattr(exc, "log", []),
@@ -143,6 +169,7 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
             result = run_smoke(cfg, suite="smoke", required_tests=("bridge_loaded",),
                                out_dir=evidence_dir, paths=paths, owner=owners)
             test = asdict(result)
+            member_test = _member_suite(cfg, plan, evidence_dir) if plan.get("member") else None
     if test.get("status") != "passed":
         return {"status": test.get("status", "infrastructure_error"), **preview, "offline": offline,
                 "fixtures": fixtures, "test": test, "error": "Client or fixture assertions did not pass"}
@@ -155,6 +182,16 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
                 "error": f"Old ForgeTestBridge loaded; plans need bridge v{BRIDGE_VERSION}. "
                          "Close and restart the test WoW client after deploying the bridge."}
     independent = evaluate(plan, report)
+    if plan.get("member"):
+        member_report = (member_test or {}).get("details", {}).get("report")
+        if (member_test or {}).get("status") != "passed" or not isinstance(member_report, dict):
+            return {"status": (member_test or {}).get("status", "infrastructure_error"), **preview,
+                    "offline": offline, "fixtures": fixtures, "steps": step_log, "test": test,
+                    "member_test": member_test, "error": "The member client's bridge suite did not pass"}
+        member_checks = evaluate(plan, member_report, "member")
+        independent = {"status": "passed" if independent["status"] == member_checks["status"] == "passed"
+                       else "failed", "checks": independent["checks"] + member_checks["checks"]}
+        test["member_run_id"] = member_test.get("run_id")
     status = independent["status"]
     return {"status": status, **preview, "offline": offline, "fixtures": fixtures, "steps": step_log,
             "test": test, "independent": independent, "evidence_dir": str(evidence_dir)}

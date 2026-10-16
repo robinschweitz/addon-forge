@@ -108,11 +108,13 @@ def test_sdk_login_pins_rpc_to_test_pid_and_never_uses_secret_in_argv(tmp_path, 
                  automation_backend="wowcontrol", wowcontrol_injector=injector,
                  wowcontrol_dll=dll, wowcontrol_realm="Local Realm")
     monkeypatch.setattr(win_login, "_test_copy", lambda path: wow)
-    monkeypatch.setattr(win_login, "_credentials", lambda path: ("FORGETEST", "TOPSECRET"))
+    slots = []
+    monkeypatch.setattr(win_login, "_credentials", lambda path, slot="main": slots.append(slot) or ("FORGETEST", "TOPSECRET"))
     monkeypatch.setattr(windows_client, "_client_binary", lambda path: wow / "Wow.exe")
+    from addon_forge import clients
+    clients.clear()
     api = Mock()
-    api.find_window.side_effect = [RuntimeError("found 0."), 91]
-    api.window_pid.return_value = 1422
+    api.find_windows.side_effect = [[], [], [(91, 1422)]]
     monkeypatch.setattr(windows_client, "WindowsAPI", lambda: api)
     launched = []
     monkeypatch.setattr(wowcontrol.subprocess, "run",
@@ -140,6 +142,8 @@ def test_sdk_login_pins_rpc_to_test_pid_and_never_uses_secret_in_argv(tmp_path, 
     pressed = []
     assert wowcontrol.launch_and_enter(cfg, "Test", rpc=rpc, press_idle=lambda: pressed.append(1)) == 1422
     assert pressed == [1]
+    assert slots == ["main"] and clients.pid_of("main") == 1422
+    clients.clear()
     assert all(pid == 1422 for _, _, pid in observed)
     assert len(launched) == 1
     assert "TOPSECRET" not in repr(launched)
@@ -442,3 +446,76 @@ def test_sdk_player_status_disallows_displaying_unknown_names(tmp_path, monkeypa
     out = wowcontrol.client_status(cfg, inspect_player=True, rpc=rpc)
     assert out["player"] == {"unit_exists": True, "unit_name": None,
                               "verification": "sdk_only; fresh ForgeTestBridge v2 report required"}
+
+
+def test_pipe_connection_prefers_the_per_process_pipe_and_falls_back_for_old_sdks():
+    from addon_forge import wowcontrol_pipe
+    from addon_forge.wowcontrol_pipe import open_verified_pipe, pipe_name
+    wowcontrol_pipe._named.clear()
+    closed = []
+    class Transport:
+        def CloseHandle(self, handle):
+            closed.append(handle)
+    def verify(handle, expected):
+        if handle != expected:
+            raise RuntimeError("SDK pipe owner does not match the marked WoW window PID")
+    # Forge SDK build: the per-process pipe answers directly.
+    names = []
+    def per_process(transport, name=wowcontrol_pipe.PIPE, timeout=5.0):
+        names.append(name)
+        return 222
+    assert open_verified_pipe(Transport(), 222, connect=per_process, verify=verify) == 222
+    assert names == [pipe_name(222)] and pipe_name(222).endswith("WowGameCommand-222")
+    # Old SDK build: no per-process pipe; the shared name is retried until the right owner answers.
+    owners = iter([111, 333, 111, 333])
+    def shared(transport, name=wowcontrol_pipe.PIPE, timeout=5.0):
+        if name != wowcontrol_pipe.PIPE:
+            raise RuntimeError("did not become available")
+        return next(owners)
+    assert open_verified_pipe(Transport(), 333, connect=shared, sleep=lambda s: None, verify=verify) == 333
+    assert closed == [111] and wowcontrol_pipe._named[333] is False
+    owners = iter([111] * 3)
+    with pytest.raises(RuntimeError, match="does not match"):
+        open_verified_pipe(Transport(), 333, attempts=3, connect=shared, sleep=lambda s: None, verify=verify)
+    wowcontrol_pipe._named.clear()
+
+
+def test_member_client_starts_next_to_main_with_member_credentials(tmp_path, monkeypatch):
+    from addon_forge import wowcontrol, win_login, windows_client, clients
+    monkeypatch.setattr(wowcontrol.sys, "platform", "win32")
+    wow = tmp_path / "test-wow"
+    wow.mkdir()
+    injector, dll = tmp_path / "WowInjector.exe", tmp_path / "WoWControlSDK.dll"
+    for file in (injector, dll):
+        file.touch()
+    cfg = Config(wow_dir=wow, wine_prefix=tmp_path / "wine", automation_backend="wowcontrol",
+                 wowcontrol_injector=injector, wowcontrol_dll=dll, wowcontrol_realm="Local Realm")
+    monkeypatch.setattr(win_login, "_test_copy", lambda path: wow)
+    slots = []
+    monkeypatch.setattr(win_login, "_credentials", lambda path, slot="main": slots.append(slot) or ("M", "P"))
+    monkeypatch.setattr(windows_client, "_client_binary", lambda path: wow / "Wow.exe")
+    monkeypatch.setattr(wowcontrol.subprocess, "run", lambda argv, **kw: None)
+    api = Mock()
+    monkeypatch.setattr(windows_client, "WindowsAPI", lambda: api)
+    clients.clear()
+    api.find_windows.return_value = [(91, 1422)]
+    with pytest.raises(RuntimeError, match="Start the main test client"):
+        wowcontrol.launch_and_enter(cfg, "Raidmember", rpc=None, role="member")
+    clients.register("main", 1422)
+    api.find_windows.side_effect = [[(91, 1422)], [(91, 1422)], [(91, 1422), (92, 2000)]]
+    pings = []
+    def rpc(method, params=None, *, expected_pid):
+        assert expected_pid == 2000
+        if method == "client.ping":
+            pings.append(1)
+            if len(pings) == 1:
+                raise RuntimeError("SDK pipe owner does not match the marked WoW window PID")
+            return {"status": "ok"}
+        if method == "client.getScreen":
+            return {"screen": "world", "inWorld": True}
+        raise RuntimeError("stop after the ping")
+    monkeypatch.setattr(wowcontrol.time, "sleep", lambda s: None)
+    with pytest.raises(RuntimeError):
+        wowcontrol.launch_and_enter(cfg, "Raidmember", rpc=rpc, role="member")
+    assert clients.pid_of("member") == 2000 and slots == ["member"] and len(pings) == 2
+    clients.clear()

@@ -31,7 +31,12 @@ CHECK_KEYS = {
 }
 ALLOWED_TYPE = set(CHECK_KEYS)
 SDK_TYPES = {"player_in_world"}
-TOP_KEYS = {"version", "addon", "character", "peers", "checks", "observer", "fixtures", "steps", "companions"}
+TOP_KEYS = {"version", "addon", "character", "peers", "checks", "observer", "fixtures", "steps", "companions",
+            "member"}
+# A two-player plan names a second test character ("member", logged in on a
+# second client with the member credentials). Steps and checks then take an
+# optional "client": "member" to act on / observe that client.
+CLIENTS = ("main", "member")
 # Companions are sibling addons a scenario needs too (e.g. a raid lead's ledger
 # for a members' wishlist addon): checked, deployed, and their slash commands
 # usable in steps. At most this many.
@@ -148,7 +153,22 @@ def validate_plan(data: dict) -> dict:
     steps = data.get("steps", [])
     if not isinstance(steps, list) or len(steps) > MAX_STEPS:
         raise ValueError(f"steps must be a list of at most {MAX_STEPS} steps")
-    steps = [_step(s) for s in steps]
+    member = data.get("member")
+    if member is not None and (not isinstance(member, str) or not CHARACTER.fullmatch(member)
+                               or member == data["character"]):
+        raise ValueError("member must be a second test character name, different from character")
+    if member and (observer != "bridge" or peers):
+        raise ValueError("Two-player plans run with the bridge observer and peers=0")
+    parsed = []
+    for raw in steps:
+        item, client = _split_client(raw, member, "Step")
+        step = _step(item)
+        if client == "member":
+            if step["type"] in PEER_STEPS:
+                raise ValueError("peer_roll and peer_trade act for the main client only")
+            step["client"] = "member"
+        parsed.append(step)
+    steps = parsed
     if sum(s["value"] for s in steps if s["type"] == "wait") > MAX_WAIT_TOTAL:
         raise ValueError(f"steps may wait at most {MAX_WAIT_TOTAL} seconds in total")
     if steps and observer != "bridge":
@@ -167,15 +187,18 @@ def validate_plan(data: dict) -> dict:
     if not isinstance(checks, list) or not 1 <= len(checks) <= 20:
         raise ValueError("Provide 1-20 independent checks")
     clean, seen = [], set()
-    for item in checks:
+    for raw in checks:
+        item, client = _split_client(raw, member, "Check")
         chk = _check(item, peers)
+        if client == "member":
+            chk["client"] = "member"
         key = json.dumps(chk, sort_keys=True)
         if key in seen:
             raise ValueError("Duplicate check")
         seen.add(key)
         clean.append(chk)
-    if len(watch_paths({"checks": clean})) > 10:
-        raise ValueError("At most 10 global_equals paths per plan")
+    if any(len(watch_paths({"checks": clean}, client)) > 10 for client in CLIENTS):
+        raise ValueError("At most 10 global_equals paths per plan and client")
     if observer == "sdk" and (peers or any(chk["type"] not in SDK_TYPES for chk in clean)):
         raise ValueError("SDK-only observer currently supports only player_in_world with peers=0; UI/addon checks require the bridge")
     result = {"version": 1, "addon": data["addon"], "character": data["character"],
@@ -188,11 +211,27 @@ def validate_plan(data: dict) -> dict:
         result["steps"] = steps
     if companions:
         result["companions"] = list(companions)
+    if member:
+        result["member"] = member
     return result
 
 
-def watch_paths(plan: dict) -> tuple[str, ...]:
-    return tuple(dict.fromkeys(c["path"] for c in plan["checks"] if c["type"] == "global_equals"))
+def watch_paths(plan: dict, client: str = "main") -> tuple[str, ...]:
+    return tuple(dict.fromkeys(c["path"] for c in plan["checks"]
+                               if c["type"] == "global_equals" and c.get("client", "main") == client))
+
+
+def _split_client(item, member, what):
+    """Remove and validate an item's optional "client" key."""
+    if not isinstance(item, dict):
+        return item, "main"
+    item = dict(item)
+    client = item.pop("client", "main")
+    if client not in CLIENTS:
+        raise ValueError(f"{what} client must be one of {CLIENTS}")
+    if client == "member" and not member:
+        raise ValueError(f'{what} for the member client need a plan "member" character')
+    return item, client
 
 
 def load_plan(path: Path) -> dict:
@@ -229,14 +268,18 @@ def split_errors(errors, owner) -> tuple[list, list]:
     return owned, foreign
 
 
-def evaluate(plan: dict, report: dict) -> dict:
-    """Validate independent telemetry; no success from addon assertions alone."""
+def evaluate(plan: dict, report: dict, client: str = "main") -> dict:
+    """Validate independent telemetry; no success from addon assertions alone.
+
+    Only the checks for `client` are judged, against that client's report."""
     if not report.get("completed") or not isinstance(report.get("snapshot"), dict):
         return {"status": "infrastructure_error", "checks": [], "error": "No bridge telemetry"}
     state = report["snapshot"]
     frames = state.get("frames") if isinstance(state.get("frames"), dict) else {}
     results = []
     for chk in plan["checks"]:
+        if chk.get("client", "main") != client:
+            continue
         kind, val = chk["type"], chk["value"]
         if kind == "frame_visible":
             frame = frames.get(val)
@@ -282,6 +325,8 @@ def evaluate(plan: dict, report: dict) -> dict:
             result["frame"] = chk["frame"]
         if "path" in chk:
             result["path"] = chk["path"]
+        if client != "main":
+            result["client"] = client
         results.append(result)
     return {"status": "passed" if all(x["passed"] for x in results) else "failed",
             "checks": results}

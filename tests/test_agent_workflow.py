@@ -387,3 +387,49 @@ def test_companion_slash_commands_may_be_used_in_steps(tmp_path):
     result = run_plan(cfg, plan)
     assert result["status"] == "plan_only"
     assert "with X2" in result["operations"][2]
+
+
+def test_two_player_plans_are_validated():
+    ok = validate_plan({**BASE, "member": "Raidmember", "steps": [
+        {"type": "slash", "value": "/x1 start"}, {"type": "click", "value": "XRoll", "client": "member"}],
+        "checks": [{"type": "player_in_world", "value": True},
+                   {"type": "global_equals", "path": "XDB.a", "value": 1, "client": "member"}]})
+    assert ok["member"] == "Raidmember"
+    assert ok["steps"][1] == {"type": "click", "value": "XRoll", "client": "member"}
+    assert ok["checks"][1]["client"] == "member"
+    assert watch_paths(ok) == () and watch_paths(ok, "member") == ("XDB.a",)
+    for bad in ({"member": "Test"}, {"member": "bad name"},
+                {"steps": [{"type": "click", "value": "XRoll", "client": "member"}]},
+                {"member": "Raidmember", "steps": [{"type": "click", "value": "XRoll", "client": "boss"}]},
+                {"member": "Raidmember", "fixtures": ["master_loot"],
+                 "steps": [{"type": "peer_roll", "value": [1, 100], "client": "member"}]}):
+        with pytest.raises(ValueError):
+            validate_plan({**BASE, **bad, "checks": [{"type": "player_in_world", "value": True}]})
+
+
+def test_checks_are_judged_against_their_own_client_report():
+    plan = validate_plan({**BASE, "member": "Raidmember", "checks": [
+        {"type": "chat_contains", "value": "lead"},
+        {"type": "chat_contains", "value": "member", "client": "member"}]})
+    main = {"completed": True, "snapshot": {"chat": ["the lead said"]}}
+    member = {"completed": True, "snapshot": {"chat": ["the member said"]}}
+    assert [c["passed"] for c in evaluate(plan, main)["checks"]] == [True]
+    judged = evaluate(plan, member, "member")["checks"]
+    assert judged == [{"type": "chat_contains", "expected": "member", "actual": "the member said",
+                       "passed": True, "client": "member"}]
+    assert evaluate(plan, main, "member")["status"] == "failed"
+
+
+def test_member_steps_run_on_the_member_client():
+    from addon_forge.plan_steps import StepFailed, run_steps
+    seen = []
+    def rpc(method, params=None, *, expected_pid):
+        seen.append(expected_pid)
+        return {"ok": True, "result": "ok"}
+    steps = [{"type": "slash", "value": "/flw"}, {"type": "slash", "value": "/flw", "client": "member"}]
+    shots = []
+    run_steps(steps + [{"type": "screenshot", "value": "s", "client": "member"}], 9, rpc=rpc,
+              pids={"member": 12}, screenshot=lambda name, client="main": shots.append((name, client)) or name)
+    assert seen == [9, 12] and shots == [("s", "member")]
+    with pytest.raises(StepFailed, match="member client, which is not running"):
+        run_steps(steps, 9, rpc=rpc)
