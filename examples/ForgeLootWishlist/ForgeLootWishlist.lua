@@ -5,13 +5,14 @@
 -- awards (addon messages, prefix FLLedger).
 local Wishlist = CreateFrame("Frame", "ForgeLootWishlistFrame", UIParent)
 local PREFIX = "FLLedger"
-local WISH_ROWS = 8
-local RAID_ROWS = 6
+local WISH_ROWS = 5
+local OPEN_ROWS = 4
+local RAID_ROWS = 5
 local AUTO_DELAY = 1        -- seconds before an automatic roll
 local SPEC_LABELS = { ms = "MS", os = "OS" }
 local TOKEN_NAMES = { "Weiheabzeichen" }
 
-local wishRows, raidRows = {}, {}
+local wishRows, openRows, raidRows = {}, {}, {}
 local raidOffset = 0
 local prompt                -- the open roll prompt { key, entry, endsAt }
 local pendingRoll           -- an automatic roll waiting for its delay
@@ -138,6 +139,12 @@ local function awardOwner(award)
     return (award.state == "held" and award.winner) or award.recipient
 end
 
+-- An open award waits for its roll: parked with a raider, or kept by the
+-- master looter without a roll yet.
+local function isOpenAward(award)
+    return award.state == "parked" or (award.state == "held" and not award.spec and not award.winner)
+end
+
 local function sortedAwards()
     local db = ensureDatabase()
     local list = {}
@@ -166,23 +173,49 @@ local function refreshReceived()
     local _, char = ensureDatabase()
     for _, entry in ipairs(char.items) do entry.received = nil end
     for _, award in ipairs(sortedAwards()) do
-        if award.state ~= "deleted" and isPlayer(awardOwner(award)) then
+        -- Holding an item until its roll is not receiving it.
+        if award.state ~= "deleted" and not isOpenAward(award) and isPlayer(awardOwner(award)) then
             local entry = findWish(award.itemID)
             if entry then entry.received = true end
         end
     end
 end
 
+-- followSession keeps this raid's lists: a newer raid replaces them, an older
+-- one (a stale ledger) is ignored.
+local function followSession(session)
+    local db = ensureDatabase()
+    if session == "" then return false end
+    if session ~= db.raid.session then
+        if db.raid.session and sessionTime(session) < sessionTime(db.raid.session) then return false end
+        db.raid = { session = session, awards = {}, corpse = {} }
+    end
+    db.raid.corpse = db.raid.corpse or {}
+    return true
+end
+
+-- applyOpenItems stores a ledger's list of loot still waiting in its roll list:
+-- "itemID:status:source:winner,...", status o/r/w, source c (corpse) or
+-- a<award id> (an open award being rolled later).
+local function applyOpenItems(f)
+    if f[3] == "" or not followSession(f[2]) then return false end
+    local list = {}
+    for item in string.gmatch(f[4] or "", "[^,]+") do
+        local itemID, itemStatus, source, winner = string.match(item, "^(%d+):(%a):(%w+):(.*)$")
+        if itemID then
+            table.insert(list, { itemID = tonumber(itemID), status = itemStatus, source = source,
+                winner = winner ~= "" and winner or nil })
+        end
+    end
+    ensureDatabase().raid.corpse[lower(f[3])] = list
+    return true
+end
+
 local function applyAward(f)
     local id, rev = tonumber(f[4]), tonumber(f[5])
     if not id or not rev or f[3] == "" or table.getn(f) < 19 then return false end
+    if not followSession(f[2]) then return false end
     local db = ensureDatabase()
-    local session = f[2]
-    if session ~= db.raid.session then
-        -- A newer raid replaces the list; an older one (a stale ledger) is ignored.
-        if db.raid.session and sessionTime(session) < sessionTime(db.raid.session) then return false end
-        db.raid = { session = session, awards = {} }
-    end
     local key = lower(f[3]) .. ":" .. id
     local award = db.raid.awards[key]
     if award and award.rev >= rev then return false end
@@ -196,6 +229,31 @@ local function applyAward(f)
     award.token = f[18] == "1" or isToken(award.item) or nil
     db.raid.awards[key] = award
     return true
+end
+
+-- openItems lists what is still to be rolled: corpse loot from the ledgers'
+-- lists, and open awards (with their roll status from those lists).
+local function openItems()
+    local db = ensureDatabase()
+    local list, rolling = {}, {}
+    for origin, items in pairs(db.raid.corpse or {}) do
+        for _, item in ipairs(items) do
+            if item.source == "c" then
+                table.insert(list, { itemID = item.itemID, item = itemLink(item.itemID), where = "on the corpse",
+                    status = item.status, winner = item.winner })
+            else
+                rolling[origin .. ":" .. string.sub(item.source, 2)] = item
+            end
+        end
+    end
+    for _, award in ipairs(sortedAwards()) do
+        if isOpenAward(award) then
+            local live = rolling[award.key]
+            table.insert(list, { itemID = award.itemID, item = award.item, where = "with " .. award.recipient,
+                status = live and live.status or "o", winner = live and live.winner })
+        end
+    end
+    return list
 end
 
 ---------------------------------------------------------------------------
@@ -231,7 +289,7 @@ local function flatButton(parent, name, caption, width, height)
     return button
 end
 
-local function listRow(parent, index, width, top)
+local function listRow(parent, index, width, top, tagWidth)
     local row = CreateFrame("Button", nil, parent)
     row:SetPoint("TOPLEFT", parent, "TOPLEFT", 8, top - (index - 1) * 17)
     row:SetWidth(width)
@@ -240,7 +298,7 @@ local function listRow(parent, index, width, top)
     row:SetBackdropColor(0.08, 0.18, 0.11, 0)
     local text = label(row, "GameFontNormalSmall", 10, {0.80, 0.90, 0.84})
     text:SetPoint("LEFT", row, "LEFT", 5, 0)
-    text:SetPoint("RIGHT", row, "RIGHT", -96, 0)
+    text:SetPoint("RIGHT", row, "RIGHT", -(tagWidth or 96), 0)
     text:SetJustifyH("LEFT")
     text:SetWordWrap(false)
     row:SetFontString(text)
@@ -251,7 +309,7 @@ local function listRow(parent, index, width, top)
 end
 
 Wishlist:SetWidth(470)
-Wishlist:SetHeight(410)
+Wishlist:SetHeight(440)
 Wishlist:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 Wishlist:SetFrameStrata("DIALOG")
 Wishlist:SetClampedToScreen(true)
@@ -287,7 +345,7 @@ autoButton:SetPoint("RIGHT", importOpen, "LEFT", -6, 0)
 local wishPane = CreateFrame("Frame", nil, Wishlist)
 wishPane:SetPoint("TOPLEFT", Wishlist, "TOPLEFT", 12, -60)
 wishPane:SetWidth(446)
-wishPane:SetHeight(172)
+wishPane:SetHeight(120)
 makeBackdrop(wishPane, 0.030, 0.065, 0.045, 0.97)
 
 local wishHeading = label(wishPane, "GameFontNormal", 11, {1.00, 0.82, 0.32})
@@ -295,16 +353,33 @@ wishHeading:SetPoint("TOPLEFT", wishPane, "TOPLEFT", 12, -10)
 wishHeading:SetText("MY WISHLIST")
 
 local wishEmpty = label(wishPane, "GameFontNormalSmall", 11, {0.48, 0.64, 0.52})
-wishEmpty:SetPoint("CENTER", wishPane, "CENTER", 0, -6)
+wishEmpty:SetPoint("CENTER", wishPane, "CENTER", 0, -8)
 wishEmpty:SetJustifyH("CENTER")
 wishEmpty:SetText("No wishlist yet.\nCopy the export on the guild website, then IMPORT.")
 
 for i = 1, WISH_ROWS do wishRows[i] = listRow(wishPane, i, 430, -28) end
 
+local openPane = CreateFrame("Frame", nil, Wishlist)
+openPane:SetPoint("TOPLEFT", wishPane, "BOTTOMLEFT", 0, -8)
+openPane:SetWidth(446)
+openPane:SetHeight(103)
+makeBackdrop(openPane, 0.030, 0.065, 0.045, 0.97)
+
+local openHeading = label(openPane, "GameFontNormal", 11, {1.00, 0.82, 0.32})
+openHeading:SetPoint("TOPLEFT", openPane, "TOPLEFT", 12, -10)
+openHeading:SetText("OPEN ITEMS")
+
+local openEmpty = label(openPane, "GameFontNormalSmall", 11, {0.48, 0.64, 0.52})
+openEmpty:SetPoint("CENTER", openPane, "CENTER", 0, -8)
+openEmpty:SetJustifyH("CENTER")
+openEmpty:SetText("No loot is waiting to be rolled.")
+
+for i = 1, OPEN_ROWS do openRows[i] = listRow(openPane, i, 430, -28, 150) end
+
 local raidPane = CreateFrame("Frame", nil, Wishlist)
-raidPane:SetPoint("TOPLEFT", wishPane, "BOTTOMLEFT", 0, -10)
+raidPane:SetPoint("TOPLEFT", openPane, "BOTTOMLEFT", 0, -8)
 raidPane:SetWidth(446)
-raidPane:SetHeight(136)
+raidPane:SetHeight(120)
 makeBackdrop(raidPane, 0.030, 0.065, 0.045, 0.97)
 raidPane:EnableMouseWheel(true)
 
@@ -317,7 +392,7 @@ tallyText:SetPoint("TOPRIGHT", raidPane, "TOPRIGHT", -12, -11)
 tallyText:SetJustifyH("RIGHT")
 
 local raidEmpty = label(raidPane, "GameFontNormalSmall", 11, {0.48, 0.64, 0.52})
-raidEmpty:SetPoint("CENTER", raidPane, "CENTER", 0, -6)
+raidEmpty:SetPoint("CENTER", raidPane, "CENTER", 0, -8)
 raidEmpty:SetJustifyH("CENTER")
 raidEmpty:SetText("Nothing handed out yet.\nAwards appear here when the raid lead uses ForgeLootLedger.")
 
@@ -334,7 +409,7 @@ status:SetText("Rolls start from the raid lead's ForgeLootLedger  |  /flw help")
 local importPanel = CreateFrame("Frame", "ForgeLootWishlistImportPanel", Wishlist)
 importPanel:SetPoint("TOPLEFT", Wishlist, "TOPLEFT", 12, -60)
 importPanel:SetWidth(446)
-importPanel:SetHeight(318)
+importPanel:SetHeight(351)
 makeBackdrop(importPanel, 0.030, 0.065, 0.045, 0.99)
 importPanel:SetFrameLevel(Wishlist:GetFrameLevel() + 5)
 importPanel:Hide()
@@ -437,7 +512,10 @@ local function updateWishlist()
 end
 
 local function updateRaid()
-    local awards = sortedAwards()
+    local awards = {}
+    for _, award in ipairs(sortedAwards()) do
+        if not isOpenAward(award) then table.insert(awards, award) end   -- open ones are listed above
+    end
     local count = table.getn(awards)
     raidOffset = math.max(0, math.min(raidOffset, count - RAID_ROWS))
     raidHeading:SetText(count > 0 and string.format("THIS RAID (%d)", count) or "THIS RAID")
@@ -464,11 +542,42 @@ local function updateRaid()
     end
 end
 
+local OPEN_STATUS = { o = "OPEN", r = "ROLLING NOW", w = "WON" }
+
+local function updateOpen()
+    local items = openItems()
+    local count = table.getn(items)
+    openHeading:SetText(count > 0 and string.format("OPEN ITEMS (%d)", count) or "OPEN ITEMS")
+    if count > 0 then openEmpty:Hide() else openEmpty:Show() end
+    for i = 1, OPEN_ROWS do
+        local row, item = openRows[i], items[i]
+        row.open = item
+        if item then
+            row:SetText(string.format("%s  %s", item.item, item.where))
+            local tag = OPEN_STATUS[item.status] or "OPEN"
+            if item.status == "w" and item.winner then tag = "WON: " .. string.upper(item.winner) end
+            local wished = findWish(item.itemID)
+            if wished and not wished.received and item.status ~= "w" then tag = "WISHLIST  " .. tag end
+            row.right:SetText(tag)
+            if item.status == "r" then
+                row.right:SetTextColor(0.45, 0.85, 0.55)
+            else
+                row.right:SetTextColor(1.00, 0.82, 0.30)
+            end
+            row:SetBackdropColor(0.10, 0.20, 0.14, wished and 0.9 or 0)
+            row:Show()
+        else
+            row:Hide()
+        end
+    end
+end
+
 local function refresh()
     refreshReceived()
     subtitle:SetText("WISHLIST FOR " .. string.upper(playerName()) .. "  /  ROLLS  /  WHO GOT WHAT")
     updateAutoButton()
     updateWishlist()
+    updateOpen()
     updateRaid()
 end
 
@@ -577,6 +686,8 @@ local function onAddonMessage(prefix, message, channel, sender)
         onRollStart(f)
     elseif f[1] == "A" then
         if applyAward(f) then refresh() end
+    elseif f[1] == "O" then
+        if applyOpenItems(f) then refresh() end
     end
 end
 
@@ -588,11 +699,13 @@ local function showImport(show)
         Wishlist:Show()
         importPanel:Show()
         wishPane:Hide()
+        openPane:Hide()
         raidPane:Hide()
     else
         importText:ClearFocus()
         importPanel:Hide()
         wishPane:Show()
+        openPane:Show()
         raidPane:Show()
     end
 end
@@ -653,6 +766,12 @@ for _, row in ipairs(wishRows) do
     end)
     row:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
+for _, row in ipairs(openRows) do
+    row:SetScript("OnEnter", function(self)
+        if self.open then showTooltip(self, self.open.item, "Waiting to be rolled, " .. self.open.where) end
+    end)
+    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+end
 for _, row in ipairs(raidRows) do
     row:SetScript("OnEnter", function(self)
         if self.award then
@@ -680,6 +799,7 @@ Wishlist:SetScript("OnEvent", function(self, event, ...)
             ForgeTestBridge:RegisterFrame("ForgeLootWishlistRoll", rollButton)
             ForgeTestBridge:RegisterFrame("ForgeLootWishlistWish1", wishRows[1])
             ForgeTestBridge:RegisterFrame("ForgeLootWishlistRaid1", raidRows[1])
+            ForgeTestBridge:RegisterFrame("ForgeLootWishlistOpen1", openRows[1])
         end
     elseif event == "CHAT_MSG_ADDON" then
         onAddonMessage(...)

@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "addon": "ForgeLootWishlist",
+  "companions": [
+    "ForgeLootLedger"
+  ],
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/forgeloot newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/flw"
+    },
+    {
+      "type": "click",
+      "value": "ForgeLootWishlistImportOpen"
+    },
+    {
+      "type": "paste",
+      "value": [
+        "ForgeLootWishlistImportText",
+        "WL1;Test;1792130000\n20513;ms;20;1;Parked crest"
+      ]
+    },
+    {
+      "type": "click",
+      "value": "ForgeLootWishlistImportButton"
+    },
+    {
+      "type": "slash",
+      "value": "/flw auto off"
+    },
+    {
+      "type": "click",
+      "value": "ForgeLootLedgerPark"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "screenshot",
+      "value": "open_parked"
+    },
+    {
+      "type": "click",
+      "value": "ForgeLootLedgerHistory1"
+    },
+    {
+      "type": "click",
+      "value": "ForgeLootLedgerPark"
+    },
+    {
+      "type": "wait",
+      "value": 2
+    },
+    {
+      "type": "screenshot",
+      "value": "open_rolling"
+    },
+    {
+      "type": "click",
+      "value": "ForgeLootWishlistRoll"
+    },
+    {
+      "type": "wait",
+      "value": 31
+    },
+    {
+      "type": "click",
+      "value": "ForgeLootLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 2
+    },
+    {
+      "type": "screenshot",
+      "value": "open_decided"
+    }
+  ],
+  "checks": [
+    {
+      "type": "event_fired",
+      "value": "CHAT_MSG_ADDON"
+    },
+    {
+      "type": "chat_contains",
+      "value": " is parked with Test until it is rolled."
+    },
+    {
+      "type": "chat_contains",
+      "value": "(21-120)"
+    },
+    {
+      "type": "chat_contains",
+      "value": " - main spec (with Test until traded)."
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootLedgerDB.history.1.itemID",
+      "value": 20513
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootLedgerDB.history.1.state",
+      "value": "held"
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootLedgerDB.history.1.winner",
+      "value": "Test"
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootLedgerDB.history.1.low",
+      "value": 21
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootWishlistDB.chars.Test.items.1.received",
+      "value": true
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}

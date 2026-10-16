@@ -51,6 +51,15 @@ Either way the addon rolls at most once per roll (the ledger only counts your
 first roll), joins a tie-break only if you are one of the tied players, and
 does not roll on items you already received this raid.
 
+## Open items
+
+**OPEN ITEMS** lists loot that is still waiting to be rolled: items on the
+corpse, items the master looter keeps for a later roll, and items parked with
+another raider (e.g. unique items), with where they are and their status:
+`OPEN`, `ROLLING NOW` or `WON: <name>`. Items on your wishlist are marked
+`WISHLIST`. An item parked with you is not yours yet: you still get the prompt
+or auto-roll when it is rolled.
+
 ## This raid
 
 The lower list shows every award the raid lead's ledger shares: item,
