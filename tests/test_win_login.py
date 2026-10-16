@@ -39,3 +39,16 @@ def test_missing_vault_entry_fails_closed(tmp_path, monkeypatch):
     monkeypatch.setattr(win_login, "_vault", lambda: vault)
     with pytest.raises(RuntimeError, match="No stored local test account"):
         win_login._credentials(cfg(tmp_path).wow_dir)
+
+
+def test_member_slot_has_its_own_vault_entry(tmp_path, monkeypatch):
+    config = cfg(tmp_path)
+    vault = Mock()
+    monkeypatch.setattr(win_login, "_vault", lambda: vault)
+    win_login.save_credentials(config.wow_dir, "FORGEMEMBER", read_password=lambda _: "Member12345", slot="member")
+    main = win_login._vault_service(config.wow_dir)
+    member = win_login._vault_service(config.wow_dir, "member")
+    assert member == main + "-member"
+    assert {c.args[0] for c in vault.set_password.call_args_list} == {member}
+    with pytest.raises(ValueError):
+        win_login._vault_service(config.wow_dir, "other")

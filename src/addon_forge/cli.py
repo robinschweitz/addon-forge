@@ -43,6 +43,8 @@ def make_parser():
     login = client_sub.add_parser("login", help="Store the test account for SDK login in Windows Credential Manager")
     login.add_argument("mode", choices=["save"])
     login.add_argument("--account", help="Test-only realm account name")
+    login.add_argument("--slot", choices=["main", "member"], default="main",
+                       help="Credential slot: main test character, or the second player (member)")
     video = client_sub.add_parser("windowed", help="Configure test client video settings while WoW is closed")
     video.add_argument("--resolution", default="1280x720")
     cmd = client_sub.add_parser("command")
@@ -281,7 +283,7 @@ def main(argv=None) -> int:
             from .win_login import save_credentials
             if not args.account:
                 raise ValueError("Supply --account for client login save")
-            save_credentials(cfg.wow_dir, args.account)
+            save_credentials(cfg.wow_dir, args.account, slot=args.slot)
             return 0
         if args.command == "client" and args.action == "windowed":
             from .client_settings import configure_windowed

@@ -29,11 +29,19 @@ def _test_copy(wow_dir: Path) -> Path:
     return wow
 
 
-def _vault_service(wow_dir: Path) -> str:
+SLOTS = ("main", "member")
+
+
+def _vault_service(wow_dir: Path, slot: str = "main") -> str:
     import os
+    if slot not in SLOTS:
+        raise ValueError(f"Credential slot must be one of {SLOTS}")
     # Case-insensitive Windows path: secrets scoped only to this test client.
+    # "main" keeps the original service name; a second player ("member") for
+    # two-client scenarios gets its own entry.
     path = os.path.normcase(str(wow_dir.resolve()))
-    return "AddonForge-WoW-Test-" + hashlib.sha256(path.encode("utf-8")).hexdigest()[:24]
+    service = "AddonForge-WoW-Test-" + hashlib.sha256(path.encode("utf-8")).hexdigest()[:24]
+    return service if slot == "main" else service + "-" + slot
 
 
 def _vault():
@@ -55,7 +63,7 @@ def _vault():
     return keyring
 
 
-def save_credentials(wow_dir: Path, account: str, *, read_password=None) -> None:
+def save_credentials(wow_dir: Path, account: str, *, read_password=None, slot: str = "main") -> None:
     wow = _test_copy(wow_dir)
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]{2,15}", account):
         raise ValueError("Use a 3-16 character ASCII test account name.")
@@ -64,7 +72,7 @@ def save_credentials(wow_dir: Path, account: str, *, read_password=None) -> None
     try:
         if not password or len(password) > 16 or not password.isascii() or not password.isprintable():
             raise ValueError("WoW test-account password must be 1-16 printable ASCII characters.")
-        service = _vault_service(wow)
+        service = _vault_service(wow, slot)
         keyring.set_password(service, "account", account.upper())
         keyring.set_password(service, "password", password)
     finally:
@@ -73,11 +81,12 @@ def save_credentials(wow_dir: Path, account: str, *, read_password=None) -> None
           "Nothing was written to forge.local.toml or PowerShell history.")
 
 
-def _credentials(wow_dir: Path) -> tuple[str, str]:
+def _credentials(wow_dir: Path, slot: str = "main") -> tuple[str, str]:
     keyring = _vault()
-    service = _vault_service(wow_dir)
+    service = _vault_service(wow_dir, slot)
     account = keyring.get_password(service, "account")
     password = keyring.get_password(service, "password")
     if not account or not password:
-        raise RuntimeError("No stored local test account. Run 'forge ... client login save --account FORGETEST'.")
+        raise RuntimeError("No stored local test account. Run 'forge ... client login save --account FORGETEST'"
+                           + (f" --slot {slot}" if slot != "main" else "") + ".")
     return account, password
