@@ -32,14 +32,19 @@ def run_session(cfg: Config, plan_path: Path, *, approve: bool = False):
     addon = (plan_path.resolve().parent / plan["addon"]).resolve()
     if not addon.is_relative_to(plan_path.resolve().parent) or not addon.is_dir():
         raise ValueError("Scenario addon must exist alongside plan")
-    if not is_valid(check_addon(addon)):
-        return {"status": "failed", "error": "Invalid addon sources"}
+    companions = [(plan_path.resolve().parent / name).resolve() for name in plan.get("companions", [])]
+    if any(not c.is_relative_to(plan_path.resolve().parent) or not c.is_dir() for c in companions):
+        raise ValueError("Companion addons must exist alongside plan")
+    for checked in (addon, *companions):
+        if not is_valid(check_addon(checked)):
+            return {"status": "failed", "error": f"Invalid addon sources in {checked.name}"}
     if cfg.automation_backend != "wowcontrol":
         raise ValueError("Sessions log in through the WoWControlSDK; set automation_backend = \"wowcontrol\"")
     from .wowcontrol import require_windows_transport
     require_windows_transport()  # Before deploying addon files or starting WoW.
     _credentials(wow)
-    deploy(addon, wow)
+    for deployed in (addon, *companions):
+        deploy(deployed, wow)   # before the client starts, so it loads current code
     prepared = prepare_environment(cfg, start_client=True, login=True,
                                    enter_character=plan["character"], observer=observer)
     expected_status = "sdk_character_observed" if observer == "sdk" else "character_verified"

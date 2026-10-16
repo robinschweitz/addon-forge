@@ -338,3 +338,52 @@ def test_screenshot_step_saves_under_its_name():
     assert shots == ["roll_log"] and log[0]["path"] == "step-roll_log.png"
     with pytest.raises(StepFailed, match="no_screenshot_support"):
         run_steps([{"type": "screenshot", "value": "x"}], 9, rpc=None)
+
+
+def test_companions_and_paste_steps_are_validated():
+    ok = validate_plan({**BASE, "companions": ["X2"], "steps": [
+        {"type": "paste", "value": ["XImport", "WL1;Test;1\n20513;ms;20;1;Crest"]}],
+        "checks": [{"type": "player_in_world", "value": True}]})
+    assert ok["companions"] == ["X2"] and ok["steps"][0]["type"] == "paste"
+    for bad in ({"companions": ["X1"]}, {"companions": ["../X2"]}, {"companions": ["A", "B", "C", "D"]},
+                {"companions": ["X2", "X2"]},
+                {"steps": [{"type": "paste", "value": ["XImport", "a|Hitem"]}]},
+                {"steps": [{"type": "paste", "value": ["XImport", ""]}]},
+                {"steps": [{"type": "paste", "value": ["x'] os.exit()", "text"]}]},
+                {"steps": [{"type": "paste", "value": ["XImport", "caf\u00e9"]}]}):
+        with pytest.raises(ValueError):
+            validate_plan({**BASE, **bad, "checks": [{"type": "player_in_world", "value": True}]})
+
+
+def test_paste_step_sets_text_only_in_a_registered_edit_box():
+    from addon_forge.plan_steps import run_steps
+    codes = []
+    def rpc(method, params=None, *, expected_pid):
+        codes.append(params["code"])
+        return {"ok": True, "result": "ok"}
+    run_steps([{"type": "paste", "value": ["XImport", "WL1;Test;1\n20513;ms;20;1;\"Crest\""]}], 9, rpc=rpc)
+    assert 'ForgeTestBridge.frames["XImport"]' in codes[0]
+    assert "IsObjectType('EditBox')" in codes[0]
+    assert 'f:SetText("WL1;Test;1\\n20513;ms;20;1;\\"Crest\\"")' in codes[0]
+
+
+def test_companion_errors_count_for_the_plan():
+    from addon_forge.scenario_plan import split_errors
+    errors = ["Interface\\AddOns\\X2\\X2.lua:3: boom", "Interface\\AddOns\\Other\\o.lua:1: x"]
+    owned, foreign = split_errors(errors, ("X1", "X2"))
+    assert owned == [errors[0]] and foreign == [errors[1]]
+    assert split_errors(errors, "X1") == ([], errors)
+
+
+def test_companion_slash_commands_may_be_used_in_steps(tmp_path):
+    cfg, plan = setup_plan(tmp_path, steps=[{"type": "slash", "value": "/xtwo start"}])
+    data = json.loads(plan.read_text())
+    data["companions"] = ["X2"]
+    plan.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match="not found alongside"):
+        run_plan(cfg, plan)
+    (tmp_path / "X2").mkdir()
+    (tmp_path / "X2" / "X2.lua").write_text('SLASH_XTWO1 = "/xtwo"\nSlashCmdList.XTWO = function() end\n')
+    result = run_plan(cfg, plan)
+    assert result["status"] == "plan_only"
+    assert "with X2" in result["operations"][2]

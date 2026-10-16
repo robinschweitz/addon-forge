@@ -31,7 +31,11 @@ CHECK_KEYS = {
 }
 ALLOWED_TYPE = set(CHECK_KEYS)
 SDK_TYPES = {"player_in_world"}
-TOP_KEYS = {"version", "addon", "character", "peers", "checks", "observer", "fixtures", "steps"}
+TOP_KEYS = {"version", "addon", "character", "peers", "checks", "observer", "fixtures", "steps", "companions"}
+# Companions are sibling addons a scenario needs too (e.g. a raid lead's ledger
+# for a members' wishlist addon): checked, deployed, and their slash commands
+# usable in steps. At most this many.
+MAX_COMPANIONS = 3
 
 # Steps act in the real client between fixtures and the bridge suite. They are
 # data, not code: each type maps to one fixed, validated SDK action.
@@ -54,6 +58,14 @@ def _step(item: dict) -> dict:
     elif kind == "peer_trade":
         if type(value) is not int or not 1 <= value <= 999999:
             raise ValueError("peer_trade step value must be the item ID to trade to the fixture's bot")
+    elif kind == "paste":
+        if (not isinstance(value, list) or len(value) != 2 or not isinstance(value[0], str)
+                or not NAME.fullmatch(value[0]) or not isinstance(value[1], str)):
+            raise ValueError("paste step value must be [\"RegisteredEditBox\", \"text\"]")
+        text = value[1]
+        if not 1 <= len(text) <= 1000 or "|" in text or any(
+                not (32 <= ord(c) < 127 or c == "\n") for c in text):
+            raise ValueError("paste text must be 1-1000 printable ASCII characters or newlines, without '|'")
     elif kind == "screenshot":
         if not isinstance(value, str) or not NAME.fullmatch(value):
             raise ValueError("screenshot step value must be a short name such as 'roll_log'")
@@ -64,7 +76,7 @@ def _step(item: dict) -> dict:
         if not isinstance(value, str) or not NAME.fullmatch(value):
             raise ValueError("click step value must be a frame name registered with ForgeTestBridge")
     else:
-        raise ValueError(f"Unsupported step {kind!r}; use slash, roll, wait, click, screenshot, "
+        raise ValueError(f"Unsupported step {kind!r}; use slash, roll, wait, click, paste, screenshot, "
                          "peer_roll or peer_trade")
     return {"type": kind, "value": value}
 
@@ -144,6 +156,13 @@ def validate_plan(data: dict) -> dict:
     if any(s["type"] in PEER_STEPS for s in steps) and "master_loot" not in fixtures:
         raise ValueError("peer_roll and peer_trade steps drive the master_loot fixture's bot; "
                          "add \"fixtures\": [\"master_loot\"]")
+    companions = data.get("companions", [])
+    if (not isinstance(companions, list) or len(companions) > MAX_COMPANIONS
+            or len(set(companions)) != len(companions)
+            or any(not isinstance(c, str) or not NAME.fullmatch(c) or c == data["addon"] for c in companions)):
+        raise ValueError(f"companions must be up to {MAX_COMPANIONS} other addon folder names beside the plan")
+    if companions and observer != "bridge":
+        raise ValueError("Companion addons run with the bridge observer")
     checks = data["checks"]
     if not isinstance(checks, list) or not 1 <= len(checks) <= 20:
         raise ValueError("Provide 1-20 independent checks")
@@ -167,6 +186,8 @@ def validate_plan(data: dict) -> dict:
         result["fixtures"] = list(fixtures)
     if steps:
         result["steps"] = steps
+    if companions:
+        result["companions"] = list(companions)
     return result
 
 
@@ -189,17 +210,19 @@ def _list(value):
 ADDON_IN_ERROR = re.compile(r"AddOns[\\/]+([^\\/:]+)[\\/]", re.IGNORECASE)
 
 
-def split_errors(errors, owner: str | None) -> tuple[list, list]:
+def split_errors(errors, owner) -> tuple[list, list]:
     """Split captured Lua errors into (owned, foreign).
 
     The test client may have other addons enabled; an error that names a
-    different addon's file does not judge `owner`. Errors without a file path
-    stay owned, so unattributable failures still fail closed.
+    different addon's file does not judge `owner` (one name, or several: the
+    plan's addon and its companions). Errors without a file path stay owned, so
+    unattributable failures still fail closed.
     """
+    owners = {o.lower() for o in ((owner,) if isinstance(owner, str) else (owner or ()))}
     owned, foreign = [], []
     for error in _list(errors):
         match = ADDON_IN_ERROR.search(error) if isinstance(error, str) else None
-        if owner and match and match.group(1).lower() not in (owner.lower(), "forgetestbridge"):
+        if owners and match and match.group(1).lower() not in owners | {"forgetestbridge"}:
             foreign.append(error)
         else:
             owned.append(error)
@@ -249,7 +272,7 @@ def evaluate(plan: dict, report: dict) -> dict:
             actual = events.get(val, 0)
             passed = type(actual) is int and actual > 0
         elif kind == "no_lua_errors":
-            actual = split_errors(report.get("errors"), plan["addon"])[0]
+            actual = split_errors(report.get("errors"), (plan["addon"], *plan.get("companions", ())))[0]
             passed = not actual
         else:
             actual = state.get("party", {}).get("count")

@@ -29,9 +29,11 @@ The CLI equivalents are listed below.
    `frame_text_contains`, `global_equals` (SavedVariables paths),
    `chat_contains`, `event_fired`, `no_lua_errors`, plus world/party checks
    and named `fixtures` (currently `master_loot`). Use `steps` (`slash`,
-   `roll`, `wait`, `click` on registered frames, `screenshot`, and with
+   `roll`, `wait`, `click` on registered frames, `paste` into registered edit
+   boxes, `screenshot`, and with
    `master_loot` the bot's `peer_roll` and `peer_trade`) to drive the addon in
-   the real client before checks. Never weaken checks to make a failing addon pass.
+   the real client before checks. A scenario needing a second addon lists it in
+   `companions`. Never weaken checks to make a failing addon pass.
 3. Write offline specs in `projects/AddOnName/tests/*.spec.lua` covering the
    behaviour the plan checks (events, slash commands, clicks, timers,
    SavedVariables and `/reload`). Specs are fast feedback, not acceptance.

@@ -404,9 +404,16 @@ one fixed SDK action:
 | `roll` | `[low, high]` | `RandomRoll(low, high)` as the test character (a real server `/rnd`) |
 | `wait` | seconds (≤ 60) | Lets timers and server messages arrive |
 | `click` | `"FrameName"` | Clicks a visible frame the addon registered with `ForgeTestBridge:RegisterFrame` |
+| `paste` | `["EditBoxName", "text"]` | Pastes text (printable ASCII and newlines, no `\|`, up to 1000 characters) into a visible EditBox the addon registered, as a user pressing Ctrl+V would |
 | `screenshot` | `"name"` | Saves the client window as `.forge-runs/step-name.png` at that moment |
 | `peer_roll` | `[low, high]` | The `master_loot` fixture's bot sends a real `/rnd` (`MSG_RANDOM_ROLL`), seen by the whole party |
 | `peer_trade` | item ID | Trades that item from the test character's bags to the fixture's bot; both sides accept |
+
+`"companions": ["OtherAddon"]` (up to 3, folders beside the plan) adds addons the
+scenario needs as well, such as the raid lead's ForgeLootLedger for the members'
+ForgeLootWishlist: they pass the same static and offline gates, are deployed
+with the addon, steps may run their slash commands, and their Lua errors fail
+the plan like the addon's own.
 
 `peer_roll` and `peer_trade` need `"fixtures": ["master_loot"]`. A step the
 client or bot does not perform (missing command, hidden button, trade not

@@ -46,6 +46,13 @@ def _code(step: dict) -> str:
                 + json.dumps(value) + "] "
                 "if not f then return 'missing' end if not f:IsVisible() then return 'hidden' end "
                 "if type(f.Click) ~= 'function' then return 'not_clickable' end f:Click() return 'ok'")
+    if kind == "paste":
+        name, text = value
+        return ("local f = ForgeTestBridge and ForgeTestBridge.frames and ForgeTestBridge.frames["
+                + json.dumps(name) + "] "
+                "if not f then return 'missing' end if not f:IsVisible() then return 'hidden' end "
+                "if not f.IsObjectType or not f:IsObjectType('EditBox') then return 'not_an_editbox' end "
+                "f:SetFocus() f:SetText(" + json.dumps(text) + ") f:ClearFocus() return 'ok'")
     raise ValueError(f"No SDK action for step {kind!r}")
 
 

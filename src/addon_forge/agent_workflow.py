@@ -46,10 +46,18 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
     # Must be inside the scenario directory. No user-controlled paths inside plan.
     if not addon.is_relative_to(plan_file.parent.resolve()) or not addon.is_dir():
         raise ValueError(f"Addon folder {addon} not found alongside the scenario")
+    companions = [(plan_file.parent / name).resolve() for name in plan.get("companions", [])]
+    for companion in companions:
+        if not companion.is_relative_to(plan_file.parent.resolve()) or not companion.is_dir():
+            raise ValueError(f"Companion addon folder {companion} not found alongside the scenario")
+    addons = [addon, *companions]
+    owners = tuple(a.name for a in addons)
     observer = plan.get("observer", "bridge")
     if observer == "sdk" and cfg.automation_backend != "wowcontrol":
         raise ValueError("SDK observer requires wowcontrol backend")
     operations = ["Validate addon sources", "Run offline headless specs", "Deploy into isolated WoW copy"]
+    if companions:
+        operations[2] = "Deploy into isolated WoW copy (with " + ", ".join(c.name for c in companions) + ")"
     if plan.get("fixtures"):
         operations.append("Run fixtures: " + ", ".join(plan["fixtures"]))
     if plan["peers"]:
@@ -60,24 +68,32 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
     preview = {"plan": plan, "addon_dir": str(addon), "operations": operations}
     if plan.get("steps"):
         from .plan_steps import addon_slash_commands
-        unknown = slash_commands(plan) - addon_slash_commands(addon)
+        known = set().union(*(addon_slash_commands(a) for a in addons))
+        unknown = slash_commands(plan) - known
         if unknown:
             raise ValueError(f"Steps may only run the addon's own slash commands; "
                              f"{sorted(unknown)} are not defined by {plan['addon']}")
     if not approve:
         return {"status": "plan_only", **preview}
-    errors = check_addon(addon)
-    if not is_valid(errors):
-        return {"status": "failed", "stage": "static", "error": "Static validation failed",
-                "diagnostics": [asdict(x) for x in errors]}
+    for checked in addons:
+        errors = check_addon(checked)
+        if not is_valid(errors):
+            return {"status": "failed", "stage": "static", "error": f"Static validation failed for {checked.name}",
+                    "diagnostics": [asdict(x) for x in errors]}
     offline = _offline(addon)
+    for companion in companions:
+        result = _offline(companion)
+        if result["status"] != "passed":
+            offline = {**result, "addon": companion.name}
+            break
     if offline["status"] != "passed":
         return {"status": "failed", "stage": "offline", **preview, "offline": offline,
                 "error": "Offline specs failed; fix them before spending a real-client run"}
     # A running client keeps the code it loaded at startup: testing after a
     # deploy that changed files would judge the OLD addon.
-    stale = [p.name for p in (addon, BRIDGE_SRC) if differs(p, cfg.wow_dir)]
-    deploy(addon, cfg.wow_dir)
+    stale = [p.name for p in (*addons, BRIDGE_SRC) if differs(p, cfg.wow_dir)]
+    for deployed in addons:
+        deploy(deployed, cfg.wow_dir)
     if observer != "sdk":
         deploy(BRIDGE_SRC, cfg.wow_dir)
     if stale and not deployed_before_start:
@@ -121,11 +137,11 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
             run = peer_scenario(cfg, character=plan["character"], approve=True,
                                 peers=plan["peers"], suite="peer",
                                 required_tests=("peer_target_visible",),
-                                output_dir=evidence_dir, paths=paths, owner=plan["addon"])
+                                output_dir=evidence_dir, paths=paths, owner=owners)
             test = run.get("report", {})
         else:
             result = run_smoke(cfg, suite="smoke", required_tests=("bridge_loaded",),
-                               out_dir=evidence_dir, paths=paths, owner=plan["addon"])
+                               out_dir=evidence_dir, paths=paths, owner=owners)
             test = asdict(result)
     if test.get("status") != "passed":
         return {"status": test.get("status", "infrastructure_error"), **preview, "offline": offline,
