@@ -183,6 +183,13 @@ Terminal tab; a run started in another window must be pasted.
   ledger's main plan still passes (`62c5291c833d`). Plans list the ledger in
   `companions` and paste the wishlist with a `paste` step. Still offline only:
   a member on a second client, tie-break auto-rolls.
+- ForgeLootLedger 1.4 / ForgeLootWishlist 1.1 (open items: PARK, roll later,
+  OPEN ITEMS list) passed live: parking flow `b0ba9606fdba` (PARK with the
+  master looter, later ROLL, wishlist prompt during the later roll, winner on
+  the same award); regressions main `dc2c24cc790f`, trade `bd9a88a6b620`,
+  wishlist prompt `af15dd7a3008`. Still offline only: parking with another
+  raider (the fixture bot cannot receive an item it did not roll for in the
+  plan), and the open-list scenarios beyond the master looter.
 - Offline text widths are estimates (0.6 em per character); confirm UI with a
   live screenshot.
 - `flake.nix` gained `python.pkgs.lupa`; not yet built with Nix.
