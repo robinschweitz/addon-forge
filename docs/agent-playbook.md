@@ -80,6 +80,17 @@ Terminal tab; a run started in another window must be pasted.
   `Interface\ChatFrame\ChatFrameBackground` for opaque panels.
 - In a party (not raid), addon announcements must use `SendChatMessage(msg, "PARTY")`
   or members never see them.
+- `RandomRoll(low, high)` is not protected: an addon may call it from a button
+  click and from an `OnUpdate` timer without any hardware event
+  (ForgeLootWishlist's prompt and auto-roll, runs `e0284c58e3ab`, `bb9f6ee936ce`).
+- `SendAddonMessage` to PARTY/RAID also arrives at the sender as
+  `CHAT_MSG_ADDON`, so two cooperating addons (ledger and wishlist) can be
+  tested on one client.
+- Two addon windows in the same strata interleave: one window's child panes
+  draw through the other. Give windows `SetToplevel(true)` and `Raise()` them
+  on show; put popups that must stay visible in a higher strata
+  (`FULLSCREEN_DIALOG`). Offline `layoutIssues` checks one addon only, so
+  look at a live screenshot when addons share the screen.
 
 ## WoWControlSDK facts (verified live)
 
@@ -166,6 +177,12 @@ Terminal tab; a run started in another window must be pasted.
   spec; the trade is announced). Still offline only: a second addon user
   receiving the shared ledger (the bot does not run addons), the tally deciding
   a live roll, tooltips (no hover step).
+- ForgeLootWishlist 1.0 (members' wishlist, roll prompt, auto-roll, who got
+  what) with ForgeLootLedger 1.3 (shares roll starts as `S` messages) passed
+  live on 2026-10-16: prompt `e0284c58e3ab`, auto-roll `bb9f6ee936ce`; the
+  ledger's main plan still passes (`62c5291c833d`). Plans list the ledger in
+  `companions` and paste the wishlist with a `paste` step. Still offline only:
+  a member on a second client, tie-break auto-rolls.
 - Offline text widths are estimates (0.6 em per character); confirm UI with a
   live screenshot.
 - `flake.nix` gained `python.pkgs.lupa`; not yet built with Nix.
