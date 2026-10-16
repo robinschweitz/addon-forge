@@ -5,11 +5,11 @@ local TOME = "|cffa335ee|Hitem:21281:0:0:0:0:0:0:0:60|h[Grimoire of Shadow Bolt]
 local BOOTS = "|cffa335ee|Hitem:20514:0:0:0:0:0:0:0:60|h[Abyssal Boots]|h|r"
 
 -- (Spec files run before the emulated world exists: no globals at top level.)
-local WISHLIST = "WL1;Tester;1792130000\n"
+local WISHLIST = "WL2;Tester;1792130000;20\n"
     .. "21281;os;0;2;nice for alt spec\n"
-    .. "20513;ms;20;1;BiS trinket\n"
+    .. "20513;ms;1;1;BiS trinket\n"
     .. "20514;ms;0;3;\n"
-    .. "99999;os;20;4;off spec cannot use points\n"
+    .. "99999;os;1;4;off spec cannot be enhanced\n"
     .. "garbage line"
 
 before_load(function()
@@ -46,13 +46,13 @@ test("the window starts hidden and /flw toggles it", function()
     expect(forge.layoutIssues("ForgeLootWishlistFrame")).toEqual({})
 end)
 
-test("only this character's WL1 export is imported", function()
+test("only this character's WL2 export is imported", function()
     forge.click("ForgeLootWishlistImportOpen")
     expect("ForgeLootWishlistImportPanel").toBeShown()
     forge.type("ForgeLootWishlistImportText", "RS2;LOOT;1;x;1;1")
     forge.click("ForgeLootWishlistImportButton")
-    expect(forge.findText("That is not a wishlist export (it must start with WL1;).")).toBeTruthy()
-    forge.type("ForgeLootWishlistImportText", "WL1;Alice;1\n20513;ms;0;1;")
+    expect(forge.findText("That is not a wishlist export (it must start with WL2;). Export it again from the website.")).toBeTruthy()
+    forge.type("ForgeLootWishlistImportText", "WL2;Alice;1;0\n20513;ms;0;1;")
     forge.click("ForgeLootWishlistImportButton")
     expect(forge.findText("This wishlist is for Alice. Log in with Alice to import it.")).toBeTruthy()
     expect(#db().chars.Tester.items).toBe(0)
@@ -65,7 +65,7 @@ test("a valid export is imported in priority order; bad lines are skipped", func
     expect(forge.chat()).toContain("ForgeLootWishlist: imported 3 wishlist items (2 invalid lines skipped).")
     local items = db().chars.Tester.items
     expect(items[1].itemID).toBe(20513)
-    expect(items[1].points).toBe(20)
+    expect(items[1].enhanced).toBe(true)
     expect(items[2].spec).toBe("os")
     expect(forge.findText("MY WISHLIST (3)")).toBeTruthy()
     expect(forge.text(forge.findText("1. " .. CREST))).toBe("1. " .. CREST)

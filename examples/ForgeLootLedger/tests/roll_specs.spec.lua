@@ -1,5 +1,5 @@
--- The raid's roll rules: /rnd 100 main spec, /rnd 99 off spec, points enhance
--- main spec in steps of 10 up to 51-150; main spec beats off spec; within a
+-- The raid's roll rules: /rnd 100 main spec, /rnd 99 off spec, EP enhance
+-- main spec to 1+X..100+X with X = min(EP, 50); main spec beats off spec; within a
 -- spec the fewest items this raid wins (tokens excluded), then the roll.
 local CREST = "|cffa335ee|Hitem:20513:0:0:0:0:0:0:0:80|h[Abyssal Crest]|h|r"
 local TOME = "|cffa335ee|Hitem:21281:0:0:0:0:0:0:0:60|h[Grimoire of Shadow Bolt]|h|r"
@@ -49,19 +49,20 @@ test("main spec beats off spec whatever the roll", function()
     expect(sentTo("won by Bob (3) - main spec, 0 items so far.")).toBe(true)
 end)
 
-test("points enhance main spec only in steps of 10 up to 51-150", function()
+test("EP enhance main spec by any X from 1 to 50 (1+X..100+X up to 51-150)", function()
     local award = rollFor(21281, {
-        { "Alice", 140, 41, 140 },     -- counts
-        { "Bob", 149, 50, 149 },       -- not a step of 10: ignored
+        { "Alice", 140, 41, 140 },     -- X = 41: counts
+        { "Bob", 139, 50, 149 },       -- X = 49: counts
+        { "Eve", 101, 2, 101 },        -- X = 1: counts
         { "Cara", 160, 61, 160 },      -- above 51-150: ignored
-        { "Dora", 108, 10, 108 },      -- off spec cannot be enhanced: ignored
+        { "Dora", 108, 10, 108 },      -- not a 100-wide range (off spec cannot be enhanced): ignored
     })
     expect(award.recipient).toBe("Alice")
     expect(award.low).toBe(41)
     expect(award.high).toBe(140)
     local notes = {}
     for _, r in ipairs(award.rollLog) do notes[r.name] = r.note or "counted" end
-    expect(notes).toEqual({ Alice = "counted", Bob = "50-149", Cara = "61-160", Dora = "10-108" })
+    expect(notes).toEqual({ Alice = "counted", Bob = "counted", Eve = "counted", Cara = "61-160", Dora = "10-108" })
     expect(sentTo("won by Alice (140) - main spec 41-140, 0 items so far.")).toBe(true)
 end)
 
@@ -138,6 +139,6 @@ test("the export carries spec and roll range for the website", function()
     forge.slash("/forgeloot raid 9")
     forge.slash("/forgeloot export")
     local text = forge.text("ForgeLootLedgerExportText")
-    expect(text).toContain(";20513;Alice;manual;130;ms;31-130")
-    expect(text).toContain(";21281;Bob;manual;12;os;1-99")
+    expect(text).toContain(";20513;Alice;manual;130;ms;31-130;Alice")
+    expect(text).toContain(";21281;Bob;manual;12;os;1-99;Bob")
 end)

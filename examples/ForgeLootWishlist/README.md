@@ -20,29 +20,33 @@ so an alt never rolls on a main's list.
 The website exports one character's list:
 
 ```text
-WL1;<character>;<export time, Unix seconds>
-<item ID>;<ms|os>;<points>;<priority>;<note>
+WL2;<character>;<export time, Unix seconds>;<EP balance>
+<item ID>;<ms|os>;<enhanced 0/1>;<rank>;<note>
 ```
 
 ```text
-WL1;Thorgar;1792130000
-50415;ms;20;1;BiS weapon
+WL2;Thorgar;1792130000;70
+50415;ms;1;1;BiS weapon
 52027;ms;0;2;
 50074;os;0;3;for my off spec
 ```
 
 - `ms` rolls main spec (`/rnd 100`), `os` off spec (`/rnd 99`).
-- `points` (0, 10, 20, 30, 40 or 50) enhance a main-spec roll: 20 rolls
-  21-120. Off spec cannot use points. The website deducts used points from the
-  raid's loot export, as before.
-- `priority` orders the list (1 first); the note is shown in the roll prompt.
+- `enhanced` 1 rolls main spec 1+X..100+X with X = min(EP balance, 50), the
+  website's rule: with 70 EP that is 51-150, with 20 EP 21-120. Off spec
+  cannot be enhanced. After an enhanced win the addon lowers its copy of the
+  balance by X until the next export; the website deducts X from the raid's
+  loot export.
+- On the website, set spec and Enhanced per item on the character page and
+  press "Für Addon exportieren".
+- `rank` orders the list (1 first); the note is shown in the roll prompt.
 - Lines that break these rules are skipped and counted in the import message.
 
 ## Rolling
 
 When the raid lead's ForgeLootLedger starts a roll on an item from your list,
 a prompt appears at the top of the screen: **ROLL MS 21-120** (your wishlist's
-spec and points) or **SKIP**. It closes when the roll ends.
+spec and EP) or **SKIP**. It closes when the roll ends.
 
 **AUTO-ROLL** (button, or `/flw auto on|off`) rolls for you instead, about a
 second after the roll starts, for example while you are away from the keyboard.

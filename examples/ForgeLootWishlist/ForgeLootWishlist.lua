@@ -1,5 +1,5 @@
 -- ForgeLootWishlist: the raid member's side of ForgeLootLedger, for WoW 3.3.5a / Lua 5.1.
--- Imports the wishlist exported by the guild website (WL1), offers a one-click
+-- Imports the wishlist exported by the guild website (WL2), offers a one-click
 -- roll (or rolls automatically) when the raid lead's ledger starts a roll on a
 -- wishlisted item, and shows who got what this raid from the ledger's shared
 -- awards (addon messages, prefix FLLedger).
@@ -56,20 +56,6 @@ local function isToken(link)
     return false
 end
 
--- The roll range for a wishlist entry: main spec 1-100 enhanced by points in
--- steps of 10 (up to 51-150), off spec always 1-99.
-local function rollRange(entry)
-    if entry.spec == "os" then return 1, 99 end
-    local points = entry.points or 0
-    return 1 + points, 100 + points
-end
-
-local function rangeLabel(entry)
-    local low, high = rollRange(entry)
-    if entry.spec == "os" then return "OS 1-99" end
-    return low > 1 and ("MS " .. low .. "-" .. high) or "MS 1-100"
-end
-
 local function ensureDatabase()
     ForgeLootWishlistDB = ForgeLootWishlistDB or {}
     local db = ForgeLootWishlistDB
@@ -81,10 +67,38 @@ local function ensureDatabase()
     return db, db.chars[me]
 end
 
+local MAX_ENHANCED = 50     -- X = min(EP, 50), the website's rule
+
+-- enhancedPoints is X for an enhanced main-spec roll: the EP balance from the
+-- last export, minus what enhanced wins since then cost, at most 50.
+local function enhancedPoints(char)
+    local balance = char.balance or 0
+    for _, spent in pairs(char.spent or {}) do balance = balance - spent end
+    return math.max(0, math.min(balance, MAX_ENHANCED))
+end
+
+-- The roll range for a wishlist entry: main spec 1-100 (1+X..100+X when the
+-- website marked it enhanced and EP are left), off spec always 1-99.
+local function rollRange(entry)
+    if entry.spec == "os" then return 1, 99 end
+    local x = 0
+    if entry.enhanced then
+        local _, char = ensureDatabase()
+        x = enhancedPoints(char)
+    end
+    return 1 + x, 100 + x
+end
+
+local function rangeLabel(entry)
+    local low, high = rollRange(entry)
+    if entry.spec == "os" then return "OS 1-99" end
+    return low > 1 and ("MS " .. low .. "-" .. high) or "MS 1-100"
+end
+
 ---------------------------------------------------------------------------
 -- Wishlist import. The website exports one character's list:
---   WL1;<character>;<exported unix time>
---   <itemID>;<ms|os>;<points 0-50, steps of 10, main spec only>;<priority>;<note>
+--   WL2;<character>;<exported unix time>;<EP balance>
+--   <itemID>;<ms|os>;<enhanced 0/1, main spec only>;<rank>;<note>
 ---------------------------------------------------------------------------
 local function parseWishlist(text)
     local lines = {}
@@ -94,18 +108,17 @@ local function parseWishlist(text)
     end
     if table.getn(lines) == 0 then return nil, "Paste the wishlist export from the website first." end
     local header = split(lines[1])
-    if header[1] ~= "WL1" or not header[2] or header[2] == "" then
-        return nil, "That is not a wishlist export (it must start with WL1;)."
+    if header[1] ~= "WL2" or not header[2] or header[2] == "" or not tonumber(header[4]) then
+        return nil, "That is not a wishlist export (it must start with WL2;). Export it again from the website."
     end
     local items, bad = {}, {}
     for i = 2, table.getn(lines) do
         local f = split(lines[i])
-        local itemID, spec, points, priority = tonumber(f[1]), lower(f[2]), tonumber(f[3] ~= "" and f[3] or "0"),
-            tonumber(f[4])
-        local valid = itemID and (spec == "ms" or spec == "os") and points and points >= 0 and points <= 50
-            and points % 10 == 0 and not (spec == "os" and points > 0)
+        local itemID, spec, enhanced, priority = tonumber(f[1]), lower(f[2]), f[3], tonumber(f[4])
+        local valid = itemID and (spec == "ms" or spec == "os") and (enhanced == "0" or enhanced == "1")
+            and not (spec == "os" and enhanced == "1")
         if valid then
-            table.insert(items, { itemID = itemID, spec = spec, points = points,
+            table.insert(items, { itemID = itemID, spec = spec, enhanced = enhanced == "1" or nil,
                 priority = priority or (table.getn(items) + 1),
                 note = string.gsub(f[5] or "", "|", "") })
         else
@@ -116,7 +129,8 @@ local function parseWishlist(text)
         if a.priority ~= b.priority then return a.priority < b.priority end
         return a.itemID < b.itemID
     end)
-    return { character = header[2], exportedAt = tonumber(header[3]), items = items }, nil, bad
+    return { character = header[2], exportedAt = tonumber(header[3]), balance = tonumber(header[4]), items = items },
+        nil, bad
 end
 
 local function findWish(itemID)
@@ -231,6 +245,16 @@ local function applyAward(f)
     award.roll, award.winner = tonumber(f[13]), f[16] ~= "" and f[16] or nil
     award.token = f[18] == "1" or isToken(award.item) or nil
     db.raid.awards[key] = award
+    -- An enhanced win of mine costs X until the next export brings the new balance.
+    local _, char = ensureDatabase()
+    local low, high = tonumber(f[14]), tonumber(f[15])
+    local mine = award.state ~= "deleted" and isPlayer(award.winner or award.recipient)
+    char.spent = char.spent or {}
+    if mine and low and high == low + 99 and low > 1 and award.at >= (char.exportedAt or 0) then
+        char.spent[key] = low - 1
+    else
+        char.spent[key] = nil
+    end
     return true
 end
 
@@ -725,7 +749,7 @@ local function importWishlist()
         return
     end
     local _, char = ensureDatabase()
-    char.items, char.exportedAt = list.items, list.exportedAt
+    char.items, char.exportedAt, char.balance, char.spent = list.items, list.exportedAt, list.balance, {}
     importText:SetText("")
     showImport(false)
     refresh()

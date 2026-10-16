@@ -12,9 +12,10 @@ Select an item and type `/forgeloot start` to start a 30-second roll. The raid's
 rules:
 
 - `/rnd 100` (1-100) is **main spec**, `/rnd 99` (1-99) is **off spec**.
-- Points enhance a main-spec roll in steps of 10, up to 51-150: 11-110,
-  21-120, 31-130, 41-140 or 51-150. Off spec cannot be enhanced. The addon
-  trusts the roll; the website deducts the points (the export carries the range).
+- EP enhance a main-spec roll to 1+X..100+X with X = min(EP, 50), the guild
+  website's rule: any range from 2-101 up to 51-150 counts. Off spec cannot be
+  enhanced. The addon trusts the roll; the website deducts X from the EP
+  balance (the export carries the range).
 - **Main spec always beats off spec.**
 - Within one spec, **the player with the fewest items this raid wins**; the
   roll decides between equal tallies. Main spec and off spec have separate
@@ -152,9 +153,12 @@ RS2;LOOT;42;Raidleader;1760000000;1760003600
 ```
 
 Header: `RS2;LOOT;<raid ID>;<recorder>;<first award time>;<export time>`.
-Lines, oldest first: `<award ID>;<time>;<creature ID or ->;<item ID or ->;<recipient>;<state>;<roll or ->;<ms|os|->;<roll range or ->`.
+Lines, oldest first: `<award ID>;<time>;<creature ID or ->;<item ID or ->;<recipient>;<state>;<roll or ->;<ms|os|->;<roll range or ->;<roll winner or ->`.
 The roll is the recipient's (or, for a held item, the winner's); a range such
-as `21-120` shows a points-enhanced main-spec roll.
+as `21-120` shows an enhanced main-spec roll (X = 20). The winner tells the
+website who a held item goes to. The website (raid-website, ADR 070) previews
+the export: enhanced rolls default to Enhanced, held items with a winner to
+the winner; parked and deleted lines are shown but never imported.
 Times are Unix seconds.
 
 States: `given` (handed out or traded by you), `held` (with the recorder),

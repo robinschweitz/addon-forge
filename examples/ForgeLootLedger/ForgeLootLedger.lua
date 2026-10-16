@@ -92,13 +92,14 @@ local function announce(text)
 end
 
 -- Loot rules (decided by the raid): /rnd 100 is main spec, /rnd 99 off spec.
--- Points enhance a main-spec roll in steps of 10, up to 51-150 (11-110,
--- 21-120, ...). Main spec always beats off spec; within one spec the player with
--- the fewest items this raid wins, and the roll decides between equal tallies.
+-- An enhanced main-spec roll is 1+X..100+X with X = min(EP, 50) (the guild
+-- website's rule), so any X from 1 to 50 counts (2-101 up to 51-150). Main spec
+-- always beats off spec; within one spec the player with the fewest items this
+-- raid wins, and the roll decides between equal tallies.
 local function rollKind(low, high)
     if low == 1 and high == 100 then return "ms" end
     if low == 1 and high == 99 then return "os" end
-    if high == low + 99 and low >= 11 and low <= 51 and (low - 1) % 10 == 0 then return "ms" end
+    if high == low + 99 and low >= 2 and low <= 51 then return "ms" end
 end
 
 local function isToken(link)
@@ -369,7 +370,8 @@ end
 
 -- buildExport renders "RS2;LOOT;<raidID>;<recorder>;<startedAt>;<exportedAt>"
 -- followed by "<id>;<awardedAt>;<npcID or ->;<itemID or ->;<recipient>;<state>;
--- <roll or ->;<ms|os|->;<low-high or ->" per award, oldest first. The range shows
+-- <roll or ->;<ms|os|->;<low-high or ->;<roll winner or ->" per award, oldest
+-- first. The winner tells the website who a held item goes to. The range shows
 -- enhanced rolls (e.g. 21-120), whose points the website deducts. IDs never change, so the website can update lines it
 -- already imported; removed awards stay in the export as "deleted" tombstones.
 -- The separator is ";" because "|" starts escape sequences ("|T", "|c") in a
@@ -382,7 +384,8 @@ local function buildExport(raidID, recorder, startedAt, exportedAt, history)
         lines[table.getn(lines) + 1] = table.concat({ tostring(r.id), tostring(r.at or 0),
             r.npc and tostring(r.npc) or "-", r.itemID and tostring(r.itemID) or "-",
             field(r.recipient), r.state or "manual", r.roll and tostring(r.roll) or "-",
-            r.spec or "-", r.low and (r.low .. "-" .. r.high) or "-" }, ";")
+            r.spec or "-", r.low and (r.low .. "-" .. r.high) or "-",
+            r.winner and field(r.winner) ~= "" and field(r.winner) or "-" }, ";")
     end
     return table.concat(lines, "\n")
 end

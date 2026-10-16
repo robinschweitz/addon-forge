@@ -11,8 +11,8 @@ before_load(function()
     forge.item(21281, { name = "Grimoire of Shadow Bolt", link = TOME, quality = 4 })
     forge.item(20514, { name = "Abyssal Boots", link = BOOTS, quality = 4 })
     forge.setSaved("ForgeLootWishlistDB", { chars = { Tester = { items = {
-        { itemID = 20513, spec = "ms", points = 0, priority = 1, note = "" },
-        { itemID = 20514, spec = "ms", points = 0, priority = 2, note = "" },
+        { itemID = 20513, spec = "ms", priority = 1, note = "" },
+        { itemID = 20514, spec = "ms", priority = 2, note = "" },
     } } } })
 end)
 

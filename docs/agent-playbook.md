@@ -207,6 +207,13 @@ Terminal tab; a run started in another window must be pasted.
   wishlist prompt `af15dd7a3008`. Still offline only: parking with another
   raider (the fixture bot cannot receive an item it did not roll for in the
   plan), and the open-list scenarios beyond the master looter.
+- ForgeLootLedger 1.5 / ForgeLootWishlist 1.2 follow the guild website
+  (robinschweitz/raid-website, ADR 070): enhanced main spec is any 1+X..100+X
+  with X = min(EP, 50) (no steps of 10); RS2 lines end with the roll winner;
+  the wishlist imports WL2 (EP balance in the header, `ms|os;enhanced 0/1` per
+  item) and lowers its balance copy after an enhanced win. Specs cover this
+  (`tests/enhanced.spec.lua`); the live plans use WL2. Two-player plan passed
+  live on WL2 (run `b9c26fa82e6a`, member `8fff25e7c5dd`: 30 EP -> 31-130).
 - Offline text widths are estimates (0.6 em per character); confirm UI with a
   live screenshot.
 - `flake.nix` gained `python.pkgs.lupa`; not yet built with Nix.

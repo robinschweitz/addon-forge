@@ -29,7 +29,7 @@
       "type": "paste",
       "value": [
         "ForgeLootWishlistImportText",
-        "WL1;Raidmember;1792130000\n20513;ms;30;1;Member crest"
+        "WL2;Raidmember;1792130000;30\n20513;ms;1;1;Member crest"
       ],
       "client": "member"
     },

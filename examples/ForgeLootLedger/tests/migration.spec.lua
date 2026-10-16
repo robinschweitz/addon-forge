@@ -23,7 +23,7 @@ test("old awards get IDs oldest first and appear in the export", function()
     expect(db.history[1].state).toBe("manual")
     forge.slash("/forgeloot raid 7")
     forge.slash("/forgeloot export")
-    expect(forge.text("ForgeLootLedgerExportText")).toContain("\n1;0;-;20513;Older;manual;-;-;-\n2;0;-;20513;Newer;manual;-;-;-")
+    expect(forge.text("ForgeLootLedgerExportText")).toContain("\n1;0;-;20513;Older;manual;-;-;-;-\n2;0;-;20513;Newer;manual;-;-;-;-")
 end)
 
 test("a German loot message confirms a handout to yourself", function()
