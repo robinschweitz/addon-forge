@@ -3,39 +3,167 @@
   "addon": "ForgeLootLedger",
   "character": "Test",
   "peers": 0,
-  "fixtures": ["master_loot"],
+  "fixtures": [
+    "master_loot"
+  ],
   "steps": [
-    {"type": "slash", "value": "/forgeloot newraid confirm"},
-    {"type": "slash", "value": "/forgeloot start"},
-    {"type": "wait", "value": 1},
-    {"type": "peer_roll", "value": [1, 100]},
-    {"type": "wait", "value": 1},
-    {"type": "roll", "value": [1, 1000]},
-    {"type": "wait", "value": 1},
-    {"type": "peer_roll", "value": [1, 100]},
-    {"type": "wait", "value": 31},
-    {"type": "screenshot", "value": "peer_winner"},
-    {"type": "click", "value": "ForgeLootLedgerAward"},
-    {"type": "wait", "value": 3},
-    {"type": "click", "value": "ForgeLootLedgerHistory1"},
-    {"type": "wait", "value": 1},
-    {"type": "screenshot", "value": "peer_roll_log"}
+    {
+      "type": "slash",
+      "value": "/forgeloot newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/forgeloot start"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "peer_roll",
+      "value": [
+        1,
+        99
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "roll",
+      "value": [
+        1,
+        1000
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "peer_roll",
+      "value": [
+        1,
+        100
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 31
+    },
+    {
+      "type": "screenshot",
+      "value": "peer_winner"
+    },
+    {
+      "type": "click",
+      "value": "ForgeLootLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "click",
+      "value": "ForgeLootLedgerHistory1"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "screenshot",
+      "value": "peer_roll_log"
+    }
   ],
   "checks": [
-    {"type": "event_fired", "value": "LOOT_OPENED"},
-    {"type": "event_fired", "value": "CHAT_MSG_LOOT"},
-    {"type": "chat_contains", "value": "/rnd now! 30 seconds"},
-    {"type": "chat_contains", "value": "Ergebnis: "},
-    {"type": "global_equals", "path": "ForgeLootLedgerDB.history.1.state", "value": "given"},
-    {"type": "global_equals", "path": "ForgeLootLedgerDB.history.1.confirmed", "value": true},
-    {"type": "global_equals", "path": "ForgeLootLedgerDB.history.1.rolls", "value": 1},
-    {"type": "global_equals", "path": "ForgeLootLedgerDB.history.1.npc", "value": 15209},
-    {"type": "global_equals", "path": "ForgeLootLedgerDB.history.1.itemID", "value": 20513},
-    {"type": "frame_text_contains", "frame": "ForgeLootLedgerHistory1", "value": "(1 rolls)"},
-    {"type": "frame_text_contains", "frame": "ForgeLootLedgerRollHeading", "value": "ROLLS FOR AWARD #"},
-    {"type": "frame_text_contains", "frame": "ForgeLootLedgerRoll1", "value": "  - won"},
-    {"type": "frame_text_contains", "frame": "ForgeLootLedgerRoll2", "value": "Test  - ignored: 1-1000"},
-    {"type": "frame_text_contains", "frame": "ForgeLootLedgerRoll3", "value": "  - ignored: re-roll"},
-    {"type": "no_lua_errors", "value": true}
+    {
+      "type": "event_fired",
+      "value": "LOOT_OPENED"
+    },
+    {
+      "type": "event_fired",
+      "value": "CHAT_MSG_LOOT"
+    },
+    {
+      "type": "chat_contains",
+      "value": "/rnd now! 30 seconds"
+    },
+    {
+      "type": "chat_contains",
+      "value": "Ergebnis: "
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootLedgerDB.history.1.state",
+      "value": "given"
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootLedgerDB.history.1.confirmed",
+      "value": true
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootLedgerDB.history.1.rolls",
+      "value": 1
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootLedgerDB.history.1.npc",
+      "value": 15209
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootLedgerDB.history.1.itemID",
+      "value": 20513
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "ForgeLootLedgerHistory1",
+      "value": "(1 rolls)"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "ForgeLootLedgerRollHeading",
+      "value": "ROLLS FOR AWARD #"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "ForgeLootLedgerRoll1",
+      "value": "  - won"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "ForgeLootLedgerRoll2",
+      "value": "Test  - ignored: 1-1000"
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootLedgerDB.history.1.spec",
+      "value": "os"
+    },
+    {
+      "type": "chat_contains",
+      "value": " - off spec, 0 items so far."
+    },
+    {
+      "type": "chat_contains",
+      "value": " - off spec."
+    },
+    {
+      "type": "event_fired",
+      "value": "CHAT_MSG_ADDON"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "ForgeLootLedgerRoll3",
+      "value": "  - ignored: re-roll"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
   ]
 }

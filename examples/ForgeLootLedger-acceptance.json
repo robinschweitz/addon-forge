@@ -157,6 +157,10 @@
       "value": "ignored: 1-1000"
     },
     {
+      "type": "chat_contains",
+      "value": "goes to Test - main spec."
+    },
+    {
       "type": "no_lua_errors",
       "value": true
     }

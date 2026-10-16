@@ -11,6 +11,9 @@ local ROLL_SECONDS = 30
 local TIE_SECONDS = 15
 local TRADE_GRACE = 5   -- seconds a closed trade window may still report "Trade complete."
 local EXPORT_FORMAT = "RS2"
+-- Tokens are not counted in the item tally (matched in the item link's name).
+local TOKEN_NAMES = { "Weiheabzeichen" }
+local SPEC_NAMES = { ms = "main spec", os = "off spec" }
 
 local active = {}
 local selected          -- the selected entry table (not an index: inserts shift indices)
@@ -24,6 +27,7 @@ local trade             -- { partner, items, closedAt } of the open or just clos
 local patterns = {}
 local historyOffset = 0
 local rollOffset = 0
+local syncAt            -- when to ask the group for the shared ledger (after login)
 local rows = {}
 
 local function trim(value)
@@ -76,6 +80,53 @@ local function say(text)
     DEFAULT_CHAT_FRAME:AddMessage("ForgeLootLedger: " .. text)
 end
 
+-- announce goes to raid chat in a raid, party chat in a party, else local chat.
+local function announce(text)
+    if GetNumRaidMembers() and GetNumRaidMembers() > 0 then
+        SendChatMessage(text, "RAID")
+    elseif GetNumPartyMembers() and GetNumPartyMembers() > 0 then
+        SendChatMessage(text, "PARTY")
+    else
+        DEFAULT_CHAT_FRAME:AddMessage("ForgeLootLedger: " .. text)
+    end
+end
+
+-- Loot rules (decided by the raid): /rnd 100 is main spec, /rnd 99 off spec.
+-- Points enhance a main-spec roll in steps of 10, up to 51-150 (11-110,
+-- 21-120, ...). Main spec always beats off spec; within one spec the player with
+-- the fewest items this raid wins, and the roll decides between equal tallies.
+local function rollKind(low, high)
+    if low == 1 and high == 100 then return "ms" end
+    if low == 1 and high == 99 then return "os" end
+    if high == low + 99 and low >= 11 and low <= 51 and (low - 1) % 10 == 0 then return "ms" end
+end
+
+local function isToken(link)
+    for _, name in ipairs(TOKEN_NAMES) do
+        if string.find(link or "", name, 1, true) then return true end
+    end
+    return false
+end
+
+-- rollLabel describes a counted roll: "MS", "MS 21-120" (with points) or "OS".
+local function rollLabel(r)
+    if r.kind == "os" then return "OS" end
+    if r.low and r.low > 1 then return "MS " .. r.low .. "-" .. r.high end
+    return "MS"
+end
+
+local function itemCount(n)
+    return n == 1 and "1 item" or (n .. " items")
+end
+
+-- ranksAbove orders counted rolls: main spec first, then the fewest items, then
+-- the highest roll.
+local function ranksAbove(a, b)
+    if a.kind ~= b.kind then return a.kind == "ms" end
+    if (a.tally or 0) ~= (b.tally or 0) then return (a.tally or 0) < (b.tally or 0) end
+    return a.value > b.value
+end
+
 local function ensureDatabase()
     ForgeLootLedgerDB = ForgeLootLedgerDB or {}
     local db = ForgeLootLedgerDB
@@ -101,6 +152,39 @@ local function findRecord(id)
     end
 end
 
+-- tallies counts this raid's awards per player and spec ({ ms = n, os = n }),
+-- keyed by lower-case name. Tokens, removed awards and awards without a spec
+-- (handed out without a roll) do not count; a held item counts for its winner.
+local function tallies()
+    local counts = {}
+    for _, r in ipairs(ensureDatabase().history) do
+        if (r.spec == "ms" or r.spec == "os") and r.state ~= "deleted" and not r.token then
+            local key = lower((r.state == "held" and r.winner) or r.recipient)
+            counts[key] = counts[key] or { ms = 0, os = 0 }
+            counts[key][r.spec] = counts[key][r.spec] + 1
+        end
+    end
+    return counts
+end
+
+local function tallyOf(counts, name, kind)
+    local entry = counts[lower(name)]
+    return entry and entry[kind] or 0
+end
+
+local function summaryLine(name)
+    local counts = tallies()
+    return string.format("%s this raid: %d main spec, %d off spec (tokens not counted)",
+        name, tallyOf(counts, name, "ms"), tallyOf(counts, name, "os"))
+end
+
+-- announceAward tells the raid who got an item, so nobody has to ask.
+local function announceAward(record, how)
+    local spec = record.spec and (" - " .. SPEC_NAMES[record.spec]) or ""
+    announce(string.format("[Loot] %s goes to %s%s%s.", record.item, record.recipient, spec,
+        how and (" (" .. how .. ")") or ""))
+end
+
 local function isActive(entry)
     for _, candidate in ipairs(active) do
         if candidate == entry then return true end
@@ -109,33 +193,116 @@ local function isActive(entry)
 end
 
 -- sortedRollLog copies an entry's roll log for the ledger: by round (1 = the
--- roll, 2+ = tie-breaks), counted rolls highest first, then ignored rolls in
--- the order they came in. nil means no roll was ever started for the item.
+-- roll, 2+ = tie-breaks), counted rolls in winning order (main spec, fewest
+-- items, highest roll), then ignored rolls in the order they came in.
 local function sortedRollLog(entry)
     if not entry.rollLog then return {} end
+    local counts = tallies()
     local log = {}
     for index, r in ipairs(entry.rollLog) do
-        table.insert(log, { name = r.name, value = r.value, round = r.round, note = r.note, order = index })
+        local copy = { name = r.name, value = r.value, round = r.round, note = r.note, order = index,
+            kind = r.kind, low = r.low, high = r.high }
+        if r.kind and not r.note then copy.tally = tallyOf(counts, r.name, r.kind) end
+        table.insert(log, copy)
     end
     table.sort(log, function(a, b)
         if a.round ~= b.round then return a.round < b.round end
         if (a.note == nil) ~= (b.note == nil) then return a.note == nil end
-        if a.note == nil and a.value ~= b.value then return a.value > b.value end
+        if a.note == nil and (a.kind ~= b.kind or a.tally ~= b.tally or a.value ~= b.value) then
+            return ranksAbove(a, b)
+        end
         return a.order < b.order
     end)
     for _, r in ipairs(log) do r.order = nil end
     return log
 end
 
+---------------------------------------------------------------------------
+-- Shared ledger: every award change goes to the other addon users in the
+-- group, so officers see the same list and a crashed master looter can get
+-- the ledger back (/forgeloot sync).
+---------------------------------------------------------------------------
+local SYNC_PREFIX = "FLLedger"
+local outbox = {}
+local NOTE_CODES = { ["re-roll"] = "r", ["not in tie-break"] = "t" }
+
+local function groupChannel()
+    if GetNumRaidMembers() and GetNumRaidMembers() > 0 then return "RAID" end
+    if GetNumPartyMembers() and GetNumPartyMembers() > 0 then return "PARTY" end
+end
+
+local function queue(message)
+    if groupChannel() then table.insert(outbox, message) end
+end
+
+-- currentSession names this raid's ledger; it changes with every new raid.
+local function currentSession()
+    local db = ensureDatabase()
+    db.session = db.session or (field(playerName()) .. "-" .. time())
+    return db.session
+end
+
+local function encodeRecord(r)
+    return table.concat({ "A", currentSession(), field(r.origin or playerName()), r.id, r.rev or 1, r.at or 0,
+        r.itemID or "", r.npc or "", field(r.recipient), r.state or "manual", r.confirmed and 1 or 0,
+        r.spec or "", r.roll or "", r.low or "", r.high or "", field(r.winner or ""), r.rolls or 0,
+        r.token and 1 or "", r.time or "" }, ";")
+end
+
+-- encodeLog splits a roll log into messages of at most ~200 characters.
+local function encodeLog(r)
+    local entries = {}
+    for _, e in ipairs(r.rollLog or {}) do
+        local code = e.note and (NOTE_CODES[e.note] or "x") or ""
+        table.insert(entries, table.concat({ field(e.name), e.value, e.low or 1, e.high or 100, e.round or 1,
+            code, e.tally or "" }, ","))
+    end
+    local parts, current = {}, {}
+    local length = 0
+    for _, entry in ipairs(entries) do
+        if length + string.len(entry) > 160 and table.getn(current) > 0 then
+            table.insert(parts, current)
+            current, length = {}, 0
+        end
+        table.insert(current, entry)
+        length = length + string.len(entry) + 1
+    end
+    if table.getn(current) > 0 then table.insert(parts, current) end
+    local messages = {}
+    for index, part in ipairs(parts) do
+        table.insert(messages, table.concat({ "L", currentSession(), field(r.origin or playerName()), r.id,
+            index, table.getn(parts), table.concat(part, "/") }, ";"))
+    end
+    return messages
+end
+
+-- publish sends a changed award (with its roll log when withLog is set).
+local function publish(record, withLog)
+    record.origin = record.origin or playerName()
+    record.rev = (record.rev or 0) + 1
+    queue(encodeRecord(record))
+    if withLog then
+        for _, message in ipairs(encodeLog(record)) do queue(message) end
+    end
+end
+
+local function findRoll(entry, name)
+    for _, r in ipairs(entry.rolls or {}) do
+        if lower(r.name) == lower(name) then return r end
+    end
+end
+
 -- recordAward stores an award and removes the item from the active list.
 -- Items the recorder gives to himself are "held" until a trade or a correction.
+-- The award's spec comes from the recipient's roll, or for a held item from
+-- the roll winner's (the master looter passes it on later).
 local function recordAward(entry, recipient, state, confirmed)
     local db = ensureDatabase()
+    local winner = entry.winner and entry.winner.name
+    local roll = findRoll(entry, recipient)
+    if not roll and isPlayer(recipient) and winner then roll = findRoll(entry, winner) end
+    local log = sortedRollLog(entry)   -- before this award changes the tallies
     db.nextID = db.nextID + 1
-    local roll
-    for _, r in ipairs(entry.rolls or {}) do
-        if lower(r.name) == lower(recipient) then roll = r.value break end
-    end
     local record = {
         id = db.nextID,
         item = entry.item or "Unknown item",
@@ -145,8 +312,13 @@ local function recordAward(entry, recipient, state, confirmed)
         state = isPlayer(recipient) and "held" or state,
         confirmed = confirmed and true or false,
         rolls = table.getn(entry.rolls or {}),
-        roll = roll,
-        rollLog = sortedRollLog(entry),
+        roll = roll and roll.value,
+        spec = roll and roll.kind,
+        low = roll and roll.low,
+        high = roll and roll.high,
+        winner = winner,
+        token = isToken(entry.item) or nil,
+        rollLog = log,
         time = date("%H:%M"),
         at = time(),
     }
@@ -156,6 +328,7 @@ local function recordAward(entry, recipient, state, confirmed)
         table.remove(db.history)
     end
     entry.record = record
+    publish(record, true)
     for index = table.getn(active), 1, -1 do
         if active[index] == entry then table.remove(active, index) end
     end
@@ -165,8 +338,9 @@ local function recordAward(entry, recipient, state, confirmed)
 end
 
 -- buildExport renders "RS2;LOOT;<raidID>;<recorder>;<startedAt>;<exportedAt>"
--- followed by "<id>;<awardedAt>;<npcID or ->;<itemID or ->;<recipient>;<state>;<roll or ->"
--- per award, oldest first. IDs never change, so the website can update lines it
+-- followed by "<id>;<awardedAt>;<npcID or ->;<itemID or ->;<recipient>;<state>;
+-- <roll or ->;<ms|os|->;<low-high or ->" per award, oldest first. The range shows
+-- enhanced rolls (e.g. 21-120), whose points the website deducts. IDs never change, so the website can update lines it
 -- already imported; removed awards stay in the export as "deleted" tombstones.
 -- The separator is ";" because "|" starts escape sequences ("|T", "|c") in a
 -- WoW EditBox, and character names cannot contain ";".
@@ -177,7 +351,8 @@ local function buildExport(raidID, recorder, startedAt, exportedAt, history)
         local r = history[i]
         lines[table.getn(lines) + 1] = table.concat({ tostring(r.id), tostring(r.at or 0),
             r.npc and tostring(r.npc) or "-", r.itemID and tostring(r.itemID) or "-",
-            field(r.recipient), r.state or "manual", r.roll and tostring(r.roll) or "-" }, ";")
+            field(r.recipient), r.state or "manual", r.roll and tostring(r.roll) or "-",
+            r.spec or "-", r.low and (r.low .. "-" .. r.high) or "-" }, ";")
     end
     return table.concat(lines, "\n")
 end
@@ -534,6 +709,10 @@ local function updateHistory()
             if record.state == "deleted" then text = "|cff777777" .. string.gsub(text, "|c%x%x%x%x%x%x%x%x", "") .. "|r" end
             line:SetText(text)
             local stateText = stateLabels[record.state] or string.upper(record.state or "")
+            if record.state == "held" and not isPlayer(record.recipient) then stateText = "HELD" end
+            if string.sub(record.item or "", 1, 5) == "item:" then
+                record.item = select(2, GetItemInfo(record.itemID or 0)) or record.item   -- now cached?
+            end
             if not record.confirmed and record.state ~= "deleted" then stateText = stateText .. "?" end
             local color = stateColors[record.state] or stateColors.manual
             line.state:SetText(stateText)
@@ -593,6 +772,7 @@ local function showRollLog(record)
     for i = 1, MAX_ACTIVE do
         local row, r = rows[i], log and log[i + rollOffset]
         row.item = nil
+        row.logName = r and r.name
         if r then
             local text = r.name
             if r.round > 1 then text = text .. "  (tie-break " .. (r.round - 1) .. ")" end
@@ -604,6 +784,10 @@ local function showRollLog(record)
                 row.count:SetTextColor(0.45, 0.85, 0.55)
             else
                 row.count:SetTextColor(1.00, 0.79, 0.31)
+            end
+            -- Spec and the tally the ranking used (logs from before 1.2 have neither).
+            if r.kind and not r.note then
+                text = text .. "  (" .. rollLabel(r) .. ", " .. itemCount(r.tally or 0) .. ")"
             end
             row:SetText(text)
             row.count:SetText(tostring(r.value))
@@ -638,6 +822,7 @@ local function updateRows()
         if entry then
             activeCount = activeCount + 1
             row.item = entry
+            row.logName = nil
             row:SetText(string.format("%s", entry.item))
             row.count:SetText(string.format("%d ROLLS", activeRollCount(entry)))
             row.count:SetTextColor(1.00, 0.79, 0.31)
@@ -656,7 +841,7 @@ local function updateRows()
 end
 
 for i = 1, MAX_ACTIVE do
-    local row = CreateFrame("Button", nil, rollPane)
+    local row = CreateFrame("Button", "ForgeLootLedgerRow" .. i, rollPane)
     row:SetPoint("TOPLEFT", rollPane, "TOPLEFT", 10, -29 - (i - 1) * 18)
     row:SetWidth(316)
     row:SetHeight(17)
@@ -696,6 +881,70 @@ historyPane:SetScript("OnMouseWheel", function(_, delta)
     historyOffset = historyOffset - delta
     updateHistory()
 end)
+
+-- Tooltips: items show their real item tooltip; players show what they got
+-- this raid, so fairness calls need no extra window.
+local function showItemTooltip(owner, link)
+    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    local itemString = type(link) == "string" and string.match(link, "item:[%-%d:]+")
+    if itemString then GameTooltip:SetHyperlink(itemString) else GameTooltip:ClearLines() end
+end
+
+local function addPlayerLines(name)
+    GameTooltip:AddLine(summaryLine(name), 0.45, 0.85, 1.00)
+    for _, record in ipairs(ensureDatabase().history) do
+        if record.state ~= "deleted" and lower(record.recipient) == lower(name) then
+            GameTooltip:AddLine("  " .. record.item .. (record.spec and ("  " .. string.upper(record.spec)) or "")
+                .. (record.token and "  (token)" or ""))
+        end
+    end
+end
+
+local function hideTooltip() GameTooltip:Hide() end
+
+for _, row in ipairs(rows) do
+    row:SetScript("OnEnter", function(self)
+        if self.item then
+            showItemTooltip(self, self.item.item)
+        elseif self.logName then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(self.logName)
+            addPlayerLines(self.logName)
+        else
+            return
+        end
+        GameTooltip:Show()
+    end)
+    row:SetScript("OnLeave", hideTooltip)
+end
+
+for _, line in ipairs(historyLines) do
+    line:SetScript("OnEnter", function(self)
+        local record = self.record
+        if not record then return end
+        showItemTooltip(self, record.item)
+        GameTooltip:AddLine(string.format("Award #%d: %s (%s)", record.id, record.recipient,
+            stateLabels[record.state] or record.state or ""), 1, 1, 1)
+        if record.roll then
+            GameTooltip:AddLine(string.format("Roll %d, %s", record.roll, record.spec and rollLabel({
+                kind = record.spec, low = record.low, high = record.high }) or "spec unknown"), 0.8, 0.8, 0.8)
+        end
+        addPlayerLines(record.recipient)
+        GameTooltip:Show()
+    end)
+    line:SetScript("OnLeave", hideTooltip)
+end
+
+for _, button in ipairs(rosterButtons) do
+    button:SetScript("OnEnter", function(self)
+        if not self.fullName then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(self.fullName)
+        addPlayerLines(self.fullName)
+        GameTooltip:Show()
+    end)
+    button:SetScript("OnLeave", hideTooltip)
+end
 
 rollPane:SetScript("OnMouseWheel", function(_, delta)
     if not editing then return end
@@ -768,6 +1017,7 @@ local function onGiveMasterLoot(slot, candidate)
         record.recipient = field(name)
         record.state = isPlayer(name) and "held" or "given"
         record.confirmed = false
+        publish(record)
     else
         record = recordAward(entry, name, "given", false)
     end
@@ -792,7 +1042,9 @@ local function onLootMessage(message)
         if not record.confirmed and record.state ~= "deleted" and record.itemID == itemID
             and lower(record.recipient) == lower(name) then
             record.confirmed = true
+            publish(record)
             status:SetText(string.format("Award #%d confirmed: %s received the item.", record.id, record.recipient))
+            announceAward(record)
             updateHistory()
             return
         end
@@ -837,6 +1089,7 @@ local function applyTrade(partner, itemIDs)
             if not used[i] and record.state == "held" and record.itemID == itemID and isPlayer(record.recipient) then
                 used[i] = true
                 record.recipient, record.state, record.confirmed = field(partner), "given", true
+                publish(record)
                 table.insert(moved, record)
                 break
             end
@@ -861,6 +1114,7 @@ local function onTradeComplete()
     trade = nil
     for _, record in ipairs(moved) do
         say(string.format("trade recorded: #%d %s -> %s", record.id, record.item, record.recipient))
+        announceAward(record, "traded")
     end
     if table.getn(moved) > 0 then updateRows() end
 end
@@ -897,7 +1151,9 @@ local function setRecipient(id, name)
     record.state = isPlayer(name) and "held" or "manual"
     record.confirmed = true
     record.roll = nil
+    publish(record)
     status:SetText(string.format("Award #%d now goes to %s.", record.id, record.recipient))
+    announceAward(record, "corrected")
     updateRows()
     return true
 end
@@ -909,9 +1165,150 @@ local function deleteRecord(id)
         return
     end
     record.state = "deleted"
+    publish(record)
     if editing == record then editing = nil end
     status:SetText(string.format("Award #%d removed; the export keeps it as deleted.", record.id))
     updateRows()
+end
+
+-- Receiving the shared ledger -------------------------------------------------
+local STATES = { given = true, held = true, manual = true, deleted = true }
+local NOTE_NAMES = { r = "re-roll", t = "not in tie-break" }
+local warnedSession
+
+local function split(text)
+    local fields = {}
+    for value in string.gmatch(text .. ";", "([^;]*);") do table.insert(fields, value) end
+    return fields
+end
+
+local function inGroup(name)
+    local key = lower(name)
+    if GetNumRaidMembers() and GetNumRaidMembers() > 0 then
+        for i = 1, GetNumRaidMembers() do
+            if lower(GetRaidRosterInfo(i)) == key then return true end
+        end
+        return false
+    end
+    for i = 1, GetNumPartyMembers() do
+        if lower(UnitName("party" .. i)) == key then return true end
+    end
+    return false
+end
+
+local function findShared(origin, id)
+    for _, record in ipairs(ensureDatabase().history) do
+        if record.id == id and lower(record.origin or playerName()) == lower(origin) then return record end
+    end
+end
+
+-- acceptSession decides whether a message about raid `session` belongs in
+-- this ledger. A ledger without awards of its own follows the sender's raid
+-- (also after a NEW RAID there); one with its own awards keeps its raid.
+local function acceptSession(session, sender)
+    local db = ensureDatabase()
+    if session == "" then return false end
+    if session == db.session then return true end
+    for _, record in ipairs(db.history) do
+        if lower(record.origin or playerName()) == lower(playerName()) then
+            if warnedSession ~= session then
+                warnedSession = session
+                say(string.format("%s shares another raid's ledger; yours has its own awards, so it is not "
+                    .. "merged. Use CLEAR to follow theirs.", sender))
+            end
+            return false
+        end
+    end
+    db.history, db.session, db.startedAt = {}, session, nil
+    return true
+end
+
+local function applyRecord(f, sender)
+    local id, rev = tonumber(f[4]), tonumber(f[5])
+    if not id or not rev or f[3] == "" or table.getn(f) < 19 or not acceptSession(f[2], sender) then return end
+    local db = ensureDatabase()
+    local record = findShared(f[3], id)
+    if record and (record.rev or 0) >= rev then return end
+    local at = tonumber(f[6]) or 0
+    if not record then
+        record = { id = id, origin = f[3] }
+        local position = table.getn(db.history) + 1
+        for i, other in ipairs(db.history) do
+            if (other.at or 0) < at then position = i break end
+        end
+        table.insert(db.history, position, record)
+    end
+    local itemID = tonumber(f[7])
+    record.rev, record.at, record.itemID, record.npc = rev, at, itemID, tonumber(f[8])
+    record.item = (itemID and select(2, GetItemInfo(itemID))) or record.item or ("item:" .. (itemID or 0))
+    record.recipient, record.state, record.confirmed = f[9], STATES[f[10]] and f[10] or "manual", f[11] == "1"
+    record.spec = (f[12] == "ms" or f[12] == "os") and f[12] or nil
+    record.roll, record.low, record.high = tonumber(f[13]), tonumber(f[14]), tonumber(f[15])
+    record.winner = f[16] ~= "" and f[16] or nil
+    record.rolls, record.token = tonumber(f[17]) or 0, f[18] == "1" or nil
+    record.time = f[19] ~= "" and f[19] or date("%H:%M", at)
+    -- Our own awards coming back (after a crash): never reuse their numbers.
+    if lower(f[3]) == lower(playerName()) then db.nextID = math.max(db.nextID, id) end
+    db.startedAt = math.min(db.startedAt or at, at)
+    updateRows()
+end
+
+local function applyLog(f, sender)
+    local id, part, total = tonumber(f[4]), tonumber(f[5]), tonumber(f[6])
+    if not (id and part and total) or total > 40 or not acceptSession(f[2], sender) then return end
+    local record = findShared(f[3], id)
+    if not record then return end
+    record.logParts = record.logParts or {}
+    record.logParts[part] = f[7] or ""
+    for i = 1, total do
+        if not record.logParts[i] then return end
+    end
+    local log = {}
+    for i = 1, total do
+        for entry in string.gmatch(record.logParts[i], "[^/]+") do
+            local name, value, low, high, round, code, tally = string.match(entry,
+                "^([^,]*),(%d+),(%d+),(%d+),(%d+),(%a?),(%d*)$")
+            if name then
+                low, high = tonumber(low), tonumber(high)
+                table.insert(log, { name = name, value = tonumber(value), low = low, high = high,
+                    round = tonumber(round), kind = code ~= "x" and rollKind(low, high) or nil,
+                    note = code == "x" and (low .. "-" .. high) or NOTE_NAMES[code], tally = tonumber(tally) })
+            end
+        end
+    end
+    record.rollLog, record.logParts = log, nil
+    updateRows()
+end
+
+-- answerSync sends our own awards, and the asker's (their backup), so a
+-- master looter whose client crashed gets the ledger back.
+local function answerSync(asker)
+    for i = table.getn(ensureDatabase().history), 1, -1 do
+        local record = ensureDatabase().history[i]
+        local origin = lower(record.origin or playerName())
+        if origin == lower(playerName()) or origin == lower(asker) then
+            record.origin = record.origin or playerName()
+            queue(encodeRecord(record))
+            for _, message in ipairs(encodeLog(record)) do queue(message) end
+        end
+    end
+end
+
+local function requestSync()
+    queue(table.concat({ "Q", ensureDatabase().session or "-", field(playerName()) }, ";"))
+end
+
+local function onAddonMessage(prefix, message, channel, sender)
+    if prefix ~= SYNC_PREFIX or type(message) ~= "string" or not sender or isPlayer(sender) then return end
+    if channel ~= "RAID" and channel ~= "PARTY" or not inGroup(sender) then return end
+    local f = split(message)
+    if f[1] == "A" then
+        applyRecord(f, sender)
+    elseif f[1] == "L" then
+        applyLog(f, sender)
+    elseif f[1] == "Q" and lower(f[3] or "") == lower(sender) then
+        answerSync(sender)
+    end
 end
 
 local panes = { rollPane, detailPane, historyPane }
@@ -972,6 +1369,7 @@ local function startNewRaid()
     db.history = {}
     db.startedAt = nil
     db.raidID = nil
+    db.session = nil   -- the next award starts a new shared ledger
     editing = nil
     historyOffset = 0
     raidBox:SetText("")
@@ -1001,11 +1399,13 @@ local function recordRoll(message)
     if not name or not roll then return end
     local entry = rollingEntry()
     if not entry then return end
-    local value = tonumber(roll) or 0
+    local value, lo, hi = tonumber(roll) or 0, tonumber(low), tonumber(high)
+    local kind = rollKind(lo, hi)
     -- Ignored rolls are kept in the roll log with the reason, for disputes.
     local note
-    if tonumber(low) ~= 1 or tonumber(high) ~= 100 then
-        -- Only a standard /rnd (1-100) counts; "/rnd 1000" would otherwise win.
+    if not kind then
+        -- Only /rnd 100, /rnd 99 and enhanced main-spec ranges count; "/rnd 1000"
+        -- would otherwise win.
         note = low .. "-" .. high
     elseif entry.tieBreak and not entry.tieBreak[name] then
         -- During a tie-break only the tied players may roll.
@@ -1017,21 +1417,13 @@ local function recordRoll(message)
         end
     end
     entry.rollLog = entry.rollLog or {}
-    table.insert(entry.rollLog, { name = name, value = value, round = entry.round or 1, note = note })
+    table.insert(entry.rollLog, { name = name, value = value, round = entry.round or 1, note = note,
+        kind = kind, low = lo, high = hi })
     if note then return end
-    table.insert(entry.rolls, { name = name, value = value })
-    table.sort(entry.rolls, function(left, right) return left.value > right.value end)
+    table.insert(entry.rolls, { name = name, value = value, kind = kind, low = lo, high = hi,
+        tally = tallyOf(tallies(), name, kind) })
+    table.sort(entry.rolls, ranksAbove)
     updateRows()
-end
-
-local function announce(text)
-    if GetNumRaidMembers() and GetNumRaidMembers() > 0 then
-        SendChatMessage(text, "RAID")
-    elseif GetNumPartyMembers() and GetNumPartyMembers() > 0 then
-        SendChatMessage(text, "PARTY")
-    else
-        DEFAULT_CHAT_FRAME:AddMessage("ForgeLootLedger: " .. text)
-    end
 end
 
 local function startSelectedRoll()
@@ -1049,7 +1441,8 @@ local function startSelectedRoll()
     entry.startedAt = GetTime()
     entry.warned15 = false
     entry.warned5 = false
-    announce("[Loot] " .. entry.item .. " - /rnd now! " .. ROLL_SECONDS .. " seconds.")
+    announce("[Loot] " .. entry.item .. " - /rnd now! " .. ROLL_SECONDS .. " seconds. "
+        .. "/rnd 100 main spec (points: 11-110 up to 51-150), /rnd 99 off spec.")
     status:SetText("30-second raid roll started.")
     updateRows()
 end
@@ -1068,10 +1461,17 @@ local function finishRoll(entry)
         announce("[Loot] " .. entry.item .. " - no valid rolls.")
         return
     end
-    local top = entry.rolls[1].value
+    -- Tallies may have changed during the roll (other awards): rank again.
+    local counts = tallies()
+    for _, roll in ipairs(entry.rolls) do roll.tally = tallyOf(counts, roll.name, roll.kind) end
+    table.sort(entry.rolls, ranksAbove)
+    local best = entry.rolls[1]
+    local top = best.value
     local tied = {}
     for _, roll in ipairs(entry.rolls) do
-        if roll.value == top then table.insert(tied, roll.name) end
+        if roll.kind == best.kind and roll.tally == best.tally and roll.value == top then
+            table.insert(tied, roll.name)
+        end
     end
     if table.getn(tied) > 1 then
         table.sort(tied)
@@ -1090,7 +1490,9 @@ local function finishRoll(entry)
     entry.winner = entry.rolls[1]
     entry.tieBreak = nil
     if selectedEntry() == entry and not editing then recipientBox:SetText(entry.winner.name) end
-    announce("[Loot] " .. entry.item .. " won by " .. entry.winner.name .. " (" .. entry.winner.value .. ").")
+    announce(string.format("[Loot] %s won by %s (%d) - %s%s, %s so far.", entry.item, best.name, best.value,
+        SPEC_NAMES[best.kind], best.low and best.low > 1 and (" " .. best.low .. "-" .. best.high) or "",
+        itemCount(best.tally or 0)))
 end
 
 local function updateRollTimers()
@@ -1148,6 +1550,7 @@ award:SetScript("OnClick", function()
         return
     end
     local record = recordAward(entry, recipient, "manual", true)
+    announceAward(record)
     recipientBox:SetText("")
     status:SetText(string.format("Award #%d recorded for %s.", record.id, recipient))
     updateRows()
@@ -1167,6 +1570,7 @@ Ledger:RegisterEvent("TRADE_PLAYER_ITEM_CHANGED")
 Ledger:RegisterEvent("TRADE_ACCEPT_UPDATE")
 Ledger:RegisterEvent("TRADE_CLOSED")
 Ledger:RegisterEvent("UI_INFO_MESSAGE")
+Ledger:RegisterEvent("CHAT_MSG_ADDON")
 Ledger:SetScript("OnEvent", function(self, event, ...)
     if event == "COMBAT_LOG_EVENT_UNFILTERED" then
         local _, subEvent, _, _, _, destGUID = ...
@@ -1176,6 +1580,7 @@ Ledger:SetScript("OnEvent", function(self, event, ...)
         end
     elseif event == "PLAYER_LOGIN" then
         ensureDatabase()
+        syncAt = GetTime() + 8
         updateRows()
         if ForgeTestBridge and ForgeTestBridge.RegisterFrame then
             ForgeTestBridge:RegisterFrame("ForgeLootLedgerFrame", self)
@@ -1206,6 +1611,8 @@ Ledger:SetScript("OnEvent", function(self, event, ...)
         if trade and not trade.closedAt then trade.closedAt = GetTime() end
     elseif event == "UI_INFO_MESSAGE" then
         onInfoMessage(...)
+    elseif event == "CHAT_MSG_ADDON" then
+        onAddonMessage(...)
     else
         updateRoster()
     end
@@ -1220,6 +1627,15 @@ ticker:SetScript("OnUpdate", function(_, elapsed)
         tickElapsed = 0
         if LootFrame and LootFrame:IsShown() then captureMasterLoot() end
         updateRollTimers()
+        -- Shared ledger: at most four addon messages per second.
+        if outbox[1] then
+            local channel = groupChannel()
+            if channel then SendAddonMessage(SYNC_PREFIX, table.remove(outbox, 1), channel) else outbox = {} end
+        end
+        if syncAt and GetTime() >= syncAt then
+            syncAt = nil
+            if groupChannel() then requestSync() end
+        end
     end
 end)
 
@@ -1228,8 +1644,11 @@ local HELP = {
     "/forgeloot start - start a 30 s /rnd roll for the selected item",
     "/forgeloot set <#> [name] - change the recipient of award #, or to your target",
     "/forgeloot del <#> - remove award # (exported as deleted)",
+    "/forgeloot spec <#> ms|os|none - set which tally award # counts for",
+    "/forgeloot tally - items per player this raid (main spec / off spec)",
     "/forgeloot raid <id> - set the website raid ID",
     "/forgeloot export - show the website export",
+    "/forgeloot sync - ask the group's other ledgers for this raid's awards",
     "/forgeloot newraid (or CLEAR) - empty the award ledger for the next raid; add confirm to skip the question",
     "/forgeloot clear - drop all active rolls;  /forgeloot reset - recenter the window",
 }
@@ -1256,6 +1675,39 @@ SlashCmdList["FORGELOOT"] = function(message)
     elseif command == "del" then
         local id = rest:match("^#?(%d+)$")
         if id then deleteRecord(tonumber(id)) else say("usage: /forgeloot del <#>") end
+    elseif command == "spec" then
+        local id, spec = rest:match("^#?(%d+)%s+(%a+)$")
+        spec = spec and string.lower(spec)
+        local record = id and findRecord(tonumber(id))
+        if not record or (spec ~= "ms" and spec ~= "os" and spec ~= "none") then
+            say("usage: /forgeloot spec <#> ms|os|none")
+        else
+            record.spec = spec ~= "none" and spec or nil
+            publish(record)
+            say(string.format("award #%d counts for %s.", record.id, record.spec and SPEC_NAMES[record.spec] or "no tally"))
+            updateRows()
+        end
+    elseif command == "sync" then
+        if groupChannel() then
+            requestSync()
+            say("asked the group's ledgers for this raid's awards.")
+        else
+            say("not in a group: nothing to sync.")
+        end
+    elseif command == "tally" then
+        local names, counts = {}, tallies()
+        for _, record in ipairs(ensureDatabase().history) do
+            local name = (record.state == "held" and record.winner) or record.recipient
+            if counts[lower(name)] and not names[lower(name)] then
+                names[lower(name)] = true
+                table.insert(names, name)
+            end
+        end
+        table.sort(names, function(a, b) return lower(a) < lower(b) end)
+        if table.getn(names) == 0 then say("no items counted this raid yet.") end
+        for _, name in ipairs(names) do
+            say(string.format("%s: %d main spec, %d off spec", name, tallyOf(counts, name, "ms"), tallyOf(counts, name, "os")))
+        end
     elseif command == "raid" then
         local id = rest:match("^(%d+)$")
         if id then

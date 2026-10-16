@@ -8,10 +8,23 @@ The loot tracking was taken over from RaidSync
 ## Rolls
 
 Opening a loot window lists every item at or above the group's loot threshold.
-Select an item and type `/forgeloot start` to start a 30-second `/rnd`. Only
-1-100 rolls count, and only a player's first roll. A shared top roll starts a
-15-second tie-break among the tied players. Announcements go to raid, then
-party, then local chat.
+Select an item and type `/forgeloot start` to start a 30-second roll. The raid's
+rules:
+
+- `/rnd 100` (1-100) is **main spec**, `/rnd 99` (1-99) is **off spec**.
+- Points enhance a main-spec roll in steps of 10, up to 51-150: 11-110,
+  21-120, 31-130, 41-140 or 51-150. Off spec cannot be enhanced. The addon
+  trusts the roll; the website deducts the points (the export carries the range).
+- **Main spec always beats off spec.**
+- Within one spec, **the player with the fewest items this raid wins**; the
+  roll decides between equal tallies. Main spec and off spec have separate
+  tallies, and tokens (Weiheabzeichen) do not count.
+- Only a player's first roll counts. Any other range is ignored.
+- A tie (same spec, same tally, same roll) starts a 15-second tie-break among
+  the tied players, and may tie again.
+
+Announcements go to raid, then party, then local chat:
+"[item] won by Bob (87) - main spec 21-120, 0 items so far."
 
 ## Awards
 
@@ -29,12 +42,45 @@ party, then local chat.
   or the last creature death for chests), the winner's roll and the time.
   Reopening the same corpse does not list its items twice.
 
+Every award is announced too: "[item] goes to Bob - main spec." when the
+handout is confirmed or recorded by hand, with "(traded)" or "(corrected)"
+when a trade or a correction changes the recipient.
+
+## Item tally
+
+The tally counts this raid's awards per player, separately for main spec and
+off spec, from the ledger itself: CLEAR / NEW RAID starts everyone at 0.
+Removed awards, tokens and awards without a roll do not count; an item you
+hold for the winner counts for the winner. `/forgeloot tally` lists everyone,
+and `/forgeloot spec <#> ms|os|none` moves an award to the other tally or out
+of it.
+
+Hover a group member for their items this raid, hover an award or a loot row
+for the item tooltip (plus the award and the recipient's tally), and hover a
+roll-log line for that roller's items.
+
+## Shared ledger
+
+Every award and change (handout, confirmation, trade, correction, removal,
+spec) goes to the other ForgeLootLedger users in the raid or party as addon
+messages, with the award's roll log. Officers therefore see the same list,
+and their corrections travel back. A ledger without awards of its own follows
+the master looter's raid automatically, also after a NEW RAID; one with its
+own awards keeps them and warns instead of merging another raid's ledger.
+
+After a crash the master looter's client may have lost the ledger: on login (or
+with `/forgeloot sync`) it asks the group, and the others send their own awards
+plus the asker's, which restores it. Messages are only accepted from group
+members, at most four are sent per second, and the newest revision of an award
+wins.
+
 ## Roll log
 
 Every award keeps what was rolled for it, and the log is saved with the ledger.
 Click an award in the list (scroll it with the mouse wheel) and the left pane
-shows its rolls instead of the loot items. It lists counted rolls highest first,
-then each tie-break round, and marks the winner. Rolls that did not count stay
+shows its rolls instead of the loot items. It lists counted rolls in winning
+order (with spec and the tally the ranking used), then each tie-break round,
+and marks the winner. Rolls that did not count stay
 listed in grey with the reason: `re-roll`, a wrong range such as `1-1000`, or
 `not in tie-break`. Long logs scroll with the mouse wheel. Click the award
 again, or open new loot, to get the loot items back. Awards recorded before
@@ -56,6 +102,9 @@ Click an award in the list, pick or type the recipient and press
 | `/forgeloot set <#> <name>` | Change the recipient of award `#` |
 | `/forgeloot set <#>` | Change it to your current player target |
 | `/forgeloot del <#>` | Remove award `#` (kept in the export as `deleted`) |
+| `/forgeloot spec <#> ms\|os\|none` | Count award `#` for main spec, off spec or no tally |
+| `/forgeloot tally` | Items per player this raid |
+| `/forgeloot sync` | Ask the group's ledgers for this raid's awards |
 
 A removed award can be restored by setting a recipient again.
 
@@ -67,14 +116,16 @@ A removed award can be restored by setting a recipient again.
 
 ```text
 RS2;LOOT;42;Raidleader;1760000000;1760003600
-1;1760000300;36612;50415;Thorgar;given;87
-2;1760000301;36612;52027;Raidleader;held;-
-3;1760000400;-;50074;Aelira;manual;-
-4;1760000420;36612;50415;Frostlin;deleted;64
+1;1760000300;36612;50415;Thorgar;given;87;ms;1-100
+2;1760000301;36612;52027;Raidleader;held;113;ms;21-120
+3;1760000400;-;50074;Aelira;manual;-;-;-
+4;1760000420;36612;50415;Frostlin;deleted;64;os;1-99
 ```
 
 Header: `RS2;LOOT;<raid ID>;<recorder>;<first award time>;<export time>`.
-Lines, oldest first: `<award ID>;<time>;<creature ID or ->;<item ID or ->;<recipient>;<state>;<recipient's roll or ->`.
+Lines, oldest first: `<award ID>;<time>;<creature ID or ->;<item ID or ->;<recipient>;<state>;<roll or ->;<ms|os|->;<roll range or ->`.
+The roll is the recipient's (or, for a held item, the winner's); a range such
+as `21-120` shows a points-enhanced main-spec roll.
 Times are Unix seconds.
 
 States: `given` (handed out or traded by you), `held` (with the recorder),
@@ -87,5 +138,6 @@ Changes from RaidSync's `RS1|LOOT`:
   WoW edit box.
 - Removed awards stay in the export as `deleted`, so the website can remove
   lines it imported earlier.
-- The header carries the export time and each line carries the recipient's roll.
+- The header carries the export time; each line carries the roll, its spec
+  and its range.
 - Award IDs never change, even across `newraid`.

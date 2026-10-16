@@ -22,8 +22,8 @@
     {
       "type": "roll",
       "value": [
-        1,
-        100
+        31,
+        130
       ]
     },
     {
@@ -105,6 +105,24 @@
       "type": "global_equals",
       "path": "ForgeLootLedgerDB.lastTrade.offered",
       "value": 1
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootLedgerDB.history.1.low",
+      "value": 31
+    },
+    {
+      "type": "global_equals",
+      "path": "ForgeLootLedgerDB.history.1.spec",
+      "value": "ms"
+    },
+    {
+      "type": "chat_contains",
+      "value": " - main spec 31-130, 0 items so far."
+    },
+    {
+      "type": "chat_contains",
+      "value": " - main spec (traded)."
     },
     {
       "type": "no_lua_errors",
