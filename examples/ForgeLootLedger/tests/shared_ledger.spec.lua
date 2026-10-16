@@ -40,14 +40,15 @@ end
 
 local captured = {}
 
-test("after login the addon asks its group for the shared ledger", function()
+test("after login the addon asks its group for the shared ledger and the wishlists", function()
     forge.raid({ "Alice", "Bob", "Cara" })
     expect(#forge.addonMessages()).toBe(0)
     forge.advance(9, 0.25)
     local sent = sentSince(0)
-    expect(#sent).toBe(1)
+    expect(#sent).toBe(2)
     expect(sent[1].message).toBe("Q;-;Tester")
     expect(sent[1].chatType).toBe("RAID")
+    expect(sent[2].message).toBe("WQ;Tester")
 end)
 
 test("an award goes to the group as an A line plus its roll log, four messages a second", function()

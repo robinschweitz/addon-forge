@@ -175,14 +175,29 @@ test("a newer raid replaces the list, an older one is ignored", function()
     expect(forge.findText("THIS RAID (1)")).toBeTruthy()
 end)
 
+local function sentOfType(kind)
+    local list = {}
+    for _, m in ipairs(forge.addonMessages()) do
+        if string.sub(m.message, 1, string.len(kind) + 1) == kind .. ";" then table.insert(list, m) end
+    end
+    return list
+end
+
 test("after login it asks the group once for this raid's awards; /flw sync asks again", function()
-    local sent = forge.addonMessages()
+    local sent = sentOfType("Q")
     expect(#sent).toBe(1)                          -- earlier tests passed the 10 s login delay
     expect(string.match(sent[1].message, "^Q;[^;]+;Tester$")).toBeTruthy()
     expect(sent[1].prefix).toBe("FLLedger")
     expect(sent[1].chatType).toBe("RAID")
     forge.slash("/flw sync")
-    expect(forge.addonMessages()[2].message).toBe("Q;Lead-1792139999;Tester")
+    expect(sentOfType("Q")[2].message).toBe("Q;Lead-1792139999;Tester")
+end)
+
+test("after login it shares the wishlist with the group, in rank order", function()
+    local shared = sentOfType("W")
+    expect(#shared >= 1).toBe(true)
+    expect(shared[1].message).toBe("W;1792130000;1;1;20513:m:1:1,21281:o:0:2,20514:m:0:3")
+    expect(shared[1].chatType).toBe("RAID")
 end)
 
 test("the wishlist and the auto-roll switch survive /reload", function()

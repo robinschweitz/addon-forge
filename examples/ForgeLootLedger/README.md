@@ -5,6 +5,10 @@ suite's reference addon: see `tests/` and `../ForgeLootLedger-acceptance.json`.
 The loot tracking was taken over from RaidSync
 ([robinschweitz/wow-addons](https://github.com/robinschweitz/wow-addons)).
 
+The addon speaks German in German clients (deDE): window, raid announcements,
+chat and help. Every other client gets English. Texts live in `Locales.lua`,
+keyed by their English wording.
+
 ## Rolls
 
 Opening a loot window lists every item at or above the group's loot threshold.
@@ -116,6 +120,26 @@ Items do not have to be rolled right away:
 - Open items do not count in anyone's tally. Wishlist users see them, and the
   loot still on the corpse, under **OPEN ITEMS**.
 
+## Disenchant and guild bank
+
+Items nobody wants go to **DE** (disenchant) or **BANK** (guild bank), the
+small buttons next to "click a group member". The item goes to the name in the
+recipient box (the enchanter or the bank character), or stays with you when
+the box is empty. The award counts for nobody, is announced to the raid
+("... will be disenchanted (Bob)."), and appears in the export as
+`disenchanted` or `bank`. On a selected award the buttons change it the same
+way.
+
+## Members' wishlists
+
+Raiders with ForgeLootWishlist share their wishlist with your ledger. The
+ledger asks for them after a login and when the raid grows. Each drop in the
+loot list then shows **WL n**: how many wishlists name it. **WL 0** marks loot
+nobody listed. Hover the drop to see who wants it (main spec first, then by
+rank, with Enhanced), and a roller who listed the item shows `[WL #rank]` in
+the roll list. The lists are kept only until you log out or `/reload`; the
+ledger then asks again.
+
 ## Clearing old loot
 
 **CLEAR** (on the award list), **NEW RAID** (in the export) and
@@ -164,7 +188,8 @@ Times are Unix seconds.
 States: `given` (handed out or traded by you), `held` (with the recorder),
 `parked` (held by the recipient until it is rolled), `manual` (recorded or
 corrected by hand), `deleted` (removed; delete it on the website if it was
-imported before). A `held` line without a roll is still open.
+imported before), `disenchanted` and `bank` (nobody's award; the recipient
+holds the item). A `held` line without a roll is still open.
 
 Changes from RaidSync's `RS1|LOOT`:
 

@@ -88,7 +88,7 @@
     },
     {
       "type": "chat_contains",
-      "value": "/rnd now! 30 seconds"
+      "value": "jetzt /rnd! 30 Sekunden"
     },
     {
       "type": "chat_contains",
@@ -122,22 +122,22 @@
     {
       "type": "frame_text_contains",
       "frame": "ForgeLootLedgerHistory1",
-      "value": "(1 rolls)"
+      "value": "(1 Würfe)"
     },
     {
       "type": "frame_text_contains",
       "frame": "ForgeLootLedgerRollHeading",
-      "value": "ROLLS FOR AWARD #"
+      "value": "WÜRFE ZU VERGABE #"
     },
     {
       "type": "frame_text_contains",
       "frame": "ForgeLootLedgerRoll1",
-      "value": "  - won"
+      "value": "  - gewonnen"
     },
     {
       "type": "frame_text_contains",
       "frame": "ForgeLootLedgerRoll2",
-      "value": "Test  - ignored: 1-1000"
+      "value": "Test  - ignoriert: 1-1000"
     },
     {
       "type": "global_equals",
@@ -146,11 +146,11 @@
     },
     {
       "type": "chat_contains",
-      "value": " - off spec, 0 items so far."
+      "value": " - Second-Spec, bisher 0 Items."
     },
     {
       "type": "chat_contains",
-      "value": " - off spec."
+      "value": " - Second-Spec."
     },
     {
       "type": "event_fired",
@@ -159,7 +159,7 @@
     {
       "type": "frame_text_contains",
       "frame": "ForgeLootLedgerRoll3",
-      "value": "  - ignored: re-roll"
+      "value": "  - ignoriert: zweiter Wurf"
     },
     {
       "type": "no_lua_errors",

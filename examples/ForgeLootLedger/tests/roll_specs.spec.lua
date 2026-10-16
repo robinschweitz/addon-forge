@@ -33,11 +33,11 @@ local function rollFor(id, rolls)
     return db().history[1]
 end
 
-test("the roll announcement explains main spec, points and off spec", function()
+test("the roll announcement explains main spec, enhanced and off spec", function()
     forge.raid({ "Alice", "Bob", "Cara", "Dora" })
     forge.openLoot({ { id = 20513 } })
     forge.slash("/forgeloot start")
-    expect(sentTo("/rnd now! 30 seconds. /rnd 100 main spec (points: 11-110 up to 51-150), /rnd 99 off spec.")).toBe(true)
+    expect(sentTo("/rnd now! 30 seconds. /rnd 100 main spec (enhanced: 1+X to 100+X, X up to 50), /rnd 99 off spec.")).toBe(true)
     forge.closeLoot()
 end)
 

@@ -8,7 +8,12 @@ two addons talk over addon messages (prefix `FLLedger`). Live acceptance plans:
 `../ForgeLootWishlist-acceptance.json` (prompt) and
 `../ForgeLootWishlist-auto-acceptance.json` (auto-roll).
 
-Open it with `/flw` (or `/lootwish`).
+Open it with `/flw` (or `/lootwish`), or with the minimap button (drag it to
+move it around the minimap; `/flw minimap off` hides it). The window also
+opens by itself when the raid lead starts a roll on an item from your list.
+
+The addon speaks German in German clients (deDE) and English everywhere else
+(`Locales.lua`).
 
 ## Importing the wishlist
 
@@ -75,6 +80,15 @@ counts as yours, and its wishlist entry shows **RECEIVED**.
 
 After a login or `/reload` the addon asks the group for this raid's awards
 (`/flw sync` asks again). A newer raid replaces the list automatically.
+Disenchanted and guild-bank items show **DE** and **BANK**; they count for
+nobody.
+
+## Sharing your wishlist with the raid lead
+
+Your wishlist (items, main or off spec, Enhanced, order) goes to the raid
+lead's ForgeLootLedger: after an import, after a login, and whenever a ledger
+asks. The raid lead then sees how many raiders want a drop and who. Notes stay
+private. `/flw share off` stops sharing; `/flw share on` starts it again.
 
 ## Commands
 
@@ -84,3 +98,5 @@ After a login or `/reload` the addon asks the group for this raid's awards
 | `/flw import` | Paste a wishlist export |
 | `/flw auto on` / `off` | Roll automatically / show the roll prompt |
 | `/flw sync` | Ask the raid lead's ledger for this raid's awards |
+| `/flw share on` / `off` | Share your wishlist with the raid lead's ledger (on by default) |
+| `/flw minimap on` / `off` | Show / hide the minimap button |

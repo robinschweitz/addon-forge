@@ -67,7 +67,7 @@ test("an open award reads ROLL, and its roll runs like any other", function()
     expect(forge.findText("ROLL")).toBeTruthy()
     forge.click("ForgeLootLedgerPark")
     expect(forge.findText("MASTER LOOT ITEMS")).toBeTruthy()
-    expect(raidSaid("[Loot] " .. CREST .. " - /rnd now! 30 seconds. /rnd 100 main spec (points: 11-110 up to 51-150), /rnd 99 off spec.")).toBe(true)
+    expect(raidSaid("[Loot] " .. CREST .. " - /rnd now! 30 seconds. /rnd 100 main spec (enhanced: 1+X to 100+X, X up to 50), /rnd 99 off spec.")).toBe(true)
     forge.advance(3, 0.25)               -- the list queues behind award messages
     expect(lastOpenList()).toBe("20513:r:a1:")
     forge.roll("Cara", 80)

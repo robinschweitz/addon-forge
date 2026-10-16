@@ -45,6 +45,11 @@
     },
     {
       "type": "slash",
+      "value": "/flw",
+      "client": "member"
+    },
+    {
+      "type": "slash",
       "value": "/forgeloot start"
     },
     {
@@ -76,6 +81,10 @@
     {
       "type": "wait",
       "value": 4
+    },
+    {
+      "type": "click",
+      "value": "ForgeLootLedgerHistory1"
     },
     {
       "type": "screenshot",
@@ -118,12 +127,12 @@
     },
     {
       "type": "chat_contains",
-      "value": "/rnd now! 30 seconds",
+      "value": "jetzt /rnd! 30 Sekunden",
       "client": "member"
     },
     {
       "type": "chat_contains",
-      "value": "won by Raidmember (",
+      "value": "gewonnen von Raidmember (",
       "client": "member"
     },
     {
@@ -154,6 +163,26 @@
       "type": "global_equals",
       "path": "SlashCmdList.FORGELOOT",
       "value": null,
+      "client": "member"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "ForgeLootLedgerRoll1",
+      "value": "[WL #1]"
+    },
+    {
+      "type": "chat_contains",
+      "value": "ForgeLootWishlist: 1 Wünsche importiert.",
+      "client": "member"
+    },
+    {
+      "type": "frame_visible",
+      "value": "ForgeLootWishlistMinimap",
+      "client": "member"
+    },
+    {
+      "type": "frame_visible",
+      "value": "ForgeLootWishlistFrame",
       "client": "member"
     },
     {

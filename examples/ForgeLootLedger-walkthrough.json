@@ -29,10 +29,10 @@
   "checks": [
     {"type": "event_fired", "value": "LOOT_OPENED"},
     {"type": "event_fired", "value": "CHAT_MSG_LOOT"},
-    {"type": "chat_contains", "value": "/rnd now! 30 seconds"},
-    {"type": "chat_contains", "value": " so far."},
+    {"type": "chat_contains", "value": "jetzt /rnd! 30 Sekunden"},
+    {"type": "chat_contains", "value": ", bisher "},
     {"type": "global_equals", "path": "ForgeLootLedgerDB.history.1.confirmed", "value": true},
-    {"type": "frame_text_contains", "frame": "ForgeLootLedgerRollHeading", "value": "ROLLS FOR AWARD #"},
+    {"type": "frame_text_contains", "frame": "ForgeLootLedgerRollHeading", "value": "WÜRFE ZU VERGABE #"},
     {"type": "frame_text_contains", "frame": "ForgeLootLedgerExportText", "value": "RS2;LOOT;42;Test;"},
     {"type": "no_lua_errors", "value": true}
   ]

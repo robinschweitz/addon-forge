@@ -70,11 +70,11 @@
     },
     {
       "type": "chat_contains",
-      "value": "won by Test ("
+      "value": "gewonnen von Test ("
     },
     {
       "type": "chat_contains",
-      "value": "ForgeLootLedger: trade recorded: #"
+      "value": "ForgeLootLedger: Handel erfasst: #"
     },
     {
       "type": "global_equals",
@@ -118,11 +118,11 @@
     },
     {
       "type": "chat_contains",
-      "value": " - main spec 31-130, 0 items so far."
+      "value": " - Main-Spec 31-130, bisher 0 Items."
     },
     {
       "type": "chat_contains",
-      "value": " - main spec (traded)."
+      "value": " - Main-Spec (gehandelt)."
     },
     {
       "type": "no_lua_errors",

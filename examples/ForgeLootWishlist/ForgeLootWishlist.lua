@@ -3,6 +3,8 @@
 -- roll (or rolls automatically) when the raid lead's ledger starts a roll on a
 -- wishlisted item, and shows who got what this raid from the ledger's shared
 -- awards (addon messages, prefix FLLedger).
+local _, ns = ...
+local L = ns.L
 local Wishlist = CreateFrame("Frame", "ForgeLootWishlistFrame", UIParent)
 local PREFIX = "FLLedger"
 local WISH_ROWS = 5
@@ -10,6 +12,8 @@ local OPEN_ROWS = 4
 local RAID_ROWS = 5
 local AUTO_DELAY = 1        -- seconds before an automatic roll
 local SPEC_LABELS = { ms = "MS", os = "OS" }
+-- Disenchanted or banked items have a holder but count for nobody.
+local NO_TALLY = { disenchanted = true, bank = true }
 local TOKEN_NAMES = { "Weiheabzeichen" }
 
 local wishRows, openRows, raidRows = {}, {}, {}
@@ -18,6 +22,8 @@ local prompt                -- the open roll prompt { key, entry, endsAt }
 local pendingRoll           -- an automatic roll waiting for its delay
 local rolled = {}           -- rollKey:round -> true, so every roll happens once
 local syncAt
+local shareAt               -- when to send this wishlist to the group
+local WISHES_PER_MESSAGE = 15
 
 local function trim(value)
     return (value or ""):match("^%s*(.-)%s*$")
@@ -106,10 +112,10 @@ local function parseWishlist(text)
         line = trim(string.gsub(line, "\r", ""))
         if line ~= "" then table.insert(lines, line) end
     end
-    if table.getn(lines) == 0 then return nil, "Paste the wishlist export from the website first." end
+    if table.getn(lines) == 0 then return nil, L["Paste the wishlist export from the website first."] end
     local header = split(lines[1])
     if header[1] ~= "WL2" or not header[2] or header[2] == "" or not tonumber(header[4]) then
-        return nil, "That is not a wishlist export (it must start with WL2;). Export it again from the website."
+        return nil, L["That is not a wishlist export (it must start with WL2;). Export it again from the website."]
     end
     local items, bad = {}, {}
     for i = 2, table.getn(lines) do
@@ -175,7 +181,7 @@ end
 local function myTally()
     local items, tokens = { ms = 0, os = 0 }, { ms = 0, os = 0 }
     for _, award in ipairs(sortedAwards()) do
-        if award.state ~= "deleted" and (award.spec == "ms" or award.spec == "os")
+        if award.state ~= "deleted" and not NO_TALLY[award.state] and (award.spec == "ms" or award.spec == "os")
             and isPlayer(awardOwner(award)) then
             local list = award.token and tokens or items
             list[award.spec] = list[award.spec] + 1
@@ -191,7 +197,8 @@ local function refreshReceived()
     for _, entry in ipairs(char.items) do entry.received = nil end
     for _, award in ipairs(sortedAwards()) do
         -- Holding an item until its roll is not receiving it.
-        if award.state ~= "deleted" and not isOpenAward(award) and isPlayer(awardOwner(award)) then
+        if award.state ~= "deleted" and not NO_TALLY[award.state] and not isOpenAward(award)
+            and isPlayer(awardOwner(award)) then
             local entry = findWish(award.itemID)
             if entry then entry.received = true end
         end
@@ -266,7 +273,7 @@ local function openItems()
     for origin, items in pairs(db.raid.corpse or {}) do
         for _, item in ipairs(items) do
             if item.source == "c" then
-                table.insert(list, { itemID = item.itemID, item = itemLink(item.itemID), where = "on the corpse",
+                table.insert(list, { itemID = item.itemID, item = itemLink(item.itemID), where = L["on the corpse"],
                     status = item.status, winner = item.winner })
             else
                 rolling[origin .. ":" .. string.sub(item.source, 2)] = item
@@ -276,7 +283,7 @@ local function openItems()
     for _, award in ipairs(sortedAwards()) do
         if isOpenAward(award) then
             local live = rolling[award.key]
-            table.insert(list, { itemID = award.itemID, item = award.item, where = "with " .. award.recipient,
+            table.insert(list, { itemID = award.itemID, item = award.item, where = string.format(L["with %s"], award.recipient),
                 status = live and live.status or "o", winner = live and live.winner })
         end
     end
@@ -354,7 +361,7 @@ Wishlist:Hide()
 
 local title = label(Wishlist, "GameFontNormalLarge", 17, {0.62, 0.92, 0.66})
 title:SetPoint("TOPLEFT", Wishlist, "TOPLEFT", 16, -16)
-title:SetText("LOOT WISHLIST")
+title:SetText(L["LOOT WISHLIST"])
 
 local subtitle = label(Wishlist, "GameFontNormalSmall", 10, {0.50, 0.66, 0.54})
 subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 1, -2)
@@ -363,10 +370,10 @@ local close = flatButton(Wishlist, nil, "X", 24, 24)
 close:SetPoint("TOPRIGHT", Wishlist, "TOPRIGHT", -12, -12)
 close:SetScript("OnClick", function() Wishlist:Hide() end)
 
-local importOpen = flatButton(Wishlist, "ForgeLootWishlistImportOpen", "IMPORT", 70, 24)
+local importOpen = flatButton(Wishlist, "ForgeLootWishlistImportOpen", L["IMPORT"], 70, 24)
 importOpen:SetPoint("RIGHT", close, "LEFT", -6, 0)
 
-local autoButton = flatButton(Wishlist, "ForgeLootWishlistAuto", "AUTO-ROLL: OFF", 120, 24)
+local autoButton = flatButton(Wishlist, "ForgeLootWishlistAuto", L["AUTO-ROLL: OFF"], 120, 24)
 autoButton:SetPoint("RIGHT", importOpen, "LEFT", -6, 0)
 
 local wishPane = CreateFrame("Frame", nil, Wishlist)
@@ -377,12 +384,12 @@ makeBackdrop(wishPane, 0.030, 0.065, 0.045, 0.97)
 
 local wishHeading = label(wishPane, "GameFontNormal", 11, {1.00, 0.82, 0.32})
 wishHeading:SetPoint("TOPLEFT", wishPane, "TOPLEFT", 12, -10)
-wishHeading:SetText("MY WISHLIST")
+wishHeading:SetText(L["MY WISHLIST"])
 
 local wishEmpty = label(wishPane, "GameFontNormalSmall", 11, {0.48, 0.64, 0.52})
 wishEmpty:SetPoint("CENTER", wishPane, "CENTER", 0, -8)
 wishEmpty:SetJustifyH("CENTER")
-wishEmpty:SetText("No wishlist yet.\nCopy the export on the guild website, then IMPORT.")
+wishEmpty:SetText(L["No wishlist yet.\nCopy the export on the guild website, then IMPORT."])
 
 for i = 1, WISH_ROWS do wishRows[i] = listRow(wishPane, i, 430, -28) end
 
@@ -394,12 +401,12 @@ makeBackdrop(openPane, 0.030, 0.065, 0.045, 0.97)
 
 local openHeading = label(openPane, "GameFontNormal", 11, {1.00, 0.82, 0.32})
 openHeading:SetPoint("TOPLEFT", openPane, "TOPLEFT", 12, -10)
-openHeading:SetText("OPEN ITEMS")
+openHeading:SetText(L["OPEN ITEMS"])
 
 local openEmpty = label(openPane, "GameFontNormalSmall", 11, {0.48, 0.64, 0.52})
 openEmpty:SetPoint("CENTER", openPane, "CENTER", 0, -8)
 openEmpty:SetJustifyH("CENTER")
-openEmpty:SetText("No loot is waiting to be rolled.")
+openEmpty:SetText(L["No loot is waiting to be rolled."])
 
 for i = 1, OPEN_ROWS do openRows[i] = listRow(openPane, i, 430, -28, 150) end
 
@@ -412,7 +419,7 @@ raidPane:EnableMouseWheel(true)
 
 local raidHeading = label(raidPane, "GameFontNormal", 11, {1.00, 0.82, 0.32})
 raidHeading:SetPoint("TOPLEFT", raidPane, "TOPLEFT", 12, -10)
-raidHeading:SetText("THIS RAID")
+raidHeading:SetText(L["THIS RAID"])
 
 local tallyText = label(raidPane, "GameFontNormalSmall", 9, {0.50, 0.66, 0.54})
 tallyText:SetPoint("TOPRIGHT", raidPane, "TOPRIGHT", -12, -11)
@@ -421,7 +428,7 @@ tallyText:SetJustifyH("RIGHT")
 local raidEmpty = label(raidPane, "GameFontNormalSmall", 11, {0.48, 0.64, 0.52})
 raidEmpty:SetPoint("CENTER", raidPane, "CENTER", 0, -8)
 raidEmpty:SetJustifyH("CENTER")
-raidEmpty:SetText("Nothing handed out yet.\nAwards appear here when the raid lead uses ForgeLootLedger.")
+raidEmpty:SetText(L["Nothing handed out yet.\nAwards appear here when the raid lead uses ForgeLootLedger."])
 
 for i = 1, RAID_ROWS do raidRows[i] = listRow(raidPane, i, 430, -28) end
 
@@ -430,7 +437,7 @@ status:SetPoint("BOTTOMLEFT", Wishlist, "BOTTOMLEFT", 16, 12)
 status:SetPoint("BOTTOMRIGHT", Wishlist, "BOTTOMRIGHT", -16, 12)
 status:SetJustifyH("LEFT")
 status:SetWordWrap(false)
-status:SetText("Rolls start from the raid lead's ForgeLootLedger  |  /flw help")
+status:SetText(L["Rolls start from the raid lead's ForgeLootLedger  |  /flw help"])
 
 -- Import overlay: covers the two lists while shown.
 local importPanel = CreateFrame("Frame", "ForgeLootWishlistImportPanel", Wishlist)
@@ -443,7 +450,7 @@ importPanel:Hide()
 
 local importHint = label(importPanel, "GameFontNormalSmall", 10, {0.62, 0.80, 0.66})
 importHint:SetPoint("TOPLEFT", importPanel, "TOPLEFT", 12, -12)
-importHint:SetText("Paste your wishlist export from the guild website (Ctrl+V):")
+importHint:SetText(L["Paste your wishlist export from the guild website (Ctrl+V):"])
 
 local importBack = CreateFrame("Frame", nil, importPanel)
 importBack:SetPoint("TOPLEFT", importPanel, "TOPLEFT", 10, -32)
@@ -463,7 +470,7 @@ importText:SetHeight(220)
 importScroll:SetScrollChild(importText)
 importText:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
-local importButton = flatButton(importPanel, "ForgeLootWishlistImportButton", "IMPORT WISHLIST", 130, 24)
+local importButton = flatButton(importPanel, "ForgeLootWishlistImportButton", L["IMPORT WISHLIST"], 130, 24)
 importButton:SetPoint("BOTTOMRIGHT", importPanel, "BOTTOMRIGHT", -10, 10)
 local importCancel = flatButton(importPanel, nil, "CANCEL", 70, 24)
 importCancel:SetPoint("RIGHT", importButton, "LEFT", -6, 0)
@@ -482,7 +489,7 @@ Prompt:Hide()
 
 local promptTitle = label(Prompt, "GameFontNormal", 11, {1.00, 0.82, 0.32})
 promptTitle:SetPoint("TOPLEFT", Prompt, "TOPLEFT", 12, -10)
-promptTitle:SetText("ON YOUR WISHLIST")
+promptTitle:SetText(L["ON YOUR WISHLIST"])
 
 local promptTimer = label(Prompt, "GameFontNormalSmall", 10, {0.62, 0.80, 0.66})
 promptTimer:SetPoint("TOPRIGHT", Prompt, "TOPRIGHT", -12, -11)
@@ -500,9 +507,9 @@ promptNote:SetPoint("TOPRIGHT", promptItem, "BOTTOMRIGHT", 0, -4)
 promptNote:SetJustifyH("LEFT")
 promptNote:SetWordWrap(false)
 
-local rollButton = flatButton(Prompt, "ForgeLootWishlistRoll", "ROLL", 170, 26)
+local rollButton = flatButton(Prompt, "ForgeLootWishlistRoll", L["ROLL"], 170, 26)
 rollButton:SetPoint("BOTTOMLEFT", Prompt, "BOTTOMLEFT", 12, 10)
-local skipButton = flatButton(Prompt, "ForgeLootWishlistSkip", "SKIP", 80, 26)
+local skipButton = flatButton(Prompt, "ForgeLootWishlistSkip", L["SKIP"], 80, 26)
 skipButton:SetPoint("LEFT", rollButton, "RIGHT", 8, 0)
 
 ---------------------------------------------------------------------------
@@ -510,14 +517,14 @@ skipButton:SetPoint("LEFT", rollButton, "RIGHT", 8, 0)
 ---------------------------------------------------------------------------
 local function updateAutoButton()
     local _, char = ensureDatabase()
-    autoButton:SetText(char.auto and "AUTO-ROLL: ON" or "AUTO-ROLL: OFF")
+    autoButton:SetText(char.auto and L["AUTO-ROLL: ON"] or L["AUTO-ROLL: OFF"])
     autoButton:SetBackdropColor(char.auto and 0.16 or 0.10, char.auto and 0.42 or 0.26, char.auto and 0.20 or 0.15, 0.98)
 end
 
 local function updateWishlist()
     local _, char = ensureDatabase()
     local count = table.getn(char.items)
-    wishHeading:SetText(count > 0 and string.format("MY WISHLIST (%d)", count) or "MY WISHLIST")
+    wishHeading:SetText(count > 0 and string.format(L["MY WISHLIST (%d)"], count) or L["MY WISHLIST"])
     if count > 0 then wishEmpty:Hide() else wishEmpty:Show() end
     for i = 1, WISH_ROWS do
         local row, entry = wishRows[i], char.items[i]
@@ -525,7 +532,7 @@ local function updateWishlist()
         if entry then
             row:SetText(string.format("%d. %s", entry.priority, itemLink(entry.itemID)))
             if entry.received then
-                row.right:SetText("RECEIVED")
+                row.right:SetText(L["RECEIVED"])
                 row.right:SetTextColor(0.45, 0.85, 0.55)
             else
                 row.right:SetText(rangeLabel(entry))
@@ -545,9 +552,9 @@ local function updateRaid()
     end
     local count = table.getn(awards)
     raidOffset = math.max(0, math.min(raidOffset, count - RAID_ROWS))
-    raidHeading:SetText(count > 0 and string.format("THIS RAID (%d)", count) or "THIS RAID")
+    raidHeading:SetText(count > 0 and string.format(L["THIS RAID (%d)"], count) or L["THIS RAID"])
     local items, tokens = myTally()
-    tallyText:SetText(string.format("YOU: ITEMS %d MS / %d OS  |  TOKENS %d MS / %d OS",
+    tallyText:SetText(string.format(L["YOU: ITEMS %d MS / %d OS  |  TOKENS %d MS / %d OS"],
         items.ms, items.os, tokens.ms, tokens.os))
     if count > 0 then raidEmpty:Hide() else raidEmpty:Show() end
     for i = 1, RAID_ROWS do
@@ -557,8 +564,9 @@ local function updateRaid()
             local text = string.format("%s  ->  %s", award.item, award.recipient)
             if award.state == "deleted" then text = "|cff777777" .. string.gsub(text, "|c%x%x%x%x%x%x%x%x", "") .. "|r" end
             row:SetText(text)
-            local tag = award.state == "deleted" and "REMOVED" or (SPEC_LABELS[award.spec] or "")
-            if award.token and award.state ~= "deleted" then tag = tag .. " TOKEN" end
+            local tag = award.state == "deleted" and L["REMOVED"] or (award.state == "disenchanted" and L["DE"])
+                or (award.state == "bank" and L["BANK"]) or (SPEC_LABELS[award.spec] or "")
+            if award.token and award.state ~= "deleted" then tag = tag .. L[" TOKEN"] end
             row.right:SetText(tag)
             local mine = isPlayer(awardOwner(award)) and award.state ~= "deleted"
             local wished = findWish(award.itemID) ~= nil
@@ -570,22 +578,22 @@ local function updateRaid()
     end
 end
 
-local OPEN_STATUS = { o = "OPEN", r = "ROLLING NOW", w = "WON" }
+local OPEN_STATUS = { o = L["OPEN"], r = L["ROLLING NOW"], w = L["WON"] }
 
 local function updateOpen()
     local items = openItems()
     local count = table.getn(items)
-    openHeading:SetText(count > 0 and string.format("OPEN ITEMS (%d)", count) or "OPEN ITEMS")
+    openHeading:SetText(count > 0 and string.format(L["OPEN ITEMS (%d)"], count) or L["OPEN ITEMS"])
     if count > 0 then openEmpty:Hide() else openEmpty:Show() end
     for i = 1, OPEN_ROWS do
         local row, item = openRows[i], items[i]
         row.open = item
         if item then
             row:SetText(string.format("%s  %s", item.item, item.where))
-            local tag = OPEN_STATUS[item.status] or "OPEN"
-            if item.status == "w" and item.winner then tag = "WON: " .. string.upper(item.winner) end
+            local tag = OPEN_STATUS[item.status] or L["OPEN"]
+            if item.status == "w" and item.winner then tag = string.format(L["WON: %s"], string.upper(item.winner)) end
             local wished = findWish(item.itemID)
-            if wished and not wished.received and item.status ~= "w" then tag = "WISHLIST  " .. tag end
+            if wished and not wished.received and item.status ~= "w" then tag = L["WISHLIST  "] .. tag end
             row.right:SetText(tag)
             if item.status == "r" then
                 row.right:SetTextColor(0.45, 0.85, 0.55)
@@ -602,7 +610,7 @@ end
 
 local function refresh()
     refreshReceived()
-    subtitle:SetText("WISHLIST FOR " .. string.upper(playerName()) .. "  /  ROLLS  /  WHO GOT WHAT")
+    subtitle:SetText(string.format(L["WISHLIST FOR %s  /  ROLLS  /  WHO GOT WHAT"], string.upper(playerName())))
     updateAutoButton()
     updateWishlist()
     updateOpen()
@@ -617,7 +625,7 @@ local function doRoll(entry, key)
     rolled[key] = true
     local low, high = rollRange(entry)
     RandomRoll(low, high)
-    status:SetText(string.format("Rolled %s for %s.", rangeLabel(entry), itemLink(entry.itemID)))
+    status:SetText(string.format(L["Rolled %s for %s."], rangeLabel(entry), itemLink(entry.itemID)))
 end
 
 local function hidePrompt()
@@ -629,8 +637,8 @@ local function showPrompt(entry, key, seconds)
     prompt = { entry = entry, key = key, endsAt = GetTime() + seconds }
     promptItem:SetText(itemLink(entry.itemID))
     local note = entry.note ~= "" and ("  -  " .. entry.note) or ""
-    promptNote:SetText(string.format("Priority %d, %s%s", entry.priority, rangeLabel(entry), note))
-    rollButton:SetText("ROLL " .. rangeLabel(entry))
+    promptNote:SetText(string.format(L["Priority %d, %s%s"], entry.priority, rangeLabel(entry), note))
+    rollButton:SetText(string.format(L["ROLL %s"], rangeLabel(entry)))
     Prompt:Show()
 end
 
@@ -641,7 +649,7 @@ end)
 skipButton:SetScript("OnClick", function()
     if prompt then
         rolled[prompt.key] = true
-        status:SetText("Skipped " .. itemLink(prompt.entry.itemID) .. ".")
+        status:SetText(string.format(L["Skipped %s."], itemLink(prompt.entry.itemID)))
     end
     hidePrompt()
 end)
@@ -663,10 +671,14 @@ local function onRollStart(f)
     end
     local key = f[3] .. ":" .. f[4] .. ":" .. round
     if rolled[key] then return end
+    if not Wishlist:IsShown() then
+        refresh()
+        Wishlist:Show()
+    end
     local _, char = ensureDatabase()
     if char.auto then
         pendingRoll = { entry = entry, key = key, at = GetTime() + AUTO_DELAY }
-        status:SetText("Auto-roll: " .. rangeLabel(entry) .. " for " .. itemLink(entry.itemID) .. " in a moment.")
+        status:SetText(string.format(L["Auto-roll: %s for %s in a moment."], rangeLabel(entry), itemLink(entry.itemID)))
     else
         showPrompt(entry, key, seconds)
     end
@@ -695,6 +707,36 @@ local function groupChannel()
     if GetNumPartyMembers() and GetNumPartyMembers() > 0 then return "PARTY" end
 end
 
+-- shareWishlist sends this character's wishlist to the group so the raid
+-- lead's ledger can show who wants an item:
+--   W;<exported at>;<part>;<parts>;<itemID>:<m|o>:<enhanced 0|1>:<rank>,...
+-- An empty list is sent too: it clears an older copy.
+local function shareWishlist()
+    local channel = groupChannel()
+    local _, char = ensureDatabase()
+    if not channel or char.noShare then return false end
+    local items = char.items
+    local parts = math.max(1, math.ceil(table.getn(items) / WISHES_PER_MESSAGE))
+    for part = 1, parts do
+        local list = {}
+        for i = (part - 1) * WISHES_PER_MESSAGE + 1, math.min(part * WISHES_PER_MESSAGE, table.getn(items)) do
+            local entry = items[i]
+            table.insert(list, string.format("%d:%s:%d:%d", entry.itemID, entry.spec == "os" and "o" or "m",
+                entry.enhanced and 1 or 0, i))
+        end
+        SendAddonMessage(PREFIX, table.concat({ "W", tostring(char.exportedAt or 0), part, parts,
+            table.concat(list, ",") }, ";"), channel)
+    end
+    return true
+end
+
+-- answerDelay spreads the answers of a whole raid over 1-5 seconds.
+local function answerDelay()
+    local sum = 0
+    for i = 1, string.len(playerName()) do sum = sum + string.byte(playerName(), i) end
+    return 1 + (sum % 40) / 10
+end
+
 -- requestSync asks the raid lead's ledger for this raid's awards (after a
 -- login or /reload). The ledger answers its own awards to any group member.
 local function requestSync()
@@ -716,6 +758,8 @@ local function onAddonMessage(prefix, message, channel, sender)
         if applyAward(f) then refresh() end
     elseif f[1] == "O" then
         if applyOpenItems(f) then refresh() end
+    elseif f[1] == "WQ" then
+        shareAt = shareAt or (GetTime() + answerDelay())
     end
 end
 
@@ -745,24 +789,25 @@ local function importWishlist()
         return
     end
     if not isPlayer(list.character) then
-        status:SetText(string.format("This wishlist is for %s. Log in with %s to import it.", list.character, list.character))
+        status:SetText(string.format(L["This wishlist is for %s. Log in with %s to import it."], list.character, list.character))
         return
     end
     local _, char = ensureDatabase()
     char.items, char.exportedAt, char.balance, char.spent = list.items, list.exportedAt, list.balance, {}
+    shareAt = GetTime() + 1     -- the raid lead's ledger learns the new list
     importText:SetText("")
     showImport(false)
     refresh()
-    local skipped = table.getn(bad) > 0 and string.format(" (%d invalid lines skipped)", table.getn(bad)) or ""
-    status:SetText(string.format("Imported %d wishlist items%s.", table.getn(list.items), skipped))
-    say(string.format("imported %d wishlist items%s.", table.getn(list.items), skipped))
+    local skipped = table.getn(bad) > 0 and string.format(L[" (%d invalid lines skipped)"], table.getn(bad)) or ""
+    status:SetText(string.format(L["Imported %d wishlist items%s."], table.getn(list.items), skipped))
+    say(string.format(L["imported %d wishlist items%s."], table.getn(list.items), skipped))
 end
 
 local function setAuto(on)
     local _, char = ensureDatabase()
     char.auto = on and true or false
     updateAutoButton()
-    say(char.auto and "auto-roll is ON: wishlisted items are rolled for you." or "auto-roll is OFF: you get a roll prompt.")
+    say(char.auto and L["auto-roll is ON: wishlisted items are rolled for you."] or L["auto-roll is OFF: you get a roll prompt."])
 end
 
 importOpen:SetScript("OnClick", function() showImport(not importPanel:IsShown()) end)
@@ -788,7 +833,7 @@ end
 for _, row in ipairs(wishRows) do
     row:SetScript("OnEnter", function(self)
         if self.entry then
-            showTooltip(self, itemLink(self.entry.itemID), "Wishlist: " .. rangeLabel(self.entry)
+            showTooltip(self, itemLink(self.entry.itemID), string.format(L["Wishlist: %s"], rangeLabel(self.entry))
                 .. (self.entry.note ~= "" and (" - " .. self.entry.note) or ""))
         end
     end)
@@ -796,7 +841,7 @@ for _, row in ipairs(wishRows) do
 end
 for _, row in ipairs(openRows) do
     row:SetScript("OnEnter", function(self)
-        if self.open then showTooltip(self, self.open.item, "Waiting to be rolled, " .. self.open.where) end
+        if self.open then showTooltip(self, self.open.item, string.format(L["Waiting to be rolled, %s"], self.open.where)) end
     end)
     row:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
@@ -804,10 +849,79 @@ for _, row in ipairs(raidRows) do
     row:SetScript("OnEnter", function(self)
         if self.award then
             showTooltip(self, self.award.item, string.format("%s - %s%s", self.award.recipient,
-                SPEC_LABELS[self.award.spec] or "no spec", self.award.roll and (", roll " .. self.award.roll) or ""))
+                SPEC_LABELS[self.award.spec] or L["no spec"], self.award.roll and string.format(L[", roll %d"], self.award.roll) or ""))
         end
     end)
     row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+end
+
+---------------------------------------------------------------------------
+-- Minimap button: click opens or closes the window, drag moves the button
+-- around the minimap. The position is shared by all characters.
+---------------------------------------------------------------------------
+local MINIMAP_RADIUS = 80
+local MinimapButton = CreateFrame("Button", "ForgeLootWishlistMinimapButton", Minimap)
+MinimapButton:SetWidth(31)
+MinimapButton:SetHeight(31)
+MinimapButton:SetFrameStrata("MEDIUM")
+MinimapButton:SetFrameLevel(8)
+MinimapButton:RegisterForClicks("LeftButtonUp")
+MinimapButton:RegisterForDrag("LeftButton")
+MinimapButton:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+local minimapIcon = MinimapButton:CreateTexture(nil, "BACKGROUND")
+minimapIcon:SetTexture("Interface\\Icons\\INV_Misc_Note_02")
+minimapIcon:SetWidth(20)
+minimapIcon:SetHeight(20)
+minimapIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+minimapIcon:SetPoint("TOPLEFT", MinimapButton, "TOPLEFT", 7, -5)
+local minimapBorder = MinimapButton:CreateTexture(nil, "OVERLAY")
+minimapBorder:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+minimapBorder:SetWidth(53)
+minimapBorder:SetHeight(53)
+minimapBorder:SetPoint("TOPLEFT", MinimapButton, "TOPLEFT", 0, 0)
+
+local function placeMinimapButton()
+    local db = ensureDatabase()
+    local angle = math.rad(db.minimapAngle or 200)
+    MinimapButton:ClearAllPoints()
+    MinimapButton:SetPoint("CENTER", Minimap, "CENTER", MINIMAP_RADIUS * math.cos(angle), MINIMAP_RADIUS * math.sin(angle))
+    if db.minimapHidden then MinimapButton:Hide() else MinimapButton:Show() end
+end
+
+local function toggleWindow()
+    if Wishlist:IsShown() then
+        Wishlist:Hide()
+    else
+        refresh()
+        Wishlist:Show()
+    end
+end
+
+MinimapButton:SetScript("OnClick", toggleWindow)
+MinimapButton:SetScript("OnDragStart", function(self)
+    self:SetScript("OnUpdate", function()
+        local centerX, centerY = Minimap:GetCenter()
+        if not centerX then return end
+        local cursorX, cursorY = GetCursorPosition()
+        local scale = Minimap:GetEffectiveScale()
+        ensureDatabase().minimapAngle = math.deg(math.atan2(cursorY / scale - centerY, cursorX / scale - centerX))
+        placeMinimapButton()
+    end)
+end)
+MinimapButton:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
+MinimapButton:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:SetText("ForgeLootWishlist")
+    GameTooltip:AddLine(L["Click: open or close your wishlist"], 1, 1, 1)
+    GameTooltip:AddLine(L["Drag: move this button"], 0.7, 0.7, 0.7)
+    GameTooltip:Show()
+end)
+MinimapButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+local function setMinimapButton(show)
+    ensureDatabase().minimapHidden = not show or nil
+    placeMinimapButton()
+    say(show and L["minimap button shown."] or L["minimap button hidden; /flw minimap on brings it back."])
 end
 
 Wishlist:RegisterEvent("PLAYER_LOGIN")
@@ -816,6 +930,7 @@ Wishlist:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_LOGIN" then
         ensureDatabase()
         refresh()
+        placeMinimapButton()
         syncAt = GetTime() + 10
         if ForgeTestBridge and ForgeTestBridge.RegisterFrame then
             ForgeTestBridge:RegisterFrame("ForgeLootWishlistFrame", self)
@@ -828,6 +943,7 @@ Wishlist:SetScript("OnEvent", function(self, event, ...)
             ForgeTestBridge:RegisterFrame("ForgeLootWishlistWish1", wishRows[1])
             ForgeTestBridge:RegisterFrame("ForgeLootWishlistRaid1", raidRows[1])
             ForgeTestBridge:RegisterFrame("ForgeLootWishlistOpen1", openRows[1])
+            ForgeTestBridge:RegisterFrame("ForgeLootWishlistMinimap", MinimapButton)
         end
     elseif event == "CHAT_MSG_ADDON" then
         onAddonMessage(...)
@@ -854,14 +970,21 @@ ticker:SetScript("OnUpdate", function(_, elapsed)
     if syncAt and now >= syncAt then
         syncAt = nil
         requestSync()
+        shareWishlist()
+    end
+    if shareAt and now >= shareAt then
+        shareAt = nil
+        shareWishlist()
     end
 end)
 
 local HELP = {
-    "/flw - show or hide your wishlist",
-    "/flw import - paste the wishlist export from the guild website",
-    "/flw auto on|off - roll automatically on wishlisted items (e.g. while away)",
-    "/flw sync - ask the raid lead's ledger for this raid's awards",
+    L["/flw - show or hide your wishlist"],
+    L["/flw import - paste the wishlist export from the guild website"],
+    L["/flw auto on|off - roll automatically on wishlisted items (e.g. while away)"],
+    L["/flw sync - ask the raid lead's ledger for this raid's awards"],
+    L["/flw minimap on|off - show or hide the minimap button"],
+    L["/flw share on|off - show your wishlist to the raid lead's ledger (on by default)"],
 }
 
 SLASH_FORGELOOTWISHLIST1 = "/flw"
@@ -870,13 +993,21 @@ SlashCmdList["FORGELOOTWISHLIST"] = function(message)
     local command, rest = trim(message):match("^(%S*)%s*(.-)$")
     command, rest = string.lower(command or ""), string.lower(rest or "")
     if command == "" or command == "toggle" then
-        if Wishlist:IsShown() then Wishlist:Hide() else refresh() Wishlist:Show() end
+        toggleWindow()
     elseif command == "import" then
         showImport(true)
     elseif command == "auto" and (rest == "on" or rest == "off") then
         setAuto(rest == "on")
+    elseif command == "share" and (rest == "on" or rest == "off") then
+        local _, char = ensureDatabase()
+        char.noShare = rest == "off" or nil
+        say(rest == "on" and L["your wishlist is shared with the raid lead's ledger."]
+            or L["your wishlist is no longer shared."])
+        if rest == "on" then shareAt = GetTime() + 1 end
+    elseif command == "minimap" and (rest == "on" or rest == "off") then
+        setMinimapButton(rest == "on")
     elseif command == "sync" then
-        if requestSync() then say("asked the raid lead's ledger for this raid's awards.") else say("not in a group.") end
+        if requestSync() then say(L["asked the raid lead's ledger for this raid's awards."]) else say(L["not in a group."]) end
     else
         for _, line in ipairs(HELP) do say(line) end
     end

@@ -214,6 +214,17 @@ Terminal tab; a run started in another window must be pasted.
   item) and lowers its balance copy after an enhanced win. Specs cover this
   (`tests/enhanced.spec.lua`); the live plans use WL2. Two-player plan passed
   live on WL2 (run `b9c26fa82e6a`, member `8fff25e7c5dd`: 30 EP -> 31-130).
+- ForgeLootLedger 1.6 / ForgeLootWishlist 1.3: German texts in deDE clients
+  (`Locales.lua`, English keys are the fallback), DE/BANK recipients (RS2
+  states `disenchanted`/`bank`, counted for nobody), members share wishlists
+  with the ledger (`W`/`WQ` messages; WL count per drop, `[WL #rank]` on
+  rollers), minimap button and auto-open on a wished roll. The live plans now
+  expect German addon text. Passed live: two-player `0df172acedcd` (member
+  `d6a6737428fc`: wishlist reached the lead's ledger, German import message,
+  minimap button, window reopened by the roll) and main `c42c8699a9a9`
+  (German announcements). Still offline only: DE/BANK (the fixture drops one
+  item), the English fallback in a non-German client, dragging the minimap
+  button, a raid of many members sharing at once.
 - Offline text widths are estimates (0.6 em per character); confirm UI with a
   live screenshot.
 - `flake.nix` gained `python.pkgs.lupa`; not yet built with Nix.

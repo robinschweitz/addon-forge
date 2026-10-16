@@ -93,7 +93,7 @@
     },
     {
       "type": "chat_contains",
-      "value": " is parked with Test until it is rolled."
+      "value": " wird bis zum Auswürfeln von Test verwahrt."
     },
     {
       "type": "chat_contains",
@@ -101,7 +101,7 @@
     },
     {
       "type": "chat_contains",
-      "value": " - main spec (with Test until traded)."
+      "value": " - Main-Spec (bei Test bis zum Handel)."
     },
     {
       "type": "global_equals",
