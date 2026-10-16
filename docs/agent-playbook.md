@@ -158,6 +158,14 @@ Terminal tab; a run started in another window must be pasted.
   `b1b2079d8755`). Still offline only: ties, CLEAR, trades between other
   players. RS2 uses `;` because `|` starts EditBox escapes (`|T`, `|c`); the
   `;` export renders cleanly in the live screenshot.
+- ForgeLootLedger 1.2 (MS/OS rolls, points, item tally, announcements,
+  tooltips, shared ledger) passed all three plans live on 2026-10-16: main
+  `6c33864f0d6e` (MS roll, award announcement), peer `5b7500e30d45` (the bot's
+  `/rnd 99` wins as off spec; the client received its own `CHAT_MSG_ADDON`
+  party echo), trade `f834a1decc19` (a 31-130 enhanced roll counts as main
+  spec; the trade is announced). Still offline only: a second addon user
+  receiving the shared ledger (the bot does not run addons), the tally deciding
+  a live roll, tooltips (no hover step).
 - Offline text widths are estimates (0.6 em per character); confirm UI with a
   live screenshot.
 - `flake.nix` gained `python.pkgs.lupa`; not yet built with Nix.
