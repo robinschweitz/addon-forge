@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger start"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "roll",
+      "value": [
+        1,
+        100
+      ]
+    },
+    {
+      "type": "roll",
+      "value": [
+        1,
+        100
+      ]
+    },
+    {
+      "type": "roll",
+      "value": [
+        1,
+        1000
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 33
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerHistory1"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "slash",
+      "value": "/ledger raid 42"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger export"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    }
+  ],
+  "checks": [
+    {
+      "type": "player_in_world",
+      "value": true
+    },
+    {
+      "type": "frame_visible",
+      "value": "RaidLedgerFrame"
+    },
+    {
+      "type": "event_fired",
+      "value": "LOOT_OPENED"
+    },
+    {
+      "type": "event_fired",
+      "value": "CHAT_MSG_LOOT"
+    },
+    {
+      "type": "chat_contains",
+      "value": "jetzt /rnd! 30 Sekunden"
+    },
+    {
+      "type": "chat_contains",
+      "value": "noch 15 Sekunden"
+    },
+    {
+      "type": "chat_contains",
+      "value": " - noch 5 Sekunden!"
+    },
+    {
+      "type": "chat_contains",
+      "value": "gewonnen von Test ("
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.rolls",
+      "value": 1
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.confirmed",
+      "value": true
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerHistory1",
+      "value": "item:20513"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerHistory1",
+      "value": "Test  (1 Würfe)"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerExportText",
+      "value": "RS2;LOOT;42;Test;"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerExportText",
+      "value": ";15209;20513;Test;held;"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerRollHeading",
+      "value": "WÜRFE ZU VERGABE #"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerRoll1",
+      "value": "Test  - gewonnen"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerRoll2",
+      "value": "ignoriert: zweiter Wurf"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerRoll3",
+      "value": "ignoriert: 1-1000"
+    },
+    {
+      "type": "chat_contains",
+      "value": "geht an Test - Main-Spec."
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}

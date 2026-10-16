@@ -1,0 +1,40 @@
+-- RaidWishlist in a German client: texts are German and still fit.
+local CREST = "|cffa335ee|Hitem:20513:0:0:0:0:0:0:0:80|h[Abyssisches Wappen]|h|r"
+
+before_load(function()
+    forge.locale("deDE")
+    forge.item(20513, { name = "Abyssisches Wappen", link = CREST, quality = 4 })
+end)
+
+local function receive(message)
+    forge.fire("CHAT_MSG_ADDON", "FLLedger", message, "RAID", "Lead")
+end
+
+test("the window and the import are German and fit", function()
+    forge.slash("/wish")
+    expect(forge.findText("LOOT-WUNSCHLISTE")).toBeTruthy()
+    expect(forge.findText("Noch keine Wunschliste.\nExport auf der Gildenwebseite kopieren, dann IMPORT.")).toBeTruthy()
+    expect(forge.findText("AUTO-WURF: AUS")).toBeTruthy()
+    expect(forge.layoutIssues("RaidWishlistFrame")).toEqual({})
+    forge.click("RaidWishlistImportOpen")
+    forge.type("RaidWishlistImportText", "WL1;Tester;1")
+    forge.click("RaidWishlistImportButton")
+    expect(forge.findText("Das ist kein Wunschlisten-Export (er beginnt mit WL2;). Bitte auf der Webseite neu exportieren.")).toBeTruthy()
+    forge.type("RaidWishlistImportText", "WL2;Tester;1792130000;30\n20513;ms;1;1;BiS")
+    forge.click("RaidWishlistImportButton")
+    expect(forge.chat()).toContain("RaidWishlist: 1 Wünsche importiert.")
+    expect(forge.findText("MEINE WUNSCHLISTE (1)")).toBeTruthy()
+    expect(forge.layoutIssues("RaidWishlistFrame")).toEqual({})
+end)
+
+test("the roll prompt is German and fits", function()
+    forge.raid({ "Lead", "Anna" })
+    receive("S;Lead-1792131000;Lead;Lead-1-1;20513;30;1;")
+    expect("RaidWishlistPrompt").toBeShown()
+    expect(forge.findText("AUF DEINER WUNSCHLISTE")).toBeTruthy()
+    expect(forge.findText("WÜRFELN MS 31-130")).toBeTruthy()
+    expect(forge.findText("Priorität 1, MS 31-130  -  BiS")).toBeTruthy()
+    expect(forge.layoutIssues("RaidWishlistPrompt")).toEqual({})
+    forge.slash("/wish help")
+    expect(forge.chat()).toContain("RaidWishlist: /wish auto on|off - automatisch auf Wünsche würfeln (z. B. wenn du kurz weg bist)")
+end)

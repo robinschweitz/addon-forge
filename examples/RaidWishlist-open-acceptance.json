@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "addon": "RaidWishlist",
+  "companions": [
+    "RaidLedger"
+  ],
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/wish"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistImportOpen"
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidWishlistImportText",
+        "WL2;Test;1792130000;20\n20513;ms;1;1;Parked crest"
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistImportButton"
+    },
+    {
+      "type": "slash",
+      "value": "/wish auto off"
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerPark"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "screenshot",
+      "value": "open_parked"
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerHistory1"
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerPark"
+    },
+    {
+      "type": "wait",
+      "value": 2
+    },
+    {
+      "type": "screenshot",
+      "value": "open_rolling"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistRoll"
+    },
+    {
+      "type": "wait",
+      "value": 31
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 2
+    },
+    {
+      "type": "screenshot",
+      "value": "open_decided"
+    }
+  ],
+  "checks": [
+    {
+      "type": "event_fired",
+      "value": "CHAT_MSG_ADDON"
+    },
+    {
+      "type": "chat_contains",
+      "value": " wird bis zum Auswürfeln von Test verwahrt."
+    },
+    {
+      "type": "chat_contains",
+      "value": "(21-120)"
+    },
+    {
+      "type": "chat_contains",
+      "value": " - Main-Spec (bei Test bis zum Handel)."
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.itemID",
+      "value": 20513
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.state",
+      "value": "held"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.winner",
+      "value": "Test"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.low",
+      "value": 21
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidWishlistDB.chars.Test.items.1.received",
+      "value": true
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}

@@ -1,9 +1,0 @@
-## Interface: 30300
-## Title: ForgeLootLedger
-## Notes: Raid setup (invites, groups, attendance), loot rolls, awards and website exports for WoW 3.3.5a
-## Author: Addon Forge
-## Version: 2.0.0
-## SavedVariables: ForgeLootLedgerDB
-Locales.lua
-ForgeLootLedger.lua
-Raid.lua

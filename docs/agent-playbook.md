@@ -1,7 +1,7 @@
 # Agent playbook: building 3.3.5a addons that actually work
 
 Hard-won knowledge from building and live-verifying
-[`examples/ForgeLootLedger`](../examples/ForgeLootLedger) (October 2026), the reference addon:
+[`examples/RaidLedger`](../examples/RaidLedger) (October 2026), the reference addon:
 its specs and acceptance plan show every technique below in use. Read this before creating, repairing or testing an addon, and
 before changing the Forge test pipeline. Facts here were observed on the real
 isolated test client (German `deDE`, build 12340) unless marked otherwise.
@@ -26,7 +26,7 @@ isolated test client (German `deDE`, build 12340) unless marked otherwise.
 7. Read the JSON result, then the screenshot in `projects/.forge-runs/`. Fix,
    repeat. Never weaken a check; tighten one that could pass vacuously.
    SavedVariables persist between live runs: start the plan's steps from a
-   known state (ForgeLootLedger's first step is `/forgeloot newraid confirm`),
+   known state (RaidLedger's first step is `/ledger newraid confirm`),
    or checks can pass on data from an earlier run.
 
 ## Who runs live sessions
@@ -82,7 +82,7 @@ Terminal tab; a run started in another window must be pasted.
   or members never see them.
 - `RandomRoll(low, high)` is not protected: an addon may call it from a button
   click and from an `OnUpdate` timer without any hardware event
-  (ForgeLootWishlist's prompt and auto-roll, runs `e0284c58e3ab`, `bb9f6ee936ce`).
+  (RaidWishlist's prompt and auto-roll, runs `e0284c58e3ab`, `bb9f6ee936ce`).
 - `SendAddonMessage` to PARTY/RAID also arrives at the sender as
   `CHAT_MSG_ADDON`, so two cooperating addons (ledger and wishlist) can be
   tested on one client.
@@ -156,20 +156,20 @@ Terminal tab; a run started in another window must be pasted.
 ## Open work
 
 - Combat and quest fixtures.
-- ForgeLootLedger 1.1 (loot tracking from RaidSync): the real `GiveMasterLoot`
+- RaidLedger 1.1 (loot tracking from RaidSync): the real `GiveMasterLoot`
   handout, its deDE `LOOT_ITEM_SELF` confirmation ("Ihr erhaltet Beute: ..."),
   the corpse's creature ID (15209) and the RS2 export passed live on 2026-10-16
   (run `83b3795d931f`). The roll log (counted, re-roll and 1-1000 rows) passed
   live in run `cf79987a1d8a`; the CLEAR button itself is verified offline only.
-  The plan starts with `/forgeloot newraid confirm`,
+  The plan starts with `/ledger newraid confirm`,
   because SavedVariables persist between live runs and old awards would
   otherwise satisfy the checks. Two more plans cover the bot:
-  `ForgeLootLedger-peer-acceptance.json` (the bot wins; run `b2b299f6e36e`) and
-  `ForgeLootLedger-trade-acceptance.json` (held item traded to the bot; run
+  `RaidLedger-peer-acceptance.json` (the bot wins; run `b2b299f6e36e`) and
+  `RaidLedger-trade-acceptance.json` (held item traded to the bot; run
   `b1b2079d8755`). Still offline only: ties, CLEAR, trades between other
   players. RS2 uses `;` because `|` starts EditBox escapes (`|T`, `|c`); the
   `;` export renders cleanly in the live screenshot.
-- ForgeLootLedger 1.2 (MS/OS rolls, points, item tally, announcements,
+- RaidLedger 1.2 (MS/OS rolls, points, item tally, announcements,
   tooltips, shared ledger) passed all three plans live on 2026-10-16: main
   `6c33864f0d6e` (MS roll, award announcement), peer `5b7500e30d45` (the bot's
   `/rnd 99` wins as off spec; the client received its own `CHAT_MSG_ADDON`
@@ -177,8 +177,8 @@ Terminal tab; a run started in another window must be pasted.
   spec; the trade is announced). Still offline only: a second addon user
   receiving the shared ledger (the bot does not run addons), the tally deciding
   a live roll, tooltips (no hover step).
-- ForgeLootWishlist 1.0 (members' wishlist, roll prompt, auto-roll, who got
-  what) with ForgeLootLedger 1.3 (shares roll starts as `S` messages) passed
+- RaidWishlist 1.0 (members' wishlist, roll prompt, auto-roll, who got
+  what) with RaidLedger 1.3 (shares roll starts as `S` messages) passed
   live on 2026-10-16: prompt `e0284c58e3ab`, auto-roll `bb9f6ee936ce`; the
   ledger's main plan still passes (`62c5291c833d`). Plans list the ledger in
   `companions` and paste the wishlist with a `paste` step. Still offline only:
@@ -198,23 +198,23 @@ Terminal tab; a run started in another window must be pasted.
   handout to the member, and the member's "who got what" list over addon
   messages. A new character shows the WoW welcome tutorial. By default every
   test-client addon loads on both clients; `"member_addons"` limits the
-  member to e.g. ForgeLootWishlist (written to the character's AddOns.txt,
-  verified live: `SlashCmdList.FORGELOOT` is nil there, run `a70a09025c67`).
-- ForgeLootLedger 1.4 / ForgeLootWishlist 1.1 (open items: PARK, roll later,
+  member to e.g. RaidWishlist (written to the character's AddOns.txt,
+  verified live: `SlashCmdList.RAIDLEDGER` is nil there, run `a70a09025c67`).
+- RaidLedger 1.4 / RaidWishlist 1.1 (open items: PARK, roll later,
   OPEN ITEMS list) passed live: parking flow `b0ba9606fdba` (PARK with the
   master looter, later ROLL, wishlist prompt during the later roll, winner on
   the same award); regressions main `dc2c24cc790f`, trade `bd9a88a6b620`,
   wishlist prompt `af15dd7a3008`. Still offline only: parking with another
   raider (the fixture bot cannot receive an item it did not roll for in the
   plan), and the open-list scenarios beyond the master looter.
-- ForgeLootLedger 1.5 / ForgeLootWishlist 1.2 follow the guild website
+- RaidLedger 1.5 / RaidWishlist 1.2 follow the guild website
   (robinschweitz/raid-website, ADR 070): enhanced main spec is any 1+X..100+X
   with X = min(EP, 50) (no steps of 10); RS2 lines end with the roll winner;
   the wishlist imports WL2 (EP balance in the header, `ms|os;enhanced 0/1` per
   item) and lowers its balance copy after an enhanced win. Specs cover this
   (`tests/enhanced.spec.lua`); the live plans use WL2. Two-player plan passed
   live on WL2 (run `b9c26fa82e6a`, member `8fff25e7c5dd`: 30 EP -> 31-130).
-- ForgeLootLedger 1.6 / ForgeLootWishlist 1.3: German texts in deDE clients
+- RaidLedger 1.6 / RaidWishlist 1.3: German texts in deDE clients
   (`Locales.lua`, English keys are the fallback), DE/BANK recipients (RS2
   states `disenchanted`/`bank`, counted for nobody), members share wishlists
   with the ledger (`W`/`WQ` messages; WL count per drop, `[WL #rank]` on
@@ -225,7 +225,7 @@ Terminal tab; a run started in another window must be pasted.
   (German announcements). Still offline only: DE/BANK (the fixture drops one
   item), the English fallback in a non-German client, dragging the minimap
   button, a raid of many members sharing at once.
-- ForgeLootLedger 2.0 replaces RaidSync (`Raid.lua`: invites, group sort,
+- RaidLedger 2.0 replaces RaidSync (`Raid.lua`: invites, group sort,
   attendance; `;`-separated `RS2;INV` / `RS2;ROSTER`). Passed live with the
   new `raid_lead` fixture (`81bb5148cbe4`, member `0f9585f5fe94`): real
   `InviteUnit`, `ConvertToRaid`, the deDE "nicht auffindbar" message, the sort
@@ -235,6 +235,10 @@ Terminal tab; a run started in another window must be pasted.
   forever; the ledger now gives up after three tries and invites into the
   party). Still offline only: more than four invites, declines, the bench, a
   real group swap (two players never need one).
+- Renamed to RaidLedger (`/ledger`) and RaidWishlist (`/wish`) before release
+  (no saved-data migration). Passed live after the rename: two-player
+  `1b1ccbcd9cc7`, raid setup `be409e5ef19a`. The old deploy folders were moved
+  to the test client's `Interface/AddOns/archive`.
 - Offline text widths are estimates (0.6 em per character); confirm UI with a
   live screenshot.
 - `flake.nix` gained `python.pkgs.lupa`; not yet built with Nix.

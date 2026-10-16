@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "addon": "RaidWishlist",
+  "companions": [
+    "RaidLedger"
+  ],
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/wish"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistImportOpen"
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidWishlistImportText",
+        "WL2;Test;1792130000;20\n20513;ms;1;1;Live test crest"
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistImportButton"
+    },
+    {
+      "type": "slash",
+      "value": "/wish auto off"
+    },
+    {
+      "type": "screenshot",
+      "value": "wl_imported"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger start"
+    },
+    {
+      "type": "wait",
+      "value": 2
+    },
+    {
+      "type": "screenshot",
+      "value": "wl_prompt"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistRoll"
+    },
+    {
+      "type": "wait",
+      "value": 31
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "screenshot",
+      "value": "wl_received"
+    }
+  ],
+  "checks": [
+    {
+      "type": "event_fired",
+      "value": "LOOT_OPENED"
+    },
+    {
+      "type": "event_fired",
+      "value": "CHAT_MSG_ADDON"
+    },
+    {
+      "type": "chat_contains",
+      "value": "(21-120)"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidWishlistDB.chars.Test.items.1.itemID",
+      "value": 20513
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidWishlistDB.chars.Test.items.1.received",
+      "value": true
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.low",
+      "value": 21
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.confirmed",
+      "value": true
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidWishlistWish1",
+      "value": "item:20513"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidWishlistRaid1",
+      "value": "item:20513"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidWishlistRaid1",
+      "value": "->  Test"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}

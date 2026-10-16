@@ -149,7 +149,7 @@ def test_evaluate_new_checks_against_snapshot():
 def test_other_addons_errors_do_not_fail_this_addon():
     from addon_forge.runner import judge
     from addon_forge.scenario_plan import split_errors
-    foreign = "Interface\\AddOns\\ForgeLootLedger\\ForgeLootLedger.lua:158: attempt to call method 'SetTextColor'"
+    foreign = "Interface\\AddOns\\RaidLedger\\RaidLedger.lua:158: attempt to call method 'SetTextColor'"
     own = "Interface\\AddOns\\ForgeExample\\ForgeExample.lua:3: boom"
     bare = "[string \"x\"]:1: unattributed"
     assert split_errors([foreign, own, bare], "ForgeExample") == ([own, bare], [foreign])
@@ -228,13 +228,13 @@ def test_step_runner_sends_fixed_lua_and_stops_on_failure():
     def rpc(method, params=None, *, expected_pid):
         codes.append(params["code"])
         return {"ok": True, "result": "hidden" if "ForgeTestBridge.frames" in params["code"] else "ok"}
-    steps = [{"type": "slash", "value": "/forgeloot start"}, {"type": "wait", "value": 2},
-             {"type": "roll", "value": [1, 100]}, {"type": "click", "value": "ForgeLootLedgerAward"},
+    steps = [{"type": "slash", "value": "/ledger start"}, {"type": "wait", "value": 2},
+             {"type": "roll", "value": [1, 100]}, {"type": "click", "value": "RaidLedgerAward"},
              {"type": "roll", "value": [1, 100]}]
-    with pytest.raises(StepFailed, match="Step 4 click 'ForgeLootLedgerAward' failed: hidden"):
+    with pytest.raises(StepFailed, match="Step 4 click 'RaidLedgerAward' failed: hidden"):
         run_steps(steps, 9, rpc=rpc, sleep=waits.append)
     assert waits == [2] and len(codes) == 3
-    assert 'local cmd, rest = "/forgeloot", "start"' in codes[0]
+    assert 'local cmd, rest = "/ledger", "start"' in codes[0]
     assert codes[1] == "RandomRoll(1, 100) return 'ok'"
 
 
@@ -434,7 +434,7 @@ def test_member_steps_run_on_the_member_client():
     def rpc(method, params=None, *, expected_pid):
         seen.append(expected_pid)
         return {"ok": True, "result": "ok"}
-    steps = [{"type": "slash", "value": "/flw"}, {"type": "slash", "value": "/flw", "client": "member"}]
+    steps = [{"type": "slash", "value": "/wish"}, {"type": "slash", "value": "/wish", "client": "member"}]
     shots = []
     run_steps(steps + [{"type": "screenshot", "value": "s", "client": "member"}], 9, rpc=rpc,
               pids={"member": 12}, screenshot=lambda name, client="main": shots.append((name, client)) or name)
@@ -457,15 +457,15 @@ def test_member_addons_are_validated():
 def test_member_character_loads_only_the_chosen_addons(tmp_path):
     from addon_forge.addon_settings import write_character_addons
     addons = tmp_path / "Interface" / "AddOns"
-    for name in ("ForgeLootLedger", "ForgeLootWishlist", "ForgeTestBridge", "Blizzard_RaidUI"):
+    for name in ("RaidLedger", "RaidWishlist", "ForgeTestBridge", "Blizzard_RaidUI"):
         (addons / name).mkdir(parents=True)
         (addons / name / f"{name}.toc").write_text("## Interface: 30300\n")
     (addons / "archive").mkdir()                       # no .toc: not an addon
-    path = write_character_addons(tmp_path, "FORGEMEMBER", "AzerothCore", "Raidmember", ["ForgeLootWishlist"])
+    path = write_character_addons(tmp_path, "FORGEMEMBER", "AzerothCore", "Raidmember", ["RaidWishlist"])
     assert path == tmp_path / "WTF" / "Account" / "FORGEMEMBER" / "AzerothCore" / "Raidmember" / "AddOns.txt"
     assert path.read_text(encoding="utf-8").split() == [
-        "ForgeLootLedger:", "disabled", "ForgeLootWishlist:", "enabled", "ForgeTestBridge:", "enabled"]
+        "ForgeTestBridge:", "enabled", "RaidLedger:", "disabled", "RaidWishlist:", "enabled"]
     with pytest.raises(ValueError):
-        write_character_addons(tmp_path, "FORGEMEMBER", "AzerothCore", "../Test", ["ForgeLootWishlist"])
+        write_character_addons(tmp_path, "FORGEMEMBER", "AzerothCore", "../Test", ["RaidWishlist"])
     with pytest.raises(RuntimeError, match="not installed"):
         write_character_addons(tmp_path, "FORGEMEMBER", "AzerothCore", "Raidmember", ["Missing"])

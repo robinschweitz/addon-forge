@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "companions": [
+    "RaidWishlist"
+  ],
+  "character": "Test",
+  "member": "Raidmember",
+  "member_addons": [
+    "RaidWishlist"
+  ],
+  "peers": 0,
+  "fixtures": [
+    "master_loot",
+    "raid_lead"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger setup"
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidLedgerInviteText",
+        "RS2;INV;42;Live;10\nRaidmember;DD;Krieger;0\nNobodyhere;HEAL;Priester;0"
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerRead"
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerInviteAll"
+    },
+    {
+      "type": "wait",
+      "value": 6
+    },
+    {
+      "type": "slash",
+      "value": "/ledger groups"
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAttendance"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "screenshot",
+      "value": "raid_setup"
+    }
+  ],
+  "checks": [
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.setup.raid.id",
+      "value": 42
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.raidID",
+      "value": 42
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.setup.members.1.status",
+      "value": "joined"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.setup.members.2.status",
+      "value": "notfound"
+    },
+    {
+      "type": "chat_contains",
+      "value": "RaidLedger: 2 Charaktere für Raid #42 eingelesen."
+    },
+    {
+      "type": "chat_contains",
+      "value": "RaidLedger: Alle Einladungen verschickt."
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerRaidStatus",
+      "value": "Raid #42 Live: 1 / 2 im Raid"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerRosterText",
+      "value": "RS2;ROSTER;42;Test;"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerRosterText",
+      "value": "Raidmember;"
+    },
+    {
+      "type": "chat_contains",
+      "value": "RaidLedger: Die Gruppen sind schon sortiert."
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.setup.seen.raidmember.name",
+      "value": "Raidmember"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true,
+      "client": "member"
+    }
+  ]
+}

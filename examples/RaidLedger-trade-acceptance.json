@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger start"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "roll",
+      "value": [
+        31,
+        130
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 33
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "screenshot",
+      "value": "held_before_trade"
+    },
+    {
+      "type": "peer_trade",
+      "value": 20513
+    },
+    {
+      "type": "wait",
+      "value": 2
+    },
+    {
+      "type": "screenshot",
+      "value": "after_trade"
+    }
+  ],
+  "checks": [
+    {
+      "type": "event_fired",
+      "value": "CHAT_MSG_LOOT"
+    },
+    {
+      "type": "event_fired",
+      "value": "TRADE_SHOW"
+    },
+    {
+      "type": "event_fired",
+      "value": "TRADE_CLOSED"
+    },
+    {
+      "type": "chat_contains",
+      "value": "gewonnen von Test ("
+    },
+    {
+      "type": "chat_contains",
+      "value": "RaidLedger: Handel erfasst: #"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.state",
+      "value": "given"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.confirmed",
+      "value": true
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.itemID",
+      "value": 20513
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.rolls",
+      "value": 1
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.lastTrade.result",
+      "value": "moved 1"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.lastTrade.offered",
+      "value": 1
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.low",
+      "value": 31
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.spec",
+      "value": "ms"
+    },
+    {
+      "type": "chat_contains",
+      "value": " - Main-Spec 31-130, bisher 0 Items."
+    },
+    {
+      "type": "chat_contains",
+      "value": " - Main-Spec (gehandelt)."
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}

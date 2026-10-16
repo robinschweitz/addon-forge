@@ -1,0 +1,41 @@
+-- Offline spec: master loot -> /rnd roll -> winner -> recorded award -> persists across /reload.
+local CREST = "|cffa335ee|Hitem:20513:0:0:0:0:0:0:0:80|h[Abyssal Crest]|h|r"
+
+before_load(function()
+    forge.item(20513, { name = "Abyssal Crest", link = CREST, quality = 4 })
+end)
+
+test("ledger is shown at login and /ledger toggles it", function()
+    expect("RaidLedgerFrame").toBeShown()
+    forge.slash("/ledger")
+    expect("RaidLedgerFrame").toBeHidden()
+    forge.slash("/ledger toggle")
+    expect("RaidLedgerFrame").toBeShown()
+end)
+
+test("opening master loot lists the item and /ledger start announces a roll", function()
+    forge.openLoot({ { id = 20513 } })
+    expect(forge.findText(CREST)).toBeTruthy()
+    forge.slash("/ledger start")
+    expect(forge.lastChat()).toContain("Abyssal Crest")
+    expect(forge.lastChat()).toContain("30 seconds")
+end)
+
+test("highest first /rnd wins after 30 seconds; a re-roll is ignored", function()
+    forge.roll("Alice", 42)
+    forge.roll("Bob", 97)
+    forge.roll("Alice", 50)
+    forge.advance(31, 0.25)
+    expect(forge.chat()).toContain("15 seconds left")
+    expect(forge.chat()).toContain("won by Bob (97)")
+end)
+
+test("recording the award stores history that survives /reload", function()
+    forge.clickText("RECORD AWARD")
+    local db = forge.saved("RaidLedgerDB")
+    expect(db.history[1].recipient).toBe("Bob")
+    expect(db.history[1].rolls).toBe(2)
+    forge.reload()
+    expect(forge.saved("RaidLedgerDB").history[1].item).toContain("Abyssal Crest")
+    expect(forge.findText("Abyssal Crest", true)).toBeTruthy()
+end)

@@ -159,7 +159,7 @@ def test_spec_files_are_not_deployed_or_loaded(tmp_path):
 
 
 def test_forge_loot_ledger_reference_addon_passes_all_specs():
-    result = run_specs(ROOT / "examples" / "ForgeLootLedger")
+    result = run_specs(ROOT / "examples" / "RaidLedger")
     assert result["status"] == "passed", result
 
 

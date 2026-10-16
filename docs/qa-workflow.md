@@ -410,8 +410,8 @@ one fixed SDK action:
 | `peer_trade` | item ID | Trades that item from the test character's bags to the fixture's bot; both sides accept |
 
 `"companions": ["OtherAddon"]` (up to 3, folders beside the plan) adds addons the
-scenario needs as well, such as the raid lead's ForgeLootLedger for the members'
-ForgeLootWishlist: they pass the same static and offline gates, are deployed
+scenario needs as well, such as the raid lead's RaidLedger for the members'
+RaidWishlist: they pass the same static and offline gates, are deployed
 with the addon, steps may run their slash commands, and their Lua errors fail
 the plan like the addon's own.
 
@@ -423,7 +423,7 @@ optional `"client": "member"` to act on and observe that client; each
 client's checks are judged against its own bridge snapshot, and screenshots
 of it are saved as `step-NAME-member.png`. The `master_loot` fixture summons
 the member next to the corpse and invites them too. `"member_addons":
-["ForgeLootWishlist"]` (some of the plan's addon and companions) makes the
+["RaidWishlist"]` (some of the plan's addon and companions) makes the
 member's character load only those addons, plus the test bridge, as a real
 raid member would: the session writes that character's
 `WTF/Account/<ACCOUNT>/<Realm>/<Character>/AddOns.txt` before it logs in. Two clients need the
@@ -433,7 +433,7 @@ Adding `"raid_lead"` (`"fixtures": ["master_loot", "raid_lead"]`) makes the
 bot raise the GUI character (and the member) to level 10, which a raid needs,
 and hand party leadership to the GUI character after setting master loot, so
 a plan can test inviting, converting to a raid and sorting groups
-(`ForgeLootLedger-raid-setup-acceptance.json`).
+(`RaidLedger-raid-setup-acceptance.json`).
 
 `peer_roll` and `peer_trade` need `"fixtures": ["master_loot"]`. A step the
 client or bot does not perform (missing command, hidden button, trade not
@@ -555,11 +555,11 @@ These are **user-observed local results**, not a guarantee on other machines:
 | One AzerothGhost peer appears and is targeted | **Verified** | User-provided peer test passed; run `60bb9bfee84b` |
 | Three-peer bot party / peer departure lifecycle | **Verified live** | v2 target assertions passed at stages `61f0feae27df` and `e88eaee835cd`; bot-only group, GUI player `party.count: 0` |
 | Four-peer party, GUI player membership and addon party frames | **Not verified live** | Separate membership/health/UI assertions still required |
-| Static checks, offline harness, plan schema, MCP server | **Unit-tested** | Test suite; ForgeLootLedger loot flow passes offline |
-| Bridge v3 SDK JSON transport, new plan checks | **Verified live** | `ForgeExample` and `ForgeLootLedger` plans passed (runs `e7d96f13fde3`, `448b3ba9387b`) |
+| Static checks, offline harness, plan schema, MCP server | **Unit-tested** | Test suite; RaidLedger loot flow passes offline |
+| Bridge v3 SDK JSON transport, new plan checks | **Verified live** | `ForgeExample` and `RaidLedger` plans passed (runs `e7d96f13fde3`, `448b3ba9387b`) |
 | `master_loot` fixture + `agent session` | **Verified live** | deDE corpse name from the world DB, SDK `TargetUnit`, temporarily bound interact key; `LOOT_OPENED` observed, no Lua errors |
 | Offline layout check (`forge.layoutIssues`) | **Unit-tested; fix confirmed live by screenshot** | Reproduced the real overlaps; text widths are estimates |
-| Plan `steps` + ForgeLootLedger roll flow | **Verified live** | Real `/rnd` 61, re-roll 3 and 1-1000 roll 600: only 61 counted, `won by Test (61)` in party chat, award saved (run `cce23000b73e`) |
+| Plan `steps` + RaidLedger roll flow | **Verified live** | Real `/rnd` 61, re-roll 3 and 1-1000 roll 600: only 61 counted, `won by Test (61)` in party chat, award saved (run `cce23000b73e`) |
 | SDK idle-logout loop fix | **Verified live** | One unbound key press after login: `PLAYER_CAMPING` dropped from ~13 to 1 per session |
 | `forge api dump` | **Verified live** | 33,826 globals and 2,261 widget methods; found real `Button:SetTextColor` bug offline |
 | Combat, quests, buffs, items and full autonomous QA | **Not implemented** | Future capability work |
