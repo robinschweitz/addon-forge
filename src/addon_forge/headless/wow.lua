@@ -774,10 +774,30 @@ local function api(env)
     E.IsRaidLeader = function() return W.leader and #W.raid > 0 and 1 or nil end
     E.IsRaidOfficer = function() return W.leader and #W.raid > 0 and 1 or nil end
     E.GetPartyLeaderIndex = function() return 0 end
-    E.GetLootMethod = function() return W.lootMethod.method, W.lootMethod.party, W.lootMethod.raid end
+    -- The raid index of the master looter is nil outside a raid, as in the client.
+    E.GetLootMethod = function()
+        return W.lootMethod.method, W.lootMethod.party, #W.raid > 0 and W.lootMethod.raid or nil
+    end
     E.GetLootThreshold = function() return W.lootMethod.threshold or 2 end
     E.GetMasterLootCandidate = function(i) local c = W.lootCandidates[i]; return c end
-    E.GiveMasterLoot = function(slot, index) tinsert(W.awards, { slot = slot, candidate = W.lootCandidates[index] }) end
+    -- The server answers a master-loot handout later: the slot empties and the
+    -- group sees a CHAT_MSG_LOOT line on the next frame (see forge.advance).
+    E.GiveMasterLoot = function(slot, index)
+        local candidate = W.lootCandidates[index]
+        tinsert(W.awards, { slot = slot, candidate = candidate })
+        local l = W.lootOpen and W.loot[slot]
+        if not candidate or not l or not l.link then return end
+        local link = l.link
+        tinsert(W.pending, function()
+            if W.loot[slot] == l then W.loot[slot] = {} end
+            if candidate == E.UnitName("player") then
+                fire("CHAT_MSG_LOOT", wowFormat(E.LOOT_ITEM_SELF, link))
+            else
+                fire("CHAT_MSG_LOOT", wowFormat(E.LOOT_ITEM, candidate, link))
+            end
+        end)
+    end
+    E.GetTradePlayerItemLink = function(slot) return W.trade and W.trade.items[slot] end
     -- Loot and items
     E.GetNumLootItems = function() return W.lootOpen and #W.loot or 0 end
     E.GetLootSlotLink = function(slot) local l = W.lootOpen and W.loot[slot]; return l and l.link end
@@ -941,12 +961,14 @@ local function newWorld(config, saved)
     W = { objects = {}, events = {}, chat = {}, sent = {}, addonMessages = {}, sounds = {}, popups = {},
           optionsPanels = {}, chatFilters = {}, awards = {}, looted = {}, loot = {}, lootOpen = false,
           lootCandidates = {}, lootMethod = { method = "group" }, raid = {}, partyCount = 0, leader = false,
-          items = {}, nextRolls = {}, time = 0, epoch = 1281052800, combat = false, keys = {},
+          items = {}, nextRolls = {}, pending = {}, time = 0, epoch = 1281052800, combat = false, keys = {},
           money = 0, zone = "Dalaran", realm = "AzerothCore", locale = config.locale or "enUS",
           gameMinutes = 12 * 60, mapX = 0.5, mapY = 0.5,
           cvars = {}, units = defaultUnits(), addonName = config.addonName, metadata = config.metadata or {},
           strings = { RANDOM_ROLL_RESULT = "%s rolls %d (%d-%d)", OKAY = "Okay", CANCEL = "Cancel", YES = "Yes",
-                      NO = "No", ACCEPT = "Accept", DECLINE = "Decline", CLOSE = "Close", NONE = "None" } }
+                      NO = "No", ACCEPT = "Accept", DECLINE = "Decline", CLOSE = "Close", NONE = "None",
+                      LOOT_ITEM = "%s receives loot: %s.", LOOT_ITEM_SELF = "You receive loot: %s.",
+                      ERR_TRADE_COMPLETE = "Trade complete.", ERR_TRADE_CANCELLED = "Trade cancelled." } }
     local E = {}
     W.env = E
     E._G = E
@@ -1017,6 +1039,9 @@ function forge.advance(seconds, step)
         local dt = remaining < step and remaining or step
         W.time = W.time + dt
         remaining = remaining - dt
+        local pending = W.pending
+        W.pending = {}
+        for _, fn in ipairs(pending) do fn() end
         for _, obj in ipairs(W.objects) do
             local s = state[obj]
             if s.scripts.OnUpdate and Methods[s.type].IsVisible and obj:IsVisible() then runScript(obj, "OnUpdate", dt) end
@@ -1179,6 +1204,25 @@ function forge.openLoot(items)
 end
 function forge.closeLoot() W.env.CloseLoot() end
 function forge.awards() return W.awards end
+-- Trade `links` (item links in the player's trade slots) to `partner`. opts.cancel
+-- cancels instead; opts.infoFirst sends "Trade complete." before TRADE_CLOSED.
+function forge.trade(partner, links, opts)
+    opts = opts or {}
+    W.units.npc = { name = partner, isPlayer = true, connected = true }
+    W.trade = { items = {} }
+    fire("TRADE_SHOW")
+    for i, link in ipairs(links or {}) do
+        W.trade.items[i] = link
+        fire("TRADE_PLAYER_ITEM_CHANGED", i)
+    end
+    fire("TRADE_ACCEPT_UPDATE", 1, 1)
+    local info = opts.cancel and W.env.ERR_TRADE_CANCELLED or W.env.ERR_TRADE_COMPLETE
+    if opts.infoFirst then fire("UI_INFO_MESSAGE", info) end
+    W.trade = nil
+    W.units.npc = nil
+    fire("TRADE_CLOSED")
+    if not opts.infoFirst then fire("UI_INFO_MESSAGE", info) end
+end
 function forge.roll(name, value, lo, hi)
     fire("CHAT_MSG_SYSTEM", wowFormat(W.env.RANDOM_ROLL_RESULT, name, value, lo or 1, hi or 100))
 end
