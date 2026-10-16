@@ -11,13 +11,14 @@ end)
 
 local function db() return forge.saved("ForgeLootLedgerDB") end
 
--- sentSince returns addon messages sent after the n-th; roll starts (S) only
--- with withStarts, so award tests see just their A and L lines.
+-- sentSince returns addon messages sent after the n-th; roll starts (S) and
+-- open-item lists (O) only with withStarts, so award tests see just A, L, Q.
 local function sentSince(n, withStarts)
     local out = {}
     local all = forge.addonMessages()
     for i = n + 1, #all do
-        if withStarts or string.sub(all[i].message, 1, 2) ~= "S;" then table.insert(out, all[i]) end
+        local kind = string.sub(all[i].message, 1, 2)
+        if withStarts or (kind ~= "S;" and kind ~= "O;") then table.insert(out, all[i]) end
     end
     return out
 end
@@ -43,9 +44,10 @@ test("after login the addon asks its group for the shared ledger", function()
     forge.raid({ "Alice", "Bob", "Cara" })
     expect(#forge.addonMessages()).toBe(0)
     forge.advance(9, 0.25)
-    expect(#forge.addonMessages()).toBe(1)
-    expect(forge.addonMessages()[1].message).toBe("Q;-;Tester")
-    expect(forge.addonMessages()[1].chatType).toBe("RAID")
+    local sent = sentSince(0)
+    expect(#sent).toBe(1)
+    expect(sent[1].message).toBe("Q;-;Tester")
+    expect(sent[1].chatType).toBe("RAID")
 end)
 
 test("an award goes to the group as an A line plus its roll log, four messages a second", function()

@@ -26,7 +26,7 @@ test("the award button hands the item to the roll winner and records the real re
     forge.roll("Alice", 30)
     forge.roll("Bob", 88)
     forge.advance(31, 0.25)
-    forge.clickText("GIVE LOOT + RECORD")
+    forge.clickText("GIVE + RECORD")
     expect(forge.awards()[1].slot).toBe(1)
     expect(forge.awards()[1].candidate).toBe("Bob")
     local record = db().history[1]
@@ -69,7 +69,7 @@ test("a recipient who is no master-loot candidate is refused, not recorded", fun
     forge.slash("/forgeloot clear")             -- also forgets the source, so the crest is new
     forge.advance(0.25, 0.25)
     forge.clickText("Bob")                      -- roster button fills the recipient
-    forge.clickText("GIVE LOOT + RECORD")
+    forge.clickText("GIVE + RECORD")
     expect(table.getn(forge.awards())).toBe(2)
     expect(table.getn(db().history)).toBe(2)
     expect(forge.findText("Bob cannot receive this item (not a master-loot candidate).")).toBeTruthy()
@@ -100,7 +100,10 @@ test("an item given to yourself is held, and your completed trade passes it on",
     lootTemplar({ { id = 21281 } })
     forge.slash("/forgeloot clear")
     forge.advance(0.25, 0.25)
-    GiveMasterLoot(1, 1)                        -- Tester keeps it for now
+    forge.slash("/forgeloot start")
+    forge.roll("Alice", 50)
+    forge.advance(31, 0.25)
+    GiveMasterLoot(1, 1)                        -- Tester keeps it for the winner, Alice
     forge.advance(0.1)
     local record = db().history[1]
     expect(record.recipient).toBe("Tester")
@@ -147,7 +150,10 @@ test("a trade still counts when the items leave the trade slots before 'Trade co
     lootTemplar({ { id = 21281 } })
     forge.slash("/forgeloot clear")
     forge.advance(0.25, 0.25)
-    GiveMasterLoot(1, 1)
+    forge.slash("/forgeloot start")
+    forge.roll("Bob", 60)
+    forge.advance(31, 0.25)
+    GiveMasterLoot(1, 1)                        -- held for the winner, Bob
     forge.advance(0.1)
     forge.closeLoot()
     local record = db().history[1]

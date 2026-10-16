@@ -43,7 +43,7 @@ test("a master-loot handout is announced once the loot message confirms it", fun
     forge.slash("/forgeloot start")
     forge.roll("Bob", 30, 1, 99)
     forge.advance(31, 0.25)
-    forge.clickText("GIVE LOOT + RECORD")
+    forge.clickText("GIVE + RECORD")
     expect(raidSaid("[Loot] " .. TOME .. " goes to Bob - off spec.")).toBe(false)
     forge.advance(0.1)
     expect(raidSaid("[Loot] " .. TOME .. " goes to Bob - off spec.")).toBe(true)

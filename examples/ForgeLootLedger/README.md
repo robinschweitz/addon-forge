@@ -28,16 +28,17 @@ Announcements go to raid, then party, then local chat:
 
 ## Awards
 
-- **GIVE LOOT + RECORD**: while the item is still in the master-loot window,
+- **GIVE + RECORD**: while the item is still in the master-loot window,
   the award button hands it to the recipient with `GiveMasterLoot`. The ledger
   records the award and marks it confirmed once the server's loot message
   arrives (an unconfirmed award shows `?`).
 - Handouts from the default master-loot menu are recorded the same way.
 - **RECORD AWARD**: without the item in a master-loot window, the award is
   recorded by hand (`MANUAL`).
-- Items you give to yourself are `HELD BY YOU`. When you trade one to another
-  player and the trade completes, the oldest held copy moves to that player.
-  Trades between other players are not visible to the addon.
+- Items you give to yourself after a roll are `HELD BY YOU` for the winner.
+  When you trade one away and the trade completes, the copy the partner won
+  (else the oldest held copy) moves to that player. Trades between other
+  players are not visible to the addon.
 - Each award stores the item ID, the creature ID of the corpse (the dead target,
   or the last creature death for chests), the winner's roll and the time.
   Reopening the same corpse does not list its items twice.
@@ -90,6 +91,27 @@ listed in grey with the reason: `re-roll`, a wrong range such as `1-1000`, or
 again, or open new loot, to get the loot items back. Awards recorded before
 version 1.1 have no roll log.
 
+## Loot that waits: PARK and roll later
+
+Items do not have to be rolled right away:
+
+- **PARK** (next to the award button) hands the selected loot to the player in
+  the recipient box, or to you when it is empty, to **hold until it is rolled**.
+  Use it for unique items you cannot hold twice. The award shows `OPEN` and
+  the raid sees "[item] is parked with Bob until it is rolled."
+- An item you take without a roll (also from the default master-loot menu) is
+  open too, and trading it away parks it with the trade partner.
+- An award recorded otherwise can be parked afterwards: click it, put the
+  holder in the recipient box, press **PARK**.
+- To roll an open item later, click its award: the button reads **ROLL**. The
+  item joins the roll list and the roll runs as usual (wishlist prompts and
+  auto-rolls included). **RECORD AWARD** then writes the result onto the same
+  award: held by you, it waits for your trade to the winner; held by another
+  raider, the winner becomes the recipient ("Bob hands it over"), since trades
+  between other players are not visible.
+- Open items do not count in anyone's tally. Wishlist users see them, and the
+  loot still on the corpse, under **OPEN ITEMS**.
+
 ## Clearing old loot
 
 **CLEAR** (on the award list), **NEW RAID** (in the export) and
@@ -133,8 +155,9 @@ as `21-120` shows a points-enhanced main-spec roll.
 Times are Unix seconds.
 
 States: `given` (handed out or traded by you), `held` (with the recorder),
-`manual` (recorded or corrected by hand), `deleted` (removed; delete it on the
-website if it was imported before).
+`parked` (held by the recipient until it is rolled), `manual` (recorded or
+corrected by hand), `deleted` (removed; delete it on the website if it was
+imported before). A `held` line without a roll is still open.
 
 Changes from RaidSync's `RS1|LOOT`:
 

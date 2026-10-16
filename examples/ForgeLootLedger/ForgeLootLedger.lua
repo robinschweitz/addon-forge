@@ -167,6 +167,12 @@ local function tallies()
     return counts
 end
 
+-- isOpenAward: an item handed out only to be held until it is rolled - parked
+-- with a raider (unique items) or kept by the master looter without a roll.
+local function isOpenAward(r)
+    return r.state == "parked" or (r.state == "held" and not r.winner and not r.spec)
+end
+
 local function tallyOf(counts, name, kind)
     local entry = counts[lower(name)]
     return entry and entry[kind] or 0
@@ -180,6 +186,10 @@ end
 
 -- announceAward tells the raid who got an item, so nobody has to ask.
 local function announceAward(record, how)
+    if record.state == "parked" then
+        announce(string.format("[Loot] %s is parked with %s until it is rolled.", record.item, record.recipient))
+        return
+    end
     local spec = record.spec and (" - " .. SPEC_NAMES[record.spec]) or ""
     announce(string.format("[Loot] %s goes to %s%s%s.", record.item, record.recipient, spec,
         how and (" (" .. how .. ")") or ""))
@@ -325,7 +335,7 @@ local function recordAward(entry, recipient, state, confirmed)
         itemID = itemIDFromLink(entry.item),
         npc = entry.npc,
         recipient = field(recipient),
-        state = isPlayer(recipient) and "held" or state,
+        state = (state == "parked" and "parked") or (isPlayer(recipient) and "held") or state,
         confirmed = confirmed and true or false,
         rolls = table.getn(entry.rolls or {}),
         roll = roll and roll.value,
@@ -502,12 +512,23 @@ recipientHint:SetText("RECIPIENT NAME")
 
 local award = CreateFrame("Button", nil, detailPane)
 award:SetPoint("TOPLEFT", recipientBox, "BOTTOMLEFT", -2, -10)
-award:SetWidth(196)
+award:SetWidth(136)
 award:SetHeight(26)
 makeBackdrop(award, 0.08, 0.25, 0.34, 0.98)
-local awardText = label(award, "GameFontNormal", 11, {0.70, 0.93, 1.00})
+local awardText = label(award, "GameFontNormal", 10, {0.70, 0.93, 1.00})
 awardText:SetPoint("CENTER", award, "CENTER", 0, 0)
 awardText:SetText("RECORD AWARD")
+
+-- PARK hands an item to a raider (or keeps it) to hold until it is rolled;
+-- on an open award it reads ROLL and starts that roll.
+local park = CreateFrame("Button", "ForgeLootLedgerPark", detailPane)
+park:SetPoint("LEFT", award, "RIGHT", 6, 0)
+park:SetWidth(54)
+park:SetHeight(26)
+makeBackdrop(park, 0.20, 0.12, 0.30, 0.98)
+local parkText = label(park, "GameFontNormal", 10, {0.92, 0.80, 1.00})
+parkText:SetPoint("CENTER", park, "CENTER", 0, 0)
+parkText:SetText("PARK")
 
 local rosterHint = label(detailPane, "GameFontNormalSmall", 9, {0.45, 0.60, 0.68})
 rosterHint:SetPoint("TOPLEFT", award, "BOTTOMLEFT", 1, -9)
@@ -549,10 +570,10 @@ local historySummary = label(historyPane, "GameFontNormalSmall", 9, {0.45, 0.60,
 historySummary:SetPoint("RIGHT", clearButton, "LEFT", -10, 0)
 historySummary:SetJustifyH("RIGHT")
 
-local stateLabels = { given = "GIVEN", held = "HELD BY YOU", manual = "MANUAL", deleted = "REMOVED" }
+local stateLabels = { given = "GIVEN", held = "HELD BY YOU", manual = "MANUAL", deleted = "REMOVED", parked = "OPEN" }
 local stateColors = {
     given = {0.45, 0.85, 0.55}, held = {1.00, 0.82, 0.30},
-    manual = {0.58, 0.79, 0.88}, deleted = {0.45, 0.45, 0.45},
+    manual = {0.58, 0.79, 0.88}, deleted = {0.45, 0.45, 0.45}, parked = {0.85, 0.62, 1.00},
 }
 
 local historyLines = {}
@@ -727,11 +748,12 @@ local function updateHistory()
             line:SetText(text)
             local stateText = stateLabels[record.state] or string.upper(record.state or "")
             if record.state == "held" and not isPlayer(record.recipient) then stateText = "HELD" end
+            if isOpenAward(record) then stateText = "OPEN" end
             if string.sub(record.item or "", 1, 5) == "item:" then
                 record.item = select(2, GetItemInfo(record.itemID or 0)) or record.item   -- now cached?
             end
             if not record.confirmed and record.state ~= "deleted" then stateText = stateText .. "?" end
-            local color = stateColors[record.state] or stateColors.manual
+            local color = isOpenAward(record) and stateColors.parked or stateColors[record.state] or stateColors.manual
             line.state:SetText(stateText)
             line.state:SetTextColor(color[1], color[2], color[3])
             line:SetBackdropColor(0.10, 0.21, 0.29, editing == record and 0.98 or 0)
@@ -749,11 +771,13 @@ local function updateSelection()
     if editing then
         itemDetail:SetText(string.format("#%d %s", editing.id, editing.item))
         rollDetail:SetText(string.format("NOW: %s (%s)", editing.recipient, stateLabels[editing.state] or editing.state or ""))
-        awardText:SetText(editing.state == "deleted" and "RESTORE + SET RECIPIENT" or "CHANGE RECIPIENT")
+        awardText:SetText(editing.state == "deleted" and "RESTORE + SET" or "CHANGE RECIPIENT")
+        parkText:SetText(isOpenAward(editing) and "ROLL" or "PARK")
         return
     end
     local entry = selectedEntry()
-    awardText:SetText(lootSlotOf(entry) and "GIVE LOOT + RECORD" or "RECORD AWARD")
+    awardText:SetText(lootSlotOf(entry) and "GIVE + RECORD" or "RECORD AWARD")
+    parkText:SetText("PARK")
     if entry then
         itemDetail:SetText(entry.item)
         if entry.winner then
@@ -1022,21 +1046,26 @@ end
 
 -- onGiveMasterLoot runs after every master-loot handout, from this ledger or
 -- from the default master-loot menu, and records the real recipient.
+local parkSlots = {}     -- loot slots the PARK button is handing out to be held
+local finishLaterRoll   -- defined with the award button
+
 local function onGiveMasterLoot(slot, candidate)
     local name = GetMasterLootCandidate(candidate)
     local info = lootSlots[slot]
     local link = (info and info.link) or GetLootSlotLink(slot)
     if not name or not link then return end
+    local parking = parkSlots[slot]
+    parkSlots[slot] = nil
     local entry = info and info.entry or { item = link, npc = windowNpc, rolls = {} }
     local record = entry.record
     if record then
         -- Recorded by hand before the handout: the handout is the truth.
         record.recipient = field(name)
-        record.state = isPlayer(name) and "held" or "given"
+        record.state = (parking and "parked") or (isPlayer(name) and "held") or "given"
         record.confirmed = false
         publish(record)
     else
-        record = recordAward(entry, name, "given", false)
+        record = recordAward(entry, name, parking and "parked" or "given", false)
     end
     status:SetText(string.format("Gave #%d to %s; waiting for the loot message.", record.id, name))
     updateRows()
@@ -1098,18 +1127,30 @@ local function rememberTrade(partner, offered, result)
     ensureDatabase().lastTrade = { partner = partner or "-", offered = offered, result = result, at = time() }
 end
 
+-- applyTrade: a held item traded away goes to its roll winner ("given"); an
+-- item still waiting for its roll is parked with the trade partner instead
+-- (e.g. a unique item another raider holds until the roll). A copy won by the
+-- partner moves first, then the oldest held copy.
 local function applyTrade(partner, itemIDs)
     local history, moved, used = ensureDatabase().history, {}, {}
-    for _, itemID in ipairs(itemIDs) do
-        for i = table.getn(history), 1, -1 do   -- oldest held copy first
+    local function heldCopy(itemID, wonByPartner)
+        for i = table.getn(history), 1, -1 do   -- oldest first
             local record = history[i]
-            if not used[i] and record.state == "held" and record.itemID == itemID and isPlayer(record.recipient) then
-                used[i] = true
-                record.recipient, record.state, record.confirmed = field(partner), "given", true
-                publish(record)
-                table.insert(moved, record)
-                break
+            if not used[i] and record.state == "held" and record.itemID == itemID and isPlayer(record.recipient)
+                and (not wonByPartner or lower(record.winner) == lower(partner)) then
+                return i, record
             end
+        end
+    end
+    for _, itemID in ipairs(itemIDs) do
+        local i, record = heldCopy(itemID, true)
+        if not record then i, record = heldCopy(itemID, false) end
+        if record then
+            used[i] = true
+            local open = isOpenAward(record)
+            record.recipient, record.state, record.confirmed = field(partner), open and "parked" or "given", true
+            publish(record)
+            table.insert(moved, record)
         end
     end
     return moved
@@ -1298,9 +1339,37 @@ local function applyLog(f, sender)
     updateRows()
 end
 
+-- openSnapshot lists the items still waiting in the roll list for wishlist
+-- addons: "itemID:status:source:winner" with status o (open), r (rolling) or
+-- w (won, not handed out yet) and source c (corpse) or a<award id> (an open
+-- award being rolled later).
+local lastOpenSnapshot = ""   -- nothing to share until items appear
+local function openSnapshot()
+    local parts = {}
+    for _, entry in ipairs(active) do
+        local itemID = itemIDFromLink(entry.item)
+        if itemID then
+            local status = entry.winner and "w" or (entry.endsAt and "r") or "o"
+            local source = entry.later and entry.record and ("a" .. entry.record.id) or "c"
+            table.insert(parts, table.concat({ itemID, status, source,
+                entry.winner and field(entry.winner.name) or "" }, ":"))
+        end
+    end
+    return table.concat(parts, ",")
+end
+
+local function shareOpenItems(force)
+    if not groupChannel() then return end
+    local snapshot = openSnapshot()
+    if snapshot == lastOpenSnapshot and not force then return end
+    lastOpenSnapshot = snapshot
+    queue(table.concat({ "O", currentSession(), field(playerName()), snapshot }, ";"))
+end
+
 -- answerSync sends our own awards, and the asker's (their backup), so a
 -- master looter whose client crashed gets the ledger back.
 local function answerSync(asker)
+    shareOpenItems(true)
     for i = table.getn(ensureDatabase().history), 1, -1 do
         local record = ensureDatabase().history[i]
         local origin = lower(record.origin or playerName())
@@ -1534,6 +1603,109 @@ local function updateRollTimers()
     end
 end
 
+-- startLaterRoll rolls an open award (parked, or held without a roll): the
+-- item joins the roll list, the roll runs as usual, and its result is written
+-- onto the same award.
+local function startLaterRoll(record)
+    for _, entry in ipairs(active) do
+        if entry.record == record and entry.later then
+            selected = entry
+            editing = nil
+            startSelectedRoll()
+            return
+        end
+    end
+    local entry = { item = record.item, npc = record.npc, rolls = {}, record = record, later = true }
+    table.insert(active, 1, entry)
+    while table.getn(active) > MAX_ACTIVE do table.remove(active) end
+    selected, editing = entry, nil
+    recipientBox:SetText("")
+    startSelectedRoll()
+end
+
+-- finishLaterRoll records the winner of a later roll. Held by the master
+-- looter, the award stays "held" for the winner until the trade; parked with
+-- another raider, the winner becomes the recipient (the hand-over between two
+-- other players is not visible to this addon).
+finishLaterRoll = function(entry, recipient)
+    local record = entry.record
+    local holder = record.recipient
+    local roll = findRoll(entry, recipient)
+    record.rollLog = sortedRollLog(entry)
+    record.rolls = table.getn(entry.rolls or {})
+    record.roll, record.spec = roll and roll.value, roll and roll.kind
+    record.low, record.high = roll and roll.low, roll and roll.high
+    record.winner = field(recipient)
+    record.confirmed = true
+    local how
+    if isPlayer(holder) then
+        record.state = "held"
+        how = "with " .. holder .. " until traded"
+    else
+        record.recipient, record.state, record.holder = field(recipient), "manual", holder
+        how = holder .. " hands it over"
+    end
+    for index = table.getn(active), 1, -1 do
+        if active[index] == entry then table.remove(active, index) end
+    end
+    if selected == entry then selected = nil end
+    publish(record, true)
+    announceAward({ item = record.item, recipient = record.winner, spec = record.spec }, how)
+    recipientBox:SetText("")
+    status:SetText(string.format("Award #%d goes to %s (%s).", record.id, record.winner, how))
+    updateRows()
+end
+
+-- parkSelected hands the selected loot to a raider (or keeps it) to be rolled
+-- later, or marks a recorded award as parked with its current holder.
+local function parkSelected()
+    local holder = trim(recipientBox:GetText())
+    if editing then
+        if isOpenAward(editing) then
+            startLaterRoll(editing)
+            return
+        end
+        if editing.state == "deleted" then
+            status:SetText("Restore the award before parking it.")
+            return
+        end
+        editing.recipient = field(holder ~= "" and holder or editing.recipient)
+        editing.state, editing.winner, editing.spec, editing.roll = "parked", nil, nil, nil
+        editing.low, editing.high, editing.confirmed = nil, nil, true
+        publish(editing)
+        announceAward(editing)
+        status:SetText(string.format("Award #%d is open, held by %s until it is rolled.", editing.id, editing.recipient))
+        editing = nil
+        recipientBox:SetText("")
+        updateRows()
+        return
+    end
+    local entry = selectedEntry()
+    if not entry or entry.later then
+        status:SetText("Select a loot item to park.")
+        return
+    end
+    if holder == "" then holder = playerName() end
+    local slot = lootSlotOf(entry)
+    if slot then
+        local index = candidateIndex(holder)
+        if not index then
+            status:SetText(holder .. " cannot receive this item (not a master-loot candidate).")
+            return
+        end
+        parkSlots[slot] = true
+        recipientBox:SetText("")
+        GiveMasterLoot(slot, index)
+        return
+    end
+    local record = recordAward(entry, holder, "parked", true)
+    announceAward(record)
+    recipientBox:SetText("")
+    status:SetText(string.format("Award #%d is open, held by %s until it is rolled.", record.id, holder))
+    updateRows()
+end
+park:SetScript("OnClick", parkSelected)
+
 award:SetScript("OnClick", function()
     local recipient = trim(recipientBox:GetText())
     if editing then
@@ -1555,6 +1727,10 @@ award:SetScript("OnClick", function()
     end
     if recipient == "" then
         status:SetText("Choose or enter a recipient name.")
+        return
+    end
+    if entry.later then
+        finishLaterRoll(entry, recipient)
         return
     end
     -- With the item still in the master-loot window, hand it out for real; the
@@ -1607,6 +1783,7 @@ Ledger:SetScript("OnEvent", function(self, event, ...)
             ForgeTestBridge:RegisterFrame("ForgeLootLedgerFrame", self)
             ForgeTestBridge:RegisterFrame("ForgeLootLedgerItem", itemDetail)
             ForgeTestBridge:RegisterFrame("ForgeLootLedgerAward", award)
+            ForgeTestBridge:RegisterFrame("ForgeLootLedgerPark", park)
             ForgeTestBridge:RegisterFrame("ForgeLootLedgerHistory1", historyLines[1])
             ForgeTestBridge:RegisterFrame("ForgeLootLedgerExportButton", exportButton)
             ForgeTestBridge:RegisterFrame("ForgeLootLedgerExportText", exportText)
@@ -1648,6 +1825,7 @@ ticker:SetScript("OnUpdate", function(_, elapsed)
         tickElapsed = 0
         if LootFrame and LootFrame:IsShown() then captureMasterLoot() end
         updateRollTimers()
+        shareOpenItems()
         -- Shared ledger: at most four addon messages per second.
         if outbox[1] then
             local channel = groupChannel()
