@@ -1,3 +1,4 @@
+from pathlib import Path
 """Test-copy marker and vault safeguards for the SDK login."""
 from unittest.mock import Mock
 import pytest
@@ -52,3 +53,38 @@ def test_member_slot_has_its_own_vault_entry(tmp_path, monkeypatch):
     assert {c.args[0] for c in vault.set_password.call_args_list} == {member}
     with pytest.raises(ValueError):
         win_login._vault_service(config.wow_dir, "other")
+
+
+def test_member_account_fixture_gets_the_password_only_by_environment(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from addon_forge import local_account, agent_realm
+    monkeypatch.setattr(agent_realm, "_preflight", lambda realm: ("dbpw", 13306))
+    seen, saved = {}, {}
+    def run(argv, *, cwd, env, capture_output, text, timeout, check):
+        seen.update(argv=argv, env=env)
+        Path(env["FORGE_MEMBER_RESULT"]).write_text('{"character": "Raidmember"}', encoding="utf-8")
+        return SimpleNamespace(returncode=0, stdout="ok")
+    def save(wow, account, *, read_password, slot):
+        saved.update(account=account, password=read_password(""), slot=slot)
+    cfg = SimpleNamespace(realm_dir=tmp_path, wow_dir=tmp_path)
+    name = local_account.create_member_account(cfg, "FORGEMEMBER", "Raidmember", run=run, save=save)
+    assert name == "Raidmember"
+    password = seen["env"]["FORGE_MEMBER_PASSWORD"]
+    assert len(password) == 16 and password not in " ".join(seen["argv"])
+    assert saved == {"account": "FORGEMEMBER", "password": password, "slot": "member"}
+
+
+def test_failed_member_fixture_saves_nothing_and_redacts(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from addon_forge import local_account, agent_realm
+    monkeypatch.setattr(agent_realm, "_preflight", lambda realm: ("dbpw", 13306))
+    def run(argv, *, cwd, env, **_):
+        return SimpleNamespace(returncode=1, stdout="login failed for " + env["FORGE_MEMBER_PASSWORD"])
+    def save(*a, **k):
+        pytest.fail("credentials must not be saved after a failed fixture")
+    cfg = SimpleNamespace(realm_dir=tmp_path, wow_dir=tmp_path)
+    with pytest.raises(RuntimeError) as failure:
+        local_account.create_member_account(cfg, "FORGEMEMBER", "Raidmember", run=run, save=save)
+    assert "<redacted>" in str(failure.value)
+    with pytest.raises(ValueError):
+        local_account.create_member_account(cfg, "FORGEMEMBER", "raid member", run=run, save=save)

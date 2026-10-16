@@ -63,8 +63,10 @@ def make_parser():
     realmlist = sub.add_parser("realmlist", help="Back up and point WoW at SSH-tunneled local realm")
     realmlist.add_argument("--locale")
     local = sub.add_parser("local-realm", help="Set up a separate local AzerothCore test realm")
-    local.add_argument("action", choices=["setup", "start", "status", "logs", "console", "stop", "create-account"])
+    local.add_argument("action", choices=["setup", "start", "status", "logs", "console", "stop", "create-account",
+                                          "create-member"])
     local.add_argument("--account-name", help="Local realm account name (password prompted securely)")
+    local.add_argument("--character", help="create-member: the second player's character name")
     local.add_argument("--source-wow", type=Path, help="Original WoW client directory (read-only)")
     local.add_argument("--test-wow", type=Path, help="New isolated WoW test copy")
     local.add_argument("--realm-dir", type=Path, help="AzerothCore checkout directory")
@@ -216,6 +218,15 @@ def main(argv=None) -> int:
         if args.command == "local-realm":
             from .local_realm import setup, operate, start_existing
             realm = args.realm_dir or (Path.cwd().parent / "azerothcore-wotlk")
+            if args.action == "create-member":
+                from .local_account import create_member_account
+                if not args.account_name or not args.character:
+                    raise ValueError("Supply --account-name and --character (the password is generated "
+                                     "and stored in Windows Credential Manager, never shown)")
+                name = create_member_account(load_config(args.config), args.account_name, args.character)
+                print(f"Created {args.account_name.upper()} with character {name}; credentials saved in the "
+                      "member slot.")
+                return 0
             if args.action == "create-account":
                 from .local_account import create_test_account
                 if not args.account_name:
