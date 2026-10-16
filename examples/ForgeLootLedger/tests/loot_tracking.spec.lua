@@ -114,6 +114,7 @@ test("an item given to yourself is held, and your completed trade passes it on",
     expect(db().history[1].recipient).toBe("Alice")
     expect(db().history[1].state).toBe("given")
     expect(forge.chat()).toContain("trade recorded: #" .. record.id)
+    expect(forge.findText("Award #" .. record.id .. " traded: Alice has the item now.")).toBeTruthy()
 end)
 
 test("a trade moves the oldest held copy, whichever order the client reports it in", function()

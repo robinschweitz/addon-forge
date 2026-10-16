@@ -1114,6 +1114,7 @@ local function onTradeComplete()
     trade = nil
     for _, record in ipairs(moved) do
         say(string.format("trade recorded: #%d %s -> %s", record.id, record.item, record.recipient))
+        status:SetText(string.format("Award #%d traded: %s has the item now.", record.id, record.recipient))
         announceAward(record, "traded")
     end
     if table.getn(moved) > 0 then updateRows() end
