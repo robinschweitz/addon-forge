@@ -65,8 +65,8 @@ or auto-roll when it is rolled.
 The lower list shows every award the raid lead's ledger shares: item,
 recipient and spec, with removed awards greyed out. Your items and items on
 your wishlist are highlighted; hover a row for the item tooltip. The header
-shows your own tally this raid (main spec and off spec items, tokens not
-counted), which decides close rolls. An item the master looter holds for you
+shows your own tally this raid, items and tokens as separate lists (main spec
+and off spec each), which decides close rolls. An item the master looter holds for you
 counts as yours, and its wishlist entry shows **RECEIVED**.
 
 After a login or `/reload` the addon asks the group for this raid's awards

@@ -96,6 +96,18 @@ test("tokens do not count in the tally", function()
     expect(award.recipient).toBe("Eve")
 end)
 
+test("tokens have their own tally: fewest tokens first", function()
+    -- Eve has 1 main-spec token, Bob has main-spec items but no token.
+    local award = rollFor(47242, { { "Eve", 99 }, { "Bob", 5 } })
+    expect(award.recipient).toBe("Bob")
+    expect(award.token).toBe(true)
+    expect(sentTo("won by Bob (5) - main spec, 0 tokens so far.")).toBe(true)
+    local log = award.rollLog
+    expect(log[1].name).toBe("Bob")
+    expect(log[2].name).toBe("Eve")
+    expect(log[2].tally).toBe(1)
+end)
+
 test("a tie needs the same spec, tally and roll", function()
     forge.slash("/forgeloot newraid confirm")
     forge.slash("/forgeloot clear")

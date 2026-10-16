@@ -18,7 +18,8 @@ rules:
 - **Main spec always beats off spec.**
 - Within one spec, **the player with the fewest items this raid wins**; the
   roll decides between equal tallies. Main spec and off spec have separate
-  tallies, and tokens (Weiheabzeichen) do not count.
+  tallies, and tokens (Weiheabzeichen) have their own: a token roll goes to
+  the player with the fewest tokens.
 - Only a player's first roll counts. Any other range is ignored.
 - A tie (same spec, same tally, same roll) starts a 15-second tie-break among
   the tied players, and may tie again.
@@ -47,14 +48,16 @@ Every award is announced too: "[item] goes to Bob - main spec." when the
 handout is confirmed or recorded by hand, with "(traded)" or "(corrected)"
 when a trade or a correction changes the recipient.
 
-## Item tally
+## Item and token tally
 
 The tally counts this raid's awards per player, separately for main spec and
 off spec, from the ledger itself: CLEAR / NEW RAID starts everyone at 0.
-Removed awards, tokens and awards without a roll do not count; an item you
-hold for the winner counts for the winner. `/forgeloot tally` lists everyone,
-and `/forgeloot spec <#> ms|os|none` moves an award to the other tally or out
-of it.
+Items and tokens (Weiheabzeichen) are two separate lists: item rolls rank by
+the item tally, token rolls by the token tally. Removed awards and awards
+without a roll do not count; an item you hold for the winner counts for the
+winner. `/forgeloot tally` lists everyone (items, then tokens), and
+`/forgeloot spec <#> ms|os|none` moves an award to the other spec or out of
+the tally.
 
 Hover a group member for their items this raid, hover an award or a loot row
 for the item tooltip (plus the award and the recipient's tally), and hover a

@@ -79,10 +79,13 @@ test("a held item counts for the roll winner until it is traded", function()
     expect(forge.chat()).toContain("ForgeLootLedger: Bob: 1 main spec, 1 off spec")
 end)
 
-test("/forgeloot tally lists who got counted items; a token alone does not count", function()
+test("/forgeloot tally keeps items and tokens in separate lists", function()
     expect(forge.chat()).toContain("ForgeLootLedger: Cara: 1 main spec, 0 off spec")
+    expect(forge.chat()).toContain("ForgeLootLedger: tokens this raid:")
+    expect(forge.chat()).toContain("ForgeLootLedger: Alice: 1 main spec, 0 off spec (tokens)")
     for _, line in ipairs(forge.chat()) do
-        expect(string.find(line, "ForgeLootLedger: Alice:", 1, true)).toBeNil()
+        -- Alice only got a token: she is not in the item list.
+        expect(string.find(line, "ForgeLootLedger: Alice: 0 main spec", 1, true)).toBeNil()
     end
 end)
 
@@ -103,7 +106,7 @@ test("hovering an award shows the item, the award and the player's items", funct
     expect(lines[1]).toBe("item:21281:0:0:0:0:0:0:0:60")
     expect(tooltipHas("Award #2: Bob (GIVEN)")).toBe(true)
     expect(tooltipHas("Roll 30, OS")).toBe(true)
-    expect(tooltipHas("Bob this raid: 1 main spec, 1 off spec (tokens not counted)")).toBe(true)
+    expect(tooltipHas("Bob this raid: items 1 MS / 1 OS, tokens 0 MS / 0 OS")).toBe(true)
     forge.hover(forge.findText("#2  ", true), true)
     local _, stillShown = forge.tooltip()
     expect(stillShown).toBe(false)
@@ -111,7 +114,7 @@ end)
 
 test("hovering a group member shows what they got this raid", function()
     forge.hover(forge.findText("Alice"))
-    expect(tooltipHas("Alice this raid: 0 main spec, 0 off spec (tokens not counted)")).toBe(true)
+    expect(tooltipHas("Alice this raid: items 0 MS / 0 OS, tokens 1 MS / 0 OS")).toBe(true)
     expect(tooltipHas("  " .. TOKEN .. "  MS  (token)")).toBe(true)
 end)
 

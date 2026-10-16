@@ -156,15 +156,18 @@ local function sortedAwards()
     return list
 end
 
+-- myTally counts your awards this raid in two separate lists, like the
+-- ledger: items { ms, os } and tokens { ms, os }.
 local function myTally()
-    local counts = { ms = 0, os = 0 }
+    local items, tokens = { ms = 0, os = 0 }, { ms = 0, os = 0 }
     for _, award in ipairs(sortedAwards()) do
-        if award.state ~= "deleted" and (award.spec == "ms" or award.spec == "os") and not award.token
+        if award.state ~= "deleted" and (award.spec == "ms" or award.spec == "os")
             and isPlayer(awardOwner(award)) then
-            counts[award.spec] = counts[award.spec] + 1
+            local list = award.token and tokens or items
+            list[award.spec] = list[award.spec] + 1
         end
     end
-    return counts
+    return items, tokens
 end
 
 -- received marks wishlist items this player already got (or won) this raid;
@@ -519,8 +522,9 @@ local function updateRaid()
     local count = table.getn(awards)
     raidOffset = math.max(0, math.min(raidOffset, count - RAID_ROWS))
     raidHeading:SetText(count > 0 and string.format("THIS RAID (%d)", count) or "THIS RAID")
-    local tally = myTally()
-    tallyText:SetText(string.format("YOU: %d MAIN SPEC, %d OFF SPEC", tally.ms, tally.os))
+    local items, tokens = myTally()
+    tallyText:SetText(string.format("YOU: ITEMS %d MS / %d OS  |  TOKENS %d MS / %d OS",
+        items.ms, items.os, tokens.ms, tokens.os))
     if count > 0 then raidEmpty:Hide() else raidEmpty:Show() end
     for i = 1, RAID_ROWS do
         local row, award = raidRows[i], awards[i + raidOffset]

@@ -141,7 +141,7 @@ test("the raid list shows who got what, with your tally", function()
     award(2, 1, 20513, "Tester", "given", "ms")
     expect(forge.findText("THIS RAID (2)")).toBeTruthy()
     expect(forge.findText(CREST .. "  ->  Tester")).toBeTruthy()
-    expect(forge.findText("YOU: 1 MAIN SPEC, 0 OFF SPEC")).toBeTruthy()
+    expect(forge.findText("YOU: ITEMS 1 MS / 0 OS  |  TOKENS 0 MS / 0 OS")).toBeTruthy()
     expect(forge.findText("RECEIVED")).toBeTruthy()
     expect(forge.layoutIssues("ForgeLootWishlistFrame")).toEqual({})
 end)
@@ -154,7 +154,7 @@ end)
 
 test("an item the master looter holds for you counts as yours", function()
     award(3, 1, 20514, "Lead", "held", "ms", "Tester")
-    expect(forge.findText("YOU: 2 MAIN SPEC, 0 OFF SPEC")).toBeTruthy()
+    expect(forge.findText("YOU: ITEMS 2 MS / 0 OS  |  TOKENS 0 MS / 0 OS")).toBeTruthy()
     rollStart("Lead-1-8", 20514)
     forge.advance(1.2, 0.2)
     expect(#rolls).toBe(3)
@@ -164,7 +164,7 @@ test("corrections replace older revisions; removed awards no longer count", func
     award(2, 1, 20513, "Bob", "manual", "ms")         -- old revision: ignored
     expect(forge.findText(CREST .. "  ->  Tester")).toBeTruthy()
     award(2, 3, 20513, "Bob", "deleted", "ms")
-    expect(forge.findText("YOU: 1 MAIN SPEC, 0 OFF SPEC")).toBeTruthy()
+    expect(forge.findText("YOU: ITEMS 1 MS / 0 OS  |  TOKENS 0 MS / 0 OS")).toBeTruthy()
     expect(forge.findText("REMOVED")).toBeTruthy()
 end)
 
@@ -206,4 +206,13 @@ test("the roll prompt sits above the raid lead's ledger, at the top of the scree
     local r = forge.rect("ForgeLootWishlistPrompt")
     expect(r.top >= 690).toBe(true)
     expect(forge.frame("ForgeLootWishlistPrompt"):GetFrameStrata()).toBe("FULLSCREEN_DIALOG")
+end)
+
+
+test("tokens are tallied in their own list", function()
+    forge.raid({ "Lead", "Alice" })                  -- /reload above reset the group
+    receive("A;Lead-1792139999;Lead;30;1;1792140000;47242;;Tester;given;1;ms;50;1;100;Tester;1;1;22:00")
+    expect(forge.findText("YOU: ITEMS 0 MS / 0 OS  |  TOKENS 1 MS / 0 OS")).toBeTruthy()
+    expect(forge.findText("MS TOKEN")).toBeTruthy()
+    expect(forge.layoutIssues("ForgeLootWishlistFrame")).toEqual({})
 end)

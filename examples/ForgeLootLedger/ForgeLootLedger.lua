@@ -115,8 +115,9 @@ local function rollLabel(r)
     return "MS"
 end
 
-local function itemCount(n)
-    return n == 1 and "1 item" or (n .. " items")
+local function itemCount(n, token)
+    local noun = token and "token" or "item"
+    return n == 1 and ("1 " .. noun) or (n .. " " .. noun .. "s")
 end
 
 -- ranksAbove orders counted rolls: main spec first, then the fewest items, then
@@ -153,12 +154,15 @@ local function findRecord(id)
 end
 
 -- tallies counts this raid's awards per player and spec ({ ms = n, os = n }),
--- keyed by lower-case name. Tokens, removed awards and awards without a spec
--- (handed out without a roll) do not count; a held item counts for its winner.
-local function tallies()
+-- keyed by lower-case name. Items and tokens (Weiheabzeichen) are separate
+-- lists: tallies() counts items, tallies(true) tokens. Removed awards and
+-- awards without a spec (handed out without a roll) do not count; a held item
+-- counts for its winner.
+local function tallies(tokens)
     local counts = {}
     for _, r in ipairs(ensureDatabase().history) do
-        if (r.spec == "ms" or r.spec == "os") and r.state ~= "deleted" and not r.token then
+        if (r.spec == "ms" or r.spec == "os") and r.state ~= "deleted"
+            and (r.token and true or false) == (tokens and true or false) then
             local key = lower((r.state == "held" and r.winner) or r.recipient)
             counts[key] = counts[key] or { ms = 0, os = 0 }
             counts[key][r.spec] = counts[key][r.spec] + 1
@@ -179,9 +183,9 @@ local function tallyOf(counts, name, kind)
 end
 
 local function summaryLine(name)
-    local counts = tallies()
-    return string.format("%s this raid: %d main spec, %d off spec (tokens not counted)",
-        name, tallyOf(counts, name, "ms"), tallyOf(counts, name, "os"))
+    local items, tokens = tallies(), tallies(true)
+    return string.format("%s this raid: items %d MS / %d OS, tokens %d MS / %d OS", name,
+        tallyOf(items, name, "ms"), tallyOf(items, name, "os"), tallyOf(tokens, name, "ms"), tallyOf(tokens, name, "os"))
 end
 
 -- announceAward tells the raid who got an item, so nobody has to ask.
@@ -207,7 +211,7 @@ end
 -- items, highest roll), then ignored rolls in the order they came in.
 local function sortedRollLog(entry)
     if not entry.rollLog then return {} end
-    local counts = tallies()
+    local counts = tallies(isToken(entry.item))
     local log = {}
     for index, r in ipairs(entry.rollLog) do
         local copy = { name = r.name, value = r.value, round = r.round, note = r.note, order = index,
@@ -828,7 +832,7 @@ local function showRollLog(record)
             end
             -- Spec and the tally the ranking used (logs from before 1.2 have neither).
             if r.kind and not r.note then
-                text = text .. "  (" .. rollLabel(r) .. ", " .. itemCount(r.tally or 0) .. ")"
+                text = text .. "  (" .. rollLabel(r) .. ", " .. itemCount(r.tally or 0, record.token) .. ")"
             end
             row:SetText(text)
             row.count:SetText(tostring(r.value))
@@ -1508,7 +1512,7 @@ local function recordRoll(message)
         kind = kind, low = lo, high = hi })
     if note then return end
     table.insert(entry.rolls, { name = name, value = value, kind = kind, low = lo, high = hi,
-        tally = tallyOf(tallies(), name, kind) })
+        tally = tallyOf(tallies(isToken(entry.item)), name, kind) })
     table.sort(entry.rolls, ranksAbove)
     updateRows()
 end
@@ -1551,7 +1555,7 @@ local function finishRoll(entry)
         return
     end
     -- Tallies may have changed during the roll (other awards): rank again.
-    local counts = tallies()
+    local counts = tallies(isToken(entry.item))   -- tokens rank by the token tally
     for _, roll in ipairs(entry.rolls) do roll.tally = tallyOf(counts, roll.name, roll.kind) end
     table.sort(entry.rolls, ranksAbove)
     local best = entry.rolls[1]
@@ -1582,7 +1586,7 @@ local function finishRoll(entry)
     if selectedEntry() == entry and not editing then recipientBox:SetText(entry.winner.name) end
     announce(string.format("[Loot] %s won by %s (%d) - %s%s, %s so far.", entry.item, best.name, best.value,
         SPEC_NAMES[best.kind], best.low and best.low > 1 and (" " .. best.low .. "-" .. best.high) or "",
-        itemCount(best.tally or 0)))
+        itemCount(best.tally or 0, isToken(entry.item))))
 end
 
 local function updateRollTimers()
@@ -1894,18 +1898,23 @@ SlashCmdList["FORGELOOT"] = function(message)
             say("not in a group: nothing to sync.")
         end
     elseif command == "tally" then
-        local names, counts = {}, tallies()
-        for _, record in ipairs(ensureDatabase().history) do
-            local name = (record.state == "held" and record.winner) or record.recipient
-            if counts[lower(name)] and not names[lower(name)] then
-                names[lower(name)] = true
-                table.insert(names, name)
+        -- Two separate lists: items, then tokens.
+        for _, tokens in ipairs({ false, true }) do
+            local names, counts = {}, tallies(tokens)
+            for _, record in ipairs(ensureDatabase().history) do
+                local name = (record.state == "held" and record.winner) or record.recipient
+                if counts[lower(name)] and not names[lower(name)] then
+                    names[lower(name)] = true
+                    table.insert(names, name)
+                end
             end
-        end
-        table.sort(names, function(a, b) return lower(a) < lower(b) end)
-        if table.getn(names) == 0 then say("no items counted this raid yet.") end
-        for _, name in ipairs(names) do
-            say(string.format("%s: %d main spec, %d off spec", name, tallyOf(counts, name, "ms"), tallyOf(counts, name, "os")))
+            table.sort(names, function(a, b) return lower(a) < lower(b) end)
+            if tokens and table.getn(names) > 0 then say("tokens this raid:") end
+            if not tokens and table.getn(names) == 0 then say("no items counted this raid yet.") end
+            for _, name in ipairs(names) do
+                say(string.format("%s: %d main spec, %d off spec%s", name, tallyOf(counts, name, "ms"),
+                    tallyOf(counts, name, "os"), tokens and " (tokens)" or ""))
+            end
         end
     elseif command == "raid" then
         local id = rest:match("^(%d+)$")
