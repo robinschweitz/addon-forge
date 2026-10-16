@@ -22,8 +22,33 @@ isolated test client (German `deDE`, build 12340) unless marked otherwise.
    `forge --config forge.local.toml agent session projects/Name-acceptance.json --approve-fixtures`.
    Use `agent session` after **any** addon change: a running client keeps the
    code it loaded at startup (`run-plan` refuses stale deploys for this reason).
+   See [Who runs live sessions](#who-runs-live-sessions).
 7. Read the JSON result, then the screenshot in `projects/.forge-runs/`. Fix,
    repeat. Never weaken a check; tighten one that could pass vacuously.
+   SavedVariables persist between live runs: start the plan's steps from a
+   known state (ForgeLootLedger's first step is `/forgeloot newraid confirm`),
+   or checks can pass on data from an earlier run.
+
+## Who runs live sessions
+
+`--approve-fixtures` changes the disposable local test realm (spawns and kills
+creatures, creates bot players and parties), so it needs the human's approval.
+The human may give that approval once, as a standing permission for
+`agent session ... --approve-fixtures` on the local test realm. With it the
+agent runs live sessions itself:
+
+1. **Say so before every run.** The session launches the test client on the
+   human's desktop and sends keypresses; nobody may type or use WoW for the
+   ~2 minutes it takes.
+2. Close any running test client first (only `F:\Wow\wow_second`, never
+   another WoW installation).
+3. Run the session in the background from the repository root and read the
+   JSON result and the `.forge-runs/` evidence yourself.
+4. Report pass/fail with the run ID and what the checks proved.
+
+Without standing permission, give the human the exact command and read their
+terminal when they say "check". The agent can only read the desktop app's own
+Terminal tab; a run started in another window must be pasted.
 
 ## WoW 3.3.5a client facts (verified live)
 

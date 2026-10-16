@@ -52,6 +52,9 @@ The CLI equivalents are listed below.
    It re-runs static and offline gates, deploys, runs fixtures and the bridge
    suite over the WoWControlSDK, and judges the independent snapshot. To also
    launch and log in the client first, use `agent session PLAN --approve-fixtures`.
+   The human may grant standing permission to run `agent session` yourself;
+   then announce every run first (it takes over their desktop). See "Who runs
+   live sessions" in `docs/agent-playbook.md`.
 9. Inspect real JSON failures, screenshot evidence and fixture logs; change
    addon sources while retaining acceptance conditions. Apply a bounded repair
    budget (default max 3); distinguish infrastructure issues from addon
