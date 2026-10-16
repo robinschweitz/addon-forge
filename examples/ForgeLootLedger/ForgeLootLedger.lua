@@ -1530,19 +1530,30 @@ local function refreshExport(focus)
     status:SetText(L["Export selected: press Ctrl+C and paste it into the raid website's loot import."])
 end
 
-local function showExport(show)
-    for _, pane in ipairs(panes) do
-        if show then pane:Hide() else pane:Show() end
+-- Overlays (the export, Raid.lua's raid setup) replace the three panes; only
+-- one is shown at a time.
+local overlays = { exportPanel }
+local function showOverlay(panel)
+    for _, overlay in ipairs(overlays) do
+        if overlay ~= panel then overlay:Hide() end
     end
-    if show then
+    for _, pane in ipairs(panes) do
+        if panel then pane:Hide() else pane:Show() end
+    end
+    if panel then
         Ledger:Show()
-        exportPanel:Show()
+        panel:Show()
+    end
+end
+
+local function showExport(show)
+    showOverlay(show and exportPanel or nil)
+    if show then
         local db = ensureDatabase()
         raidBox:SetText(db.raidID and tostring(db.raidID) or "")
         refreshExport(true)
     else
         exportText:ClearFocus()
-        exportPanel:Hide()
         updateRows()
     end
 end
@@ -2016,6 +2027,27 @@ ticker:SetScript("OnUpdate", function(_, elapsed)
     end
 end)
 
+-- Raid.lua (invites, groups, attendance; taken over from RaidSync) builds on
+-- these.
+ns.Ledger, ns.label, ns.flatButton, ns.makeBackdrop = Ledger, label, flatButton, makeBackdrop
+ns.ensureDatabase, ns.say, ns.field, ns.trim, ns.lower = ensureDatabase, say, field, trim, lower
+ns.playerName, ns.isPlayer, ns.patternFromFormat = playerName, isPlayer, patternFromFormat
+ns.setStatus = function(text) status:SetText(text) end
+ns.addOverlay = function(panel) table.insert(overlays, panel) end
+ns.showOverlay = function(panel)
+    showOverlay(panel)
+    if not panel then updateRows() end
+end
+ns.headerButton = exportButton
+ns.raidID = function() return ensureDatabase().raidID end
+ns.setRaidID = function(id)
+    setRaidID(id)
+    raidBox:SetText(id and tostring(id) or "")
+end
+ns.historyCount = function() return table.getn(ensureDatabase().history) end
+ns.commands = {}
+ns.help = {}
+
 local HELP = {
     L["/forgeloot - show or hide the ledger"],
     L["/forgeloot start - start a 30 s /rnd roll for the selected item"],
@@ -2105,8 +2137,11 @@ SlashCmdList["FORGELOOT"] = function(message)
         if string.lower(rest) == "confirm" then startNewRaid() else StaticPopup_Show("FORGELOOTLEDGER_NEW_RAID") end
     elseif command == "" or command == "toggle" then
         if Ledger:IsShown() then Ledger:Hide() else Ledger:Show() end
+    elseif ns.commands[command] then
+        ns.commands[command](rest)
     else
         for _, line in ipairs(HELP) do say(line) end
+        for _, line in ipairs(ns.help) do say(line) end
     end
 end
 

@@ -340,6 +340,14 @@ def test_screenshot_step_saves_under_its_name():
         run_steps([{"type": "screenshot", "value": "x"}], 9, rpc=None)
 
 
+def test_raid_lead_fixture_extends_master_loot():
+    ok = validate_plan({**BASE, "fixtures": ["master_loot", "raid_lead"],
+                        "checks": [{"type": "player_in_world", "value": True}]})
+    assert ok["fixtures"] == ["master_loot", "raid_lead"]
+    with pytest.raises(ValueError, match="raid_lead"):
+        validate_plan({**BASE, "fixtures": ["raid_lead"], "checks": [{"type": "player_in_world", "value": True}]})
+
+
 def test_companions_and_paste_steps_are_validated():
     ok = validate_plan({**BASE, "companions": ["X2"], "steps": [
         {"type": "paste", "value": ["XImport", "WL1;Test;1\n20513;ms;20;1;Crest"]}],

@@ -1,8 +1,9 @@
 ## Interface: 30300
 ## Title: ForgeLootLedger
-## Notes: Raid rolls, master-loot awards, trades of held items and a website export for WoW 3.3.5a
+## Notes: Raid setup (invites, groups, attendance), loot rolls, awards and website exports for WoW 3.3.5a
 ## Author: Addon Forge
-## Version: 1.6.0
+## Version: 2.0.0
 ## SavedVariables: ForgeLootLedgerDB
 Locales.lua
 ForgeLootLedger.lua
+Raid.lua

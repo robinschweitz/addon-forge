@@ -225,6 +225,16 @@ Terminal tab; a run started in another window must be pasted.
   (German announcements). Still offline only: DE/BANK (the fixture drops one
   item), the English fallback in a non-German client, dragging the minimap
   button, a raid of many members sharing at once.
+- ForgeLootLedger 2.0 replaces RaidSync (`Raid.lua`: invites, group sort,
+  attendance; `;`-separated `RS2;INV` / `RS2;ROSTER`). Passed live with the
+  new `raid_lead` fixture (`81bb5148cbe4`, member `0f9585f5fe94`): real
+  `InviteUnit`, `ConvertToRaid`, the deDE "nicht auffindbar" message, the sort
+  and the attendance export. Lessons: the master_loot bot leads the party, so
+  plans that invite need `raid_lead`; a party below level 10 cannot become a
+  raid and the server ignores `ConvertToRaid` silently (RaidSync then looped
+  forever; the ledger now gives up after three tries and invites into the
+  party). Still offline only: more than four invites, declines, the bench, a
+  real group swap (two players never need one).
 - Offline text widths are estimates (0.6 em per character); confirm UI with a
   live screenshot.
 - `flake.nix` gained `python.pkgs.lupa`; not yet built with Nix.

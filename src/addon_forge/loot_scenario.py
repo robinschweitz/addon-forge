@@ -245,7 +245,7 @@ PLAN = {"fixture": "master_loot", "changes": [
 
 
 @contextmanager
-def master_loot_fixture(cfg, *, character: str, output: Path, member: str | None = None):
+def master_loot_fixture(cfg, *, character: str, output: Path, member: str | None = None, lead: bool = False):
     """Hold a real master-loot window open on the graphical client for the duration."""
     if not CHARACTER.fullmatch(character):
         raise ValueError("Invalid test character")
@@ -286,6 +286,7 @@ def master_loot_fixture(cfg, *, character: str, output: Path, member: str | None
         env.update({"FORGE_LOOT_READY": str(ready), "FORGE_LOOT_RELEASE": str(release),
                     "FORGE_LOOT_COMMANDS": str(folder),
                     "FORGE_MEMBER_CHARACTER": member or "",
+                    "FORGE_LEAD_TO_TARGET": "1" if lead else "",
                     "FORGE_CLIENT_LOCALE": locale if isinstance(locale, str) and locale.isalpha() else "enUS"})
         with (output / "loot-fixture.log").open("wb+") as log:
             proc = subprocess.Popen(["go", "test", "-tags=e2e", "-run", "^TestLootRollFixture$", "-count=1", "-v", "-timeout", "420s", "-p", "1", "-parallel", "1"], cwd=Path(__file__).resolve().parents[2] / "agent_scenarios", env=env, stdout=log, stderr=subprocess.STDOUT)

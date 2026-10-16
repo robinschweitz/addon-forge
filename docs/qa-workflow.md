@@ -429,6 +429,12 @@ raid member would: the session writes that character's
 `WTF/Account/<ACCOUNT>/<Realm>/<Character>/AddOns.txt` before it logs in. Two clients need the
 Forge build of the SDK (`tools/wowcontrol-sdk/`).
 
+Adding `"raid_lead"` (`"fixtures": ["master_loot", "raid_lead"]`) makes the
+bot raise the GUI character (and the member) to level 10, which a raid needs,
+and hand party leadership to the GUI character after setting master loot, so
+a plan can test inviting, converting to a raid and sorting groups
+(`ForgeLootLedger-raid-setup-acceptance.json`).
+
 `peer_roll` and `peer_trade` need `"fixtures": ["master_loot"]`. A step the
 client or bot does not perform (missing command, hidden button, trade not
 completed) fails the plan with `stage: "steps"` and a log of the steps run.

@@ -62,6 +62,19 @@ func TestLootRollFixture(t *testing.T) {
 		t.Fatal("graphical character GUID missing from group roster")
 	}
 	bot.SetLootMethod(t, client.LootMethodMasterLoot, master, e2eharness.LootThresholdUncommon)
+	// The raid_lead fixture: the graphical character leads the party, so it
+	// can invite, convert to a raid and sort groups like a real raid lead.
+	if os.Getenv("FORGE_LEAD_TO_TARGET") == "1" {
+		// Characters below level 10 cannot form a raid.
+		bot.GM(t, ".character level "+target+" 10")
+		if member := os.Getenv("FORGE_MEMBER_CHARACTER"); member != "" {
+			bot.GM(t, ".character level "+member+" 10")
+		}
+		if err := bot.World.GroupSetLeader(master); err != nil {
+			t.Fatalf("hand party leadership: %v", err)
+		}
+		time.Sleep(time.Second)
+	}
 	corpse := bot.SpawnKillLootable(t, e2eharness.CreatureGroupLootFixture, 45*time.Second)
 	names := corpseNames(t, e2eharness.CreatureGroupLootFixture, os.Getenv("FORGE_CLIENT_LOCALE"))
 	if err := writeStateAtomic(ready, map[string]any{"status": "master_loot_ready", "item": e2eharness.ItemGroupLootFixture, "corpse": corpse, "names": names}); err != nil {

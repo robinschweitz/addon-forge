@@ -1,13 +1,49 @@
 # ForgeLootLedger
 
-Raid roll and master-loot award ledger for WoW 3.3.5a (Interface 30300). The
-suite's reference addon: see `tests/` and `../ForgeLootLedger-acceptance.json`.
-The loot tracking was taken over from RaidSync
-([robinschweitz/wow-addons](https://github.com/robinschweitz/wow-addons)).
+The raid lead's addon for WoW 3.3.5a (Interface 30300): raid setup (invites,
+groups, attendance), loot rolls, awards and the website exports. It replaces
+RaidSync, whose features it took over. The guild installs it from
+[robinschweitz/wow-addons](https://github.com/robinschweitz/wow-addons); this
+folder in [addon-forge](https://github.com/robinschweitz/addon-forge) is the
+source, with offline specs in `tests/` and live plans beside the folder
+(`ForgeLootLedger-*.json`).
 
 The addon speaks German in German clients (deDE): window, raid announcements,
 chat and help. Every other client gets English. Texts live in `Locales.lua`,
 keyed by their English wording.
+
+## Raid setup: invites, groups, attendance
+
+**RAID** (or `/forgeloot setup`) replaces the panes with the raid setup
+(`Raid.lua`):
+
+1. Paste the website's invite list (raid page, Aufstellung, „Einladungen für
+   Addon“) and click **READ**. The list shows each character's role and status;
+   the website raid ID is also used for the loot export.
+2. **INVITE ALL** invites the list in the website's order (about 0.3 s apart).
+   A party turns into a raid once someone joined. Offline guild members (per the
+   guild roster) are skipped, the bench only with **BENCH: YES**. Server
+   messages set the status: open, invited, in raid, declined, not found, in
+   another group, offline, no answer (after 65 s), bench.
+3. **RETRY MISSING** invites again whoever is not in the raid, not offline and
+   not still invited.
+4. **SORT GROUPS** (raid lead or assistant) puts tanks, then healers, then the
+   rest into groups of five, by name within a role.
+5. **EXPORT** under "attendance for the website" lists everyone seen in the raid
+   with class and first-seen time, also late additions and players who left.
+   Paste it into the website's roster import. A list for another raid starts a
+   new attendance.
+
+```text
+RS2;INV;<raid ID>;<raid name>;<size>
+<name>;<TANK|HEAL|DD>;<class>;<bench 0/1>
+
+RS2;ROSTER;<raid ID>;<recorder>;<export time>
+<name>;<class token or ->;<first seen>
+```
+
+Both are `;`-separated like the loot export. RaidSync's `RS1|INV` lists are not
+read: export the list again on the website.
 
 ## Rolls
 
