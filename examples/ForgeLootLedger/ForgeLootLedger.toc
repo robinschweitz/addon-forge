@@ -1,7 +1,7 @@
 ## Interface: 30300
 ## Title: ForgeLootLedger
-## Notes: Raid loot roll and award ledger for WoW 3.3.5a
+## Notes: Raid rolls, master-loot awards, trades of held items and a website export for WoW 3.3.5a
 ## Author: Addon Forge
-## Version: 1.0.0
+## Version: 1.1.0
 ## SavedVariables: ForgeLootLedgerDB
 ForgeLootLedger.lua
