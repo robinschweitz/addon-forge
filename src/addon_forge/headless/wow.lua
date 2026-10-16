@@ -1206,6 +1206,16 @@ function forge.openLoot(items)
 end
 function forge.closeLoot() W.env.CloseLoot() end
 function forge.awards() return W.awards end
+function forge.addonMessages() return W.addonMessages end
+-- Lines of GameTooltip and whether it is shown (after forge.hover).
+function forge.tooltip()
+    local tip = W.env.GameTooltip
+    return state[tip].lines or {}, tip:IsShown() and true or false
+end
+function forge.hover(frame, leave)
+    local f = asFrame(frame)
+    runScript(f, leave and "OnLeave" or "OnEnter")
+end
 -- Trade `links` (item links in the player's trade slots) to `partner`: the
 -- partner accepts, then the player calls AcceptTrade(). opts.cancel cancels
 -- instead; opts.infoFirst sends "Trade complete." before TRADE_CLOSED;
