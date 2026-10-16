@@ -1,0 +1,177 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 9fdbd01..5abdce1 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -72,6 +72,7 @@ add_library(WoWControlSDK SHARED
+     hooks/GlueHooks.cpp
+     hooks/EventHooks.cpp
+     hooks/LoadingHooks.cpp
++    hooks/IdleLogoutHook.cpp
+ 
+     ipc/CommandPipe.cpp
+ 
+diff --git a/DllMain.cpp b/DllMain.cpp
+index d4d29e4..bc2fba5 100644
+--- a/DllMain.cpp
++++ b/DllMain.cpp
+@@ -4,6 +4,7 @@
+ #include "hooks/GlueHooks.h"
+ #include "core/native/GlueAPI.h"
+ #include "hooks/ConsoleHooks.h"
++#include "hooks/IdleLogoutHook.h"
+ #include "runtime/Runtime.h"
+ #include "runtime/console/ConsoleManager.h"
+ #include "runtime/console/LogCapture.h"
+@@ -40,6 +41,7 @@ static void OnDetach()
+     Runtime::EventPipe::Shutdown();
+ 
+     Hooks::Events::Shutdown();
++    Hooks::IdleLogout::Shutdown();
+     Hooks::Frame::Shutdown();
+     Hooks::Glue::Shutdown();
+     LuaEngine::shutdown();
+diff --git a/hooks/Hooks.cpp b/hooks/Hooks.cpp
+index c075b2f..7ac5f69 100644
+--- a/hooks/Hooks.cpp
++++ b/hooks/Hooks.cpp
+@@ -1,4 +1,5 @@
+ #include "Hooks.h"
++#include "IdleLogoutHook.h"
+ 
+ void Hooks::initialize()
+ {
+@@ -7,4 +8,5 @@ void Hooks::initialize()
+     Hooks::Console::Initialize();
+     Hooks::Events::Initialize();
+     Hooks::Loading::Initialize();
++    Hooks::IdleLogout::Initialize();
+ }
+diff --git a/ipc/CommandPipe.cpp b/ipc/CommandPipe.cpp
+index dd522c1..8279f5c 100644
+--- a/ipc/CommandPipe.cpp
++++ b/ipc/CommandPipe.cpp
+@@ -8,7 +8,10 @@ namespace CommandPipe {
+ 
+ DWORD WINAPI threadProc(LPVOID)
+ {
+-    const char* PIPE_NAME = "\\\\.\\pipe\\WowGameCommand";
++    // One pipe per WoW process ("WowGameCommand-<pid>"), so several injected
++    // clients can run side by side without answering each other's requests.
++    char PIPE_NAME[64];
++    wsprintfA(PIPE_NAME, "\\\\.\\pipe\\WowGameCommand-%lu", GetCurrentProcessId());
+ 
+     while (true) {
+         HANDLE hPipe = CreateNamedPipeA(
+diff --git a/rpc/handlers/core/LuaRpc.cpp b/rpc/handlers/core/LuaRpc.cpp
+index 9076177..edb8707 100644
+--- a/rpc/handlers/core/LuaRpc.cpp
++++ b/rpc/handlers/core/LuaRpc.cpp
+@@ -1,5 +1,6 @@
+ #include "LuaRpc.h"
+ #include "core/engine/LuaEngine.h"
++#include "hooks/FrameHooks.h"
+ #include "utils/json/Json.h"
+ 
+ namespace Rpc
+@@ -52,8 +53,11 @@ namespace Rpc
+         if (code.empty())
+             return SDK::makeErrorJson("code is required");
+ 
+-        LuaEngine::execute(code);
+-        return SDK::okJson();
++        std::string raw = Hooks::Frame::Execute([code]() {
++            LuaEngine::execute(code);
++            return SDK::okJson().dump();
++        }, 1500);
++        return raw.empty() ? SDK::makeErrorJson("game-thread lua execution timed out") : Json::parse(raw);
+     }
+ 
+     static Json handleEvaluate(const Json& params)
+@@ -62,7 +66,10 @@ namespace Rpc
+         if (code.empty())
+             return SDK::makeErrorJson("code is required");
+ 
+-        return resultToJson(LuaEngine::evaluate(code));
++        std::string raw = Hooks::Frame::Execute([code]() {
++            return resultToJson(LuaEngine::evaluate(code)).dump();
++        }, 1500);
++        return raw.empty() ? SDK::makeErrorJson("game-thread lua evaluation timed out") : Json::parse(raw);
+     }
+ 
+     static Json handleGetGlobal(const Json& params)
+diff --git a/runtime/events/EventPipe.cpp b/runtime/events/EventPipe.cpp
+index c01ff9f..288c41d 100644
+--- a/runtime/events/EventPipe.cpp
++++ b/runtime/events/EventPipe.cpp
+@@ -24,7 +24,8 @@ namespace Runtime
+         static Utils::CircularBuffer<BufferedEvent> s_buffer;
+         static std::queue<std::string>              s_writeQueue;
+ 
+-        static const char* PIPE_NAME = "\\\\.\\pipe\\WowGameEvent";
++        // Per process, like the command pipe: "WowGameEvent-<pid>".
++        static char PIPE_NAME[64] = "";
+ 
+         static DWORD WINAPI WriteThread(LPVOID)
+         {
+@@ -117,6 +118,7 @@ namespace Runtime
+         void Initialize()
+         {
+             if (s_initialized) return;
++            wsprintfA(PIPE_NAME, "\\\\.\\pipe\\WowGameEvent-%lu", GetCurrentProcessId());
+ 
+             if (!s_lockInit)
+             {
+diff --git a/runtime/window/WindowService.cpp b/runtime/window/WindowService.cpp
+index a8383fe..3891478 100644
+--- a/runtime/window/WindowService.cpp
++++ b/runtime/window/WindowService.cpp
+@@ -70,22 +70,17 @@ bool WindowService::FindWoWWindow()
+     for (const char* cls : s_windowClasses)
+     {
+         HWND hwnd = FindWindowA(cls, nullptr);
+-        if (hwnd && GetWindowThreadProcessId(hwnd, nullptr) == GetCurrentProcessId())
++        DWORD owner = 0;
++        if (hwnd) GetWindowThreadProcessId(hwnd, &owner);   // returns the thread id; the pid comes back in owner
++        if (hwnd && owner == GetCurrentProcessId())
+         {
+             m_hwnd = hwnd;
+             return true;
+         }
+     }
+ 
+-    for (const char* cls : s_windowClasses)
+-    {
+-        HWND hwnd = FindWindowA(cls, nullptr);
+-        if (hwnd)
+-        {
+-            m_hwnd = hwnd;
+-            return true;
+-        }
+-    }
++    // (No fallback to any WoW window: with two clients it would subclass
++    // another process's game window.)
+ 
+     HWND found = nullptr;
+     EnumWindows([](HWND hwnd, LPARAM lparam) -> BOOL
+diff --git a/hooks/IdleLogoutHook.cpp b/hooks/IdleLogoutHook.cpp
+new file mode 100644
+index 0000000..c9df818
+--- /dev/null
++++ b/hooks/IdleLogoutHook.cpp
+@@ -0,0 +1,16 @@
++#include "IdleLogoutHook.h"
++#include "base/DetourHelper.h"
++#include "offsets/OffsetsLogin.h"
++
++namespace Hooks::IdleLogout {
++
++using LogoutFn = int(__cdecl*)(void*);
++static LogoutFn s_original = reinterpret_cast<LogoutFn>(Offsets::Login::LOGOUT_TO_CHAR_SELECT);
++
++// Active only while the isolated test DLL is injected.
++static int __cdecl LogoutHook(void*) { return 0; }
++
++void Initialize() { Detail::attach(s_original, LogoutHook); }
++void Shutdown() { Detail::detach(s_original, LogoutHook); }
++
++}
