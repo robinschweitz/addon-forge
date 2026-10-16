@@ -798,6 +798,8 @@ local function api(env)
         end)
     end
     E.GetTradePlayerItemLink = function(slot) return W.trade and W.trade.items[slot] end
+    E.AcceptTrade = function() if W.trade then W.trade.playerAccepted = true end end
+    E.CancelTrade = function() end
     -- Loot and items
     E.GetNumLootItems = function() return W.lootOpen and #W.loot or 0 end
     E.GetLootSlotLink = function(slot) local l = W.lootOpen and W.loot[slot]; return l and l.link end
@@ -1204,8 +1206,11 @@ function forge.openLoot(items)
 end
 function forge.closeLoot() W.env.CloseLoot() end
 function forge.awards() return W.awards end
--- Trade `links` (item links in the player's trade slots) to `partner`. opts.cancel
--- cancels instead; opts.infoFirst sends "Trade complete." before TRADE_CLOSED.
+-- Trade `links` (item links in the player's trade slots) to `partner`: the
+-- partner accepts, then the player calls AcceptTrade(). opts.cancel cancels
+-- instead; opts.infoFirst sends "Trade complete." before TRADE_CLOSED;
+-- opts.clearOnComplete empties the trade slots (TRADE_PLAYER_ITEM_CHANGED)
+-- before the completion message, as the items leave on completion.
 function forge.trade(partner, links, opts)
     opts = opts or {}
     W.units.npc = { name = partner, isPlayer = true, connected = true }
@@ -1215,7 +1220,14 @@ function forge.trade(partner, links, opts)
         W.trade.items[i] = link
         fire("TRADE_PLAYER_ITEM_CHANGED", i)
     end
-    fire("TRADE_ACCEPT_UPDATE", 1, 1)
+    fire("TRADE_ACCEPT_UPDATE", 0, 1)
+    if not opts.cancel then W.env.AcceptTrade() end
+    if opts.clearOnComplete and not opts.cancel then
+        for i in ipairs(links or {}) do
+            W.trade.items[i] = nil
+            fire("TRADE_PLAYER_ITEM_CHANGED", i)
+        end
+    end
     local info = opts.cancel and W.env.ERR_TRADE_CANCELLED or W.env.ERR_TRADE_COMPLETE
     if opts.infoFirst then fire("UI_INFO_MESSAGE", info) end
     W.trade = nil
