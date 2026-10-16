@@ -32,7 +32,7 @@ CHECK_KEYS = {
 ALLOWED_TYPE = set(CHECK_KEYS)
 SDK_TYPES = {"player_in_world"}
 TOP_KEYS = {"version", "addon", "character", "peers", "checks", "observer", "fixtures", "steps", "companions",
-            "member"}
+            "member", "member_addons"}
 # A two-player plan names a second test character ("member", logged in on a
 # second client with the member credentials). Steps and checks then take an
 # optional "client": "member" to act on / observe that client.
@@ -159,6 +159,16 @@ def validate_plan(data: dict) -> dict:
         raise ValueError("member must be a second test character name, different from character")
     if member and (observer != "bridge" or peers):
         raise ValueError("Two-player plans run with the bridge observer and peers=0")
+    # Which of the plan's addons the member's character loads (a raid member
+    # runs the wishlist, not the raid lead's ledger). Absent: all of them.
+    member_addons = data.get("member_addons")
+    if member_addons is not None:
+        allowed = {data["addon"], *data.get("companions", [])}
+        if (not member or not isinstance(member_addons, list) or not 1 <= len(member_addons) <= 4
+                or len(set(member_addons)) != len(member_addons)
+                or any(not isinstance(a, str) or a not in allowed for a in member_addons)):
+            raise ValueError("member_addons must list 1-4 of the plan's addon and companions, "
+                             "and needs a member")
     parsed = []
     for raw in steps:
         item, client = _split_client(raw, member, "Step")
@@ -213,6 +223,8 @@ def validate_plan(data: dict) -> dict:
         result["companions"] = list(companions)
     if member:
         result["member"] = member
+    if member_addons:
+        result["member_addons"] = list(member_addons)
     return result
 
 

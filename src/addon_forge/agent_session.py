@@ -57,6 +57,11 @@ def run_session(cfg: Config, plan_path: Path, *, approve: bool = False):
     if plan.get("member"):
         from .wowcontrol import client_pid, launch_and_enter
         clients.register("main", client_pid(cfg))
+        if plan.get("member_addons"):
+            from .addon_settings import write_character_addons
+            account, _ = _credentials(wow, "member")
+            prepared["member_addons"] = str(write_character_addons(
+                wow, account, cfg.wowcontrol_realm, plan["member"], plan["member_addons"]))
         try:
             prepared["member_pid"] = launch_and_enter(cfg, plan["member"], role="member")
         except RuntimeError as exc:

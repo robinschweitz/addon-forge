@@ -422,7 +422,11 @@ the session starts a second test client and logs in that character with the
 optional `"client": "member"` to act on and observe that client; each
 client's checks are judged against its own bridge snapshot, and screenshots
 of it are saved as `step-NAME-member.png`. The `master_loot` fixture summons
-the member next to the corpse and invites them too. Two clients need the
+the member next to the corpse and invites them too. `"member_addons":
+["ForgeLootWishlist"]` (some of the plan's addon and companions) makes the
+member's character load only those addons, plus the test bridge, as a real
+raid member would: the session writes that character's
+`WTF/Account/<ACCOUNT>/<Realm>/<Character>/AddOns.txt` before it logs in. Two clients need the
 Forge build of the SDK (`tools/wowcontrol-sdk/`).
 
 `peer_roll` and `peer_trade` need `"fixtures": ["master_loot"]`. A step the

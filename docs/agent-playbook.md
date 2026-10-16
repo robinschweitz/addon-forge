@@ -196,8 +196,10 @@ Terminal tab; a run started in another window must be pasted.
   passed 13/13 (`e79dce3d73c2` lead, `c92f8b278d93` member): the member's
   wishlist prompt, a 31-130 roll from the member's client, the master-loot
   handout to the member, and the member's "who got what" list over addon
-  messages. All test-client addons load on both clients (the member also has
-  ForgeLootLedger open), and a new character shows the WoW welcome tutorial.
+  messages. A new character shows the WoW welcome tutorial. By default every
+  test-client addon loads on both clients; `"member_addons"` limits the
+  member to e.g. ForgeLootWishlist (written to the character's AddOns.txt,
+  verified live: `SlashCmdList.FORGELOOT` is nil there, run `a70a09025c67`).
 - ForgeLootLedger 1.4 / ForgeLootWishlist 1.1 (open items: PARK, roll later,
   OPEN ITEMS list) passed live: parking flow `b0ba9606fdba` (PARK with the
   master looter, later ROLL, wishlist prompt during the later roll, winner on

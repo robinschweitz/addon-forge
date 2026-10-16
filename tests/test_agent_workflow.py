@@ -433,3 +433,31 @@ def test_member_steps_run_on_the_member_client():
     assert seen == [9, 12] and shots == [("s", "member")]
     with pytest.raises(StepFailed, match="member client, which is not running"):
         run_steps(steps, 9, rpc=rpc)
+
+
+def test_member_addons_are_validated():
+    plan = {**BASE, "member": "Raidmember", "companions": ["X2"],
+            "checks": [{"type": "player_in_world", "value": True}]}
+    assert validate_plan({**plan, "member_addons": ["X1"]})["member_addons"] == ["X1"]
+    for bad in (["Elsewhere"], [], ["X1", "X1"], "X1"):
+        with pytest.raises(ValueError):
+            validate_plan({**plan, "member_addons": bad})
+    with pytest.raises(ValueError):
+        validate_plan({**BASE, "member_addons": ["X1"], "checks": [{"type": "player_in_world", "value": True}]})
+
+
+def test_member_character_loads_only_the_chosen_addons(tmp_path):
+    from addon_forge.addon_settings import write_character_addons
+    addons = tmp_path / "Interface" / "AddOns"
+    for name in ("ForgeLootLedger", "ForgeLootWishlist", "ForgeTestBridge", "Blizzard_RaidUI"):
+        (addons / name).mkdir(parents=True)
+        (addons / name / f"{name}.toc").write_text("## Interface: 30300\n")
+    (addons / "archive").mkdir()                       # no .toc: not an addon
+    path = write_character_addons(tmp_path, "FORGEMEMBER", "AzerothCore", "Raidmember", ["ForgeLootWishlist"])
+    assert path == tmp_path / "WTF" / "Account" / "FORGEMEMBER" / "AzerothCore" / "Raidmember" / "AddOns.txt"
+    assert path.read_text(encoding="utf-8").split() == [
+        "ForgeLootLedger:", "disabled", "ForgeLootWishlist:", "enabled", "ForgeTestBridge:", "enabled"]
+    with pytest.raises(ValueError):
+        write_character_addons(tmp_path, "FORGEMEMBER", "AzerothCore", "../Test", ["ForgeLootWishlist"])
+    with pytest.raises(RuntimeError, match="not installed"):
+        write_character_addons(tmp_path, "FORGEMEMBER", "AzerothCore", "Raidmember", ["Missing"])

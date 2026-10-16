@@ -86,6 +86,9 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
         operations.append("Run steps: " + ", ".join(f"{s['type']} {s['value']}" for s in plan["steps"]))
     if plan.get("member"):
         operations.append(f"Second player: {plan['member']} on a second test client (member credentials)")
+        if plan.get("member_addons"):
+            operations.append(f"{plan['member']} loads only: " + ", ".join(plan["member_addons"])
+                              + " (and the test bridge)")
     operations += ["Run in-game bridge suite", "Check independent snapshot assertions"]
     preview = {"plan": plan, "addon_dir": str(addon), "operations": operations}
     if plan.get("steps"):

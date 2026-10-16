@@ -151,9 +151,18 @@
       "client": "member"
     },
     {
+      "type": "global_equals",
+      "path": "SlashCmdList.FORGELOOT",
+      "value": null,
+      "client": "member"
+    },
+    {
       "type": "no_lua_errors",
       "value": true,
       "client": "member"
     }
+  ],
+  "member_addons": [
+    "ForgeLootWishlist"
   ]
 }
