@@ -11,10 +11,14 @@ end)
 
 local function db() return forge.saved("ForgeLootLedgerDB") end
 
-local function sentSince(n)
+-- sentSince returns addon messages sent after the n-th; roll starts (S) only
+-- with withStarts, so award tests see just their A and L lines.
+local function sentSince(n, withStarts)
     local out = {}
     local all = forge.addonMessages()
-    for i = n + 1, #all do table.insert(out, all[i]) end
+    for i = n + 1, #all do
+        if withStarts or string.sub(all[i].message, 1, 2) ~= "S;" then table.insert(out, all[i]) end
+    end
     return out
 end
 
@@ -154,4 +158,29 @@ test("a master looter who lost the ledger gets it back from the group", function
     expect(db().nextID >= record.id).toBe(true)
     local again = award(21281, { { "Bob", 10 } })
     expect(again.id > record.id).toBe(true)
+end)
+
+test("a roll start goes to the group first, and a tie-break names the tied players", function()
+    forge.slash("/forgeloot newraid confirm")
+    forge.advance(3, 0.25)                         -- drain earlier messages
+    forge.slash("/forgeloot clear")
+    forge.openLoot({ { id = 20513 } })
+    award(21281, { { "Bob", 10 } })                -- leaves A + L messages queued
+    local before = #forge.addonMessages()
+    forge.openLoot({ { id = 20513 } })
+    forge.slash("/forgeloot start")
+    forge.advance(0.3, 0.25)
+    local start = sentSince(before, true)[1].message
+    expect(start).toContain(";20513;30;1;")
+    expect(string.match(start, "^S;[^;]+;Tester;Tester%-%d+%-%d+;20513;30;1;$")).toBeTruthy()
+    forge.roll("Alice", 77)
+    forge.roll("Cara", 77)                          -- Bob has an item now: no tie with him
+    forge.advance(31, 0.25)
+    local tie
+    for _, m in ipairs(sentSince(before, true)) do
+        if string.sub(m.message, 1, 2) == "S;" and string.find(m.message, ";15;2;", 1, true) then tie = m.message end
+    end
+    expect(tie).toBeTruthy()
+    expect(string.match(tie, ";2;(.*)$")).toBe("Alice,Cara")
+    forge.closeLoot()
 end)

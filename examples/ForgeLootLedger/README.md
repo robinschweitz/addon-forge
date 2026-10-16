@@ -68,6 +68,10 @@ and their corrections travel back. A ledger without awards of its own follows
 the master looter's raid automatically, also after a NEW RAID; one with its
 own awards keeps them and warns instead of merging another raid's ledger.
 
+Every roll start (and tie-break) is shared too, so raid members running
+[ForgeLootWishlist](../ForgeLootWishlist) get a roll prompt, or an automatic
+roll, for items on their wishlist.
+
 After a crash the master looter's client may have lost the ledger: on login (or
 with `/forgeloot sync`) it asks the group, and the others send their own awards
 plus the asker's, which restores it. Messages are only accepted from group

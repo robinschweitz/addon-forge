@@ -235,13 +235,29 @@ local function queue(message)
     if groupChannel() then table.insert(outbox, message) end
 end
 
--- currentSession names this raid's ledger; it changes with every new raid.
 local function currentSession()
     local db = ensureDatabase()
     db.session = db.session or (field(playerName()) .. "-" .. time())
     return db.session
 end
 
+local rollCount = 0
+
+-- shareRollStart tells wishlist addons that a roll (or a tie-break among
+-- `tied`) is open for an item: "S;session;origin;rollKey;itemID;seconds;round;
+-- tied,names". It jumps the queue, so award backlogs cannot delay it.
+local function shareRollStart(entry, seconds, tied)
+    if not groupChannel() then return end
+    if not entry.rollKey then
+        rollCount = rollCount + 1
+        entry.rollKey = field(playerName()) .. "-" .. time() .. "-" .. rollCount
+    end
+    local itemID = string.match(entry.item or "", "item:(%d+)")
+    table.insert(outbox, 1, table.concat({ "S", currentSession(), field(playerName()), entry.rollKey,
+        itemID or "", seconds, entry.round or 1, tied and table.concat(tied, ",") or "" }, ";"))
+end
+
+-- currentSession names this raid's ledger; it changes with every new raid.
 local function encodeRecord(r)
     return table.concat({ "A", currentSession(), field(r.origin or playerName()), r.id, r.rev or 1, r.at or 0,
         r.itemID or "", r.npc or "", field(r.recipient), r.state or "manual", r.confirmed and 1 or 0,
@@ -394,6 +410,7 @@ Ledger:SetHeight(430)
 Ledger:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
 Ledger:SetFrameStrata("DIALOG")
 Ledger:SetClampedToScreen(true)
+Ledger:SetToplevel(true)   -- clicking it raises it above ForgeLootWishlist
 Ledger:EnableMouse(true)
 Ledger:SetMovable(true)
 Ledger:RegisterForDrag("LeftButton")
@@ -1442,8 +1459,10 @@ local function startSelectedRoll()
     entry.startedAt = GetTime()
     entry.warned15 = false
     entry.warned5 = false
+    entry.rollKey = nil
     announce("[Loot] " .. entry.item .. " - /rnd now! " .. ROLL_SECONDS .. " seconds. "
         .. "/rnd 100 main spec (points: 11-110 up to 51-150), /rnd 99 off spec.")
+    shareRollStart(entry, ROLL_SECONDS)
     status:SetText("30-second raid roll started.")
     updateRows()
 end
@@ -1486,6 +1505,7 @@ local function finishRoll(entry)
         entry.warned5 = false
         announce(string.format("[Loot] %s - tie between %s (%d)! %s: /rnd again, %d seconds.",
             entry.item, joinNames(tied), top, table.concat(tied, ", "), TIE_SECONDS))
+        shareRollStart(entry, TIE_SECONDS, tied)
         return
     end
     entry.winner = entry.rolls[1]

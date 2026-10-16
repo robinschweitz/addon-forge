@@ -2,6 +2,6 @@
 ## Title: ForgeLootLedger
 ## Notes: Raid rolls, master-loot awards, trades of held items and a website export for WoW 3.3.5a
 ## Author: Addon Forge
-## Version: 1.2.0
+## Version: 1.3.0
 ## SavedVariables: ForgeLootLedgerDB
 ForgeLootLedger.lua
