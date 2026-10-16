@@ -104,6 +104,17 @@ isolated test client (German `deDE`, build 12340) unless marked otherwise.
   uint32 max`; unverified) would let a peer roll.
 - Screenshot after plan steps (today only before steps, at loot open).
 - Combat and quest fixtures.
+- ForgeLootLedger 1.1 (loot tracking from RaidSync): the real `GiveMasterLoot`
+  handout, its deDE `LOOT_ITEM_SELF` confirmation ("Ihr erhaltet Beute: ..."),
+  the corpse's creature ID (15209) and the RS2 export passed live on 2026-10-16
+  (run `83b3795d931f`). The roll log (counted, re-roll and 1-1000 rows) passed
+  live in run `cf79987a1d8a`; the CLEAR button itself is verified offline only.
+  The plan starts with `/forgeloot newraid confirm`,
+  because SavedVariables persist between live runs and old awards would
+  otherwise satisfy the checks.
+  Trade tracking needs a second player that trades; no fixture does that yet.
+  `|` in EditBox text is believed to start escapes (`|T`, `|c`), which is why
+  RS2 uses `;` (not confirmed with a screenshot).
 - Offline text widths are estimates (0.6 em per character); confirm UI with a
   live screenshot.
 - `flake.nix` gained `python.pkgs.lupa`; not yet built with Nix.
