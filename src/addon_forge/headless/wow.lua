@@ -565,14 +565,38 @@ function MessageFrame:SetInsertMode() end
 local ScrollingMessageFrame = class("ScrollingMessageFrame", "MessageFrame")
 function ScrollingMessageFrame:ScrollToBottom() end
 local GameTooltip = class("GameTooltip", "Frame")
-function GameTooltip:SetOwner(owner, anchor) state[self].owner, state[self].lines = owner, {} end
+-- A named tooltip exposes its lines as <name>TextLeft<i> font strings, the way
+-- addons scan tooltips (e.g. for ITEM_BIND_ON_EQUIP).
+local function syncTooltipLines(self)
+    local s = state[self]
+    if not s.name then return end
+    local lines = s.lines or {}
+    for i = 1, math.max(#lines, s.synced or 0) do
+        local key = s.name .. "TextLeft" .. i
+        local fs = W.env[key]
+        if not fs then fs = newObject("FontString", key, self) end
+        state[fs].text = lines[i]
+    end
+    s.synced = #lines
+end
+function GameTooltip:SetOwner(owner, anchor) state[self].owner, state[self].lines = owner, {}; syncTooltipLines(self) end
 function GameTooltip:GetOwner() return state[self].owner end
-function GameTooltip:ClearLines() state[self].lines = {} end
-function GameTooltip:SetText(t) state[self].lines = { tostring(t) } end
-function GameTooltip:AddLine(t) state[self].lines = state[self].lines or {}; tinsert(state[self].lines, tostring(t)) end
+function GameTooltip:ClearLines() state[self].lines = {}; syncTooltipLines(self) end
+function GameTooltip:SetText(t) state[self].lines = { tostring(t) }; syncTooltipLines(self) end
+function GameTooltip:AddLine(t)
+    state[self].lines = state[self].lines or {}
+    tinsert(state[self].lines, tostring(t))
+    syncTooltipLines(self)
+end
 function GameTooltip:AddDoubleLine(l, r) self:AddLine(tostring(l) .. "  " .. tostring(r)) end
 function GameTooltip:NumLines() return #(state[self].lines or {}) end
-function GameTooltip:SetHyperlink(link) self:SetText(link) end
+-- Line 1 is the link; forge.item(id, { tooltip = { ITEM_BIND_ON_EQUIP, ... } })
+-- adds the item's further tooltip lines.
+function GameTooltip:SetHyperlink(link)
+    self:SetText(link)
+    local def = W.items[tonumber(string.match(tostring(link), "item:(%d+)") or "")]
+    for _, line in ipairs(def and def.tooltip or {}) do self:AddLine(W.env[line] or line) end
+end
 function GameTooltip:IsOwned(f) return state[self].owner == f end
 class("Cooldown", "Frame").SetCooldown = function(self, start, dur) state[self].cooldown = { start, dur } end
 class("Model", "Frame")
@@ -970,7 +994,9 @@ local function newWorld(config, saved)
           strings = { RANDOM_ROLL_RESULT = "%s rolls %d (%d-%d)", OKAY = "Okay", CANCEL = "Cancel", YES = "Yes",
                       NO = "No", ACCEPT = "Accept", DECLINE = "Decline", CLOSE = "Close", NONE = "None",
                       LOOT_ITEM = "%s receives loot: %s.", LOOT_ITEM_SELF = "You receive loot: %s.",
-                      ERR_TRADE_COMPLETE = "Trade complete.", ERR_TRADE_CANCELLED = "Trade cancelled." } }
+                      ERR_TRADE_COMPLETE = "Trade complete.", ERR_TRADE_CANCELLED = "Trade cancelled.",
+                      ITEM_BIND_ON_EQUIP = "Binds when equipped", ITEM_BIND_ON_PICKUP = "Binds when picked up",
+                      ITEM_SOULBOUND = "Soulbound" } }
     local E = {}
     W.env = E
     E._G = E

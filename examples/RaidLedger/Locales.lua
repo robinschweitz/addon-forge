@@ -127,6 +127,17 @@ L["no items counted this raid yet."] = "in diesem Raid noch keine Items gezählt
 L["%s: %d main spec, %d off spec%s"] = "%s: %d Main-Spec, %d Second-Spec%s"
 L[" (tokens)"] = " (Tokens)"
 L["raid ID %s."] = "Raid-ID %s."
+L["BoE"] = "BoE"
+L["[Loot] %s - free BoE roll for any character! /rnd 100, %d seconds."] = "[Loot] %s - freier BoE-Wurf für jeden Charakter! /rnd 100, %d Sekunden."
+L["[Loot] %s - free BoE roll won by %s (%d)."] = "[Loot] %s - freier BoE-Wurf gewonnen von %s (%d)."
+L["%d-second free BoE roll started."] = "%d-Sekunden-BoE-Wurf gestartet."
+L["a roll is already running for this item."] = "für diesen Gegenstand läuft bereits ein Wurf."
+L["Nobody rolled on %s. Post it again now as a free BoE roll for any character? (Later: select it and /ledger free)"] =
+    "Niemand hat auf %s gewürfelt. Jetzt als freien BoE-Wurf für jeden Charakter erneut posten? (Später: auswählen und /ledger free)"
+L["NOW"] = "JETZT"
+L["LATER"] = "SPÄTER"
+L["/ledger free - post the selected item again: free BoE roll for any character (/rnd 100)"] =
+    "/ledger free - gewählten Gegenstand erneut posten: freier BoE-Wurf für jeden Charakter (/rnd 100)"
 L["roll timer: %d seconds, tie-break: %d seconds."] = "Wurfzeit: %d Sekunden, Gleichstand: %d Sekunden."
 L["usage: /ledger timer [seconds] [tie-break seconds] (roll %d-%d, tie-break %d-%d), or /ledger timer reset"] =
     "Aufruf: /ledger timer [Sekunden] [Gleichstand-Sekunden] (Wurf %d-%d, Gleichstand %d-%d) oder /ledger timer reset"

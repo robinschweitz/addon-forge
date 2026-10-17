@@ -17,7 +17,9 @@ local TRADE_GRACE = 5   -- seconds a closed trade window may still report "Trade
 local EXPORT_FORMAT = "RS2"
 -- Tokens are not counted in the item tally (matched in the item link's name).
 local TOKEN_NAMES = { "Weiheabzeichen" }
-local SPEC_NAMES = { ms = L["main spec"], os = L["off spec"] }
+-- "boe": a free roll for any character on a bind-on-equip item nobody wanted
+-- for this character; it counts in no tally (the website's BOE method).
+local SPEC_NAMES = { ms = L["main spec"], os = L["off spec"], boe = L["BoE"] }
 -- Items nobody wants go to the disenchanter or the guild bank: they keep their
 -- holder (who has the item) but count for nobody.
 local NO_TALLY = { disenchanted = true, bank = true }
@@ -114,6 +116,30 @@ local function rollKind(low, high)
     if high == low + 99 and low >= 2 and low <= 51 then return "ms" end
 end
 
+-- isBindOnEquip reads the item's tooltip (3.3.5a has no bind type in
+-- GetItemInfo). Cached per item; an item the client has not seen yet reads as
+-- not BoE.
+local scanTip = CreateFrame("GameTooltip", "RaidLedgerScanTip", nil, "GameTooltipTemplate")
+local bindOnEquip = {}
+local function isBindOnEquip(link)
+    local id = tonumber(string.match(link or "", "item:(%d+)"))
+    if not id or not ITEM_BIND_ON_EQUIP then return false end
+    if bindOnEquip[id] == nil then
+        scanTip:SetOwner(WorldFrame, "ANCHOR_NONE")
+        scanTip:SetHyperlink("item:" .. id)
+        local found = false
+        for i = 2, math.min(scanTip:NumLines(), 6) do
+            local line = _G["RaidLedgerScanTipTextLeft" .. i]
+            if line and line:GetText() == ITEM_BIND_ON_EQUIP then found = true end
+        end
+        local seen = scanTip:NumLines() > 0
+        scanTip:Hide()
+        if not seen then return false end   -- not cached yet: ask again later
+        bindOnEquip[id] = found
+    end
+    return bindOnEquip[id]
+end
+
 local function isToken(link)
     for _, name in ipairs(TOKEN_NAMES) do
         if string.find(link or "", name, 1, true) then return true end
@@ -124,6 +150,7 @@ end
 -- rollLabel describes a counted roll: "MS", "MS 21-120" (with points) or "OS".
 local function rollLabel(r)
     if r.kind == "os" then return "OS" end
+    if r.kind == "boe" then return "BoE" end
     if r.low and r.low > 1 then return "MS " .. r.low .. "-" .. r.high end
     return "MS"
 end
@@ -1422,7 +1449,7 @@ local function applyRecord(f, sender)
     record.rev, record.at, record.itemID, record.npc = rev, at, itemID, tonumber(f[8])
     record.item = (itemID and select(2, GetItemInfo(itemID))) or record.item or ("item:" .. (itemID or 0))
     record.recipient, record.state, record.confirmed = f[9], STATES[f[10]] and f[10] or "manual", f[11] == "1"
-    record.spec = (f[12] == "ms" or f[12] == "os") and f[12] or nil
+    record.spec = (f[12] == "ms" or f[12] == "os" or f[12] == "boe") and f[12] or nil
     record.roll, record.low, record.high = tonumber(f[13]), tonumber(f[14]), tonumber(f[15])
     record.winner = f[16] ~= "" and f[16] or nil
     record.rolls, record.token = tonumber(f[17]) or 0, f[18] == "1" or nil
@@ -1451,7 +1478,8 @@ local function applyLog(f, sender)
             if name then
                 low, high = tonumber(low), tonumber(high)
                 table.insert(log, { name = name, value = tonumber(value), low = low, high = high,
-                    round = tonumber(round), kind = code ~= "x" and rollKind(low, high) or nil,
+                    round = tonumber(round),
+                    kind = code ~= "x" and (record.spec == "boe" and "boe" or rollKind(low, high)) or nil,
                     note = code == "x" and (low .. "-" .. high) or NOTE_NAMES[code], tally = tonumber(tally) })
             end
         end
@@ -1627,11 +1655,13 @@ local function recordRoll(message)
     if not entry then return end
     local value, lo, hi = tonumber(roll) or 0, tonumber(low), tonumber(high)
     local kind = rollKind(lo, hi)
+    -- A free BoE roll takes plain /rnd 100 only.
+    if entry.free then kind = (lo == 1 and hi == 100) and "boe" or nil end
     -- Ignored rolls are kept in the roll log with the reason, for disputes.
     local note
     if not kind then
-        -- Only /rnd 100, /rnd 99 and enhanced main-spec ranges count; "/rnd 1000"
-        -- would otherwise win.
+        -- Only /rnd 100, /rnd 99 and enhanced main-spec ranges count (in a free
+        -- roll only /rnd 100); "/rnd 1000" would otherwise win.
         note = low .. "-" .. high
     elseif entry.tieBreak and not entry.tieBreak[name] then
         -- During a tie-break only the tied players may roll.
@@ -1652,12 +1682,15 @@ local function recordRoll(message)
     updateRows()
 end
 
-local function startSelectedRoll()
+-- startSelectedRoll starts a roll for the selected item; with `free` a free
+-- BoE roll for any character.
+local function startSelectedRoll(free)
     local entry = selectedEntry()
     if not entry then
         status:SetText(L["Select a master-loot item before starting a roll."])
         return
     end
+    entry.free = free and true or nil
     entry.rolls = {}
     entry.rollLog = {}
     entry.round = 1
@@ -1668,12 +1701,43 @@ local function startSelectedRoll()
     entry.startedAt = GetTime()
     entry.reminders = reminders(seconds)
     entry.rollKey = nil
-    announce(string.format(L["[Loot] %s - /rnd now! %d seconds. /rnd 100 main spec (enhanced: 1+X to 100+X, X up to 50), /rnd 99 off spec."],
-        entry.item, seconds))
-    shareRollStart(entry, seconds)
-    status:SetText(string.format(L["%d-second raid roll started."], seconds))
+    if free then
+        -- Not shared: wishlists only prompt for main- and off-spec rolls.
+        announce(string.format(L["[Loot] %s - free BoE roll for any character! /rnd 100, %d seconds."], entry.item, seconds))
+        status:SetText(string.format(L["%d-second free BoE roll started."], seconds))
+    else
+        announce(string.format(L["[Loot] %s - /rnd now! %d seconds. /rnd 100 main spec (enhanced: 1+X to 100+X, X up to 50), /rnd 99 off spec."],
+            entry.item, seconds))
+        shareRollStart(entry, seconds)
+        status:SetText(string.format(L["%d-second raid roll started."], seconds))
+    end
     updateRows()
 end
+
+-- startFreeRoll posts an item again for any character (bind on equip): the
+-- popup's entry, or the selected item for /ledger free.
+local function startFreeRoll(entry)
+    if entry then
+        if not isActive(entry) then return end
+        selected, editing = entry, nil
+    end
+    entry = selectedEntry()
+    if entry and entry.endsAt and not entry.winner then
+        say(L["a roll is already running for this item."])
+        return
+    end
+    startSelectedRoll(true)
+end
+
+StaticPopupDialogs["RAIDLEDGER_FREE_ROLL"] = {
+    text = L["Nobody rolled on %s. Post it again now as a free BoE roll for any character? (Later: select it and /ledger free)"],
+    button1 = L["NOW"],
+    button2 = L["LATER"],
+    OnAccept = function(_, entry) startFreeRoll(entry) end,
+    timeout = 0,
+    whileDead = 1,
+    hideOnEscape = 1,
+}
 
 local function joinNames(names)
     local count = table.getn(names)
@@ -1687,6 +1751,15 @@ local function finishRoll(entry)
     entry.endsAt = nil
     if activeRollCount(entry) == 0 then
         announce(string.format(L["[Loot] %s - no valid rolls."], entry.item))
+        -- Nobody needs a BoE item for this character: offer it to everyone.
+        if not entry.free and isBindOnEquip(entry.item) then
+            local dialog = StaticPopup_Show("RAIDLEDGER_FREE_ROLL", entry.item, nil, entry)
+            -- The popup may land in any StaticPopup slot: expose this one to plans.
+            if dialog and ForgeTestBridge and ForgeTestBridge.RegisterFrame then
+                ForgeTestBridge:RegisterFrame("RaidLedgerFreeRollNow", _G[dialog:GetName() .. "Button1"])
+                ForgeTestBridge:RegisterFrame("RaidLedgerFreeRollText", _G[dialog:GetName() .. "Text"])
+            end
+        end
         return
     end
     -- Tallies may have changed during the roll (other awards): rank again.
@@ -1719,6 +1792,10 @@ local function finishRoll(entry)
     entry.winner = entry.rolls[1]
     entry.tieBreak = nil
     if selectedEntry() == entry and not editing then recipientBox:SetText(entry.winner.name) end
+    if entry.free then
+        announce(string.format(L["[Loot] %s - free BoE roll won by %s (%d)."], entry.item, best.name, best.value))
+        return
+    end
     announce(string.format(L["[Loot] %s won by %s (%d) - %s%s, %s so far."], entry.item, best.name, best.value,
         SPEC_NAMES[best.kind], best.low and best.low > 1 and (" " .. best.low .. "-" .. best.high) or "",
         itemCount(best.tally or 0, isToken(entry.item))))
@@ -2074,6 +2151,7 @@ local HELP = {
     L["/ledger - show or hide the ledger"],
     L["/ledger start - start a %d s /rnd roll for the selected item"],
     L["/ledger timer [seconds] [tie-break seconds] - roll lengths for new rolls; /ledger timer reset"],
+    L["/ledger free - post the selected item again: free BoE roll for any character (/rnd 100)"],
     L["/ledger set <#> [name] - change the recipient of award #, or to your target"],
     L["/ledger del <#> - remove award # (exported as deleted)"],
     L["/ledger spec <#> ms|os|none - set which tally award # counts for"],
@@ -2102,6 +2180,8 @@ SlashCmdList["RAIDLEDGER"] = function(message)
         updateRows()
     elseif command == "start" then
         startSelectedRoll()
+    elseif command == "free" then
+        startFreeRoll()
     elseif command == "timer" then
         -- /ledger timer [roll] [tie], /ledger timer tie <s>, /ledger timer reset.
         -- Applies to rolls started afterwards; a running roll keeps its time.

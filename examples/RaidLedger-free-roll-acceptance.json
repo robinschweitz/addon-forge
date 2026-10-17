@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger timer reset"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger free"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "roll",
+      "value": [
+        1,
+        99
+      ]
+    },
+    {
+      "type": "roll",
+      "value": [
+        1,
+        100
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 33
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "slash",
+      "value": "/ledger raid 42"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger export"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    }
+  ],
+  "checks": [
+    {
+      "type": "player_in_world",
+      "value": true
+    },
+    {
+      "type": "event_fired",
+      "value": "LOOT_OPENED"
+    },
+    {
+      "type": "chat_contains",
+      "value": "freier BoE-Wurf für jeden Charakter! /rnd 100, 30 Sekunden."
+    },
+    {
+      "type": "chat_contains",
+      "value": "freier BoE-Wurf gewonnen von Test ("
+    },
+    {
+      "type": "chat_contains",
+      "value": "geht an Test - BoE."
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.spec",
+      "value": "boe"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.rolls",
+      "value": 1
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.rollLog.1.kind",
+      "value": "boe"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.rollLog.2.note",
+      "value": "1-99"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerExportText",
+      "value": ";boe;1-100;Test"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}
