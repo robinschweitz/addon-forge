@@ -600,7 +600,7 @@ rollDetail:SetJustifyH("LEFT")
 rollDetail:SetWordWrap(false)
 rollDetail:SetText(L["No player rolls recorded"])
 
-local recipientBox = CreateFrame("EditBox", nil, detailPane, "InputBoxTemplate")
+local recipientBox = CreateFrame("EditBox", "RaidLedgerRecipient", detailPane, "InputBoxTemplate")
 recipientBox:SetPoint("TOPLEFT", detailPane, "TOPLEFT", 14, -100)
 recipientBox:SetWidth(198)
 recipientBox:SetHeight(24)
@@ -632,10 +632,6 @@ local parkText = label(park, "GameFontNormal", 10, {0.92, 0.80, 1.00})
 parkText:SetPoint("CENTER", park, "CENTER", 0, 0)
 parkText:SetText(L["PARK"])
 
-local rosterHint = label(detailPane, "GameFontNormalSmall", 9, {0.45, 0.60, 0.68})
-rosterHint:SetPoint("TOPLEFT", award, "BOTTOMLEFT", 1, -9)
-rosterHint:SetText(L["CLICK A GROUP MEMBER"])
-
 local function stateButton(name, caption)
     local button = CreateFrame("Button", name, detailPane)
     button:SetHeight(16)
@@ -653,22 +649,93 @@ local disenchantButton = stateButton("RaidLedgerDisenchant", L["DE"])
 disenchantButton:SetWidth(30)
 disenchantButton:SetPoint("RIGHT", bankButton, "LEFT", -4, 0)
 
-local rosterButtons = {}
-for i = 1, 4 do
-    local button = CreateFrame("Button", nil, detailPane)
-    button:SetWidth(96)
+-- ALLE opens every raid member by group; the four buttons beside it show the
+-- selected item's valid rollers (winner first), then the roster.
+-- The main chunk is near Lua's 200-local limit: these live in one table.
+local roster = {}
+roster.all = stateButton("RaidLedgerAllMembers", "")
+roster.all:SetWidth(74)
+roster.all:SetPoint("TOPLEFT", award, "BOTTOMLEFT", 0, -5)
+makeBackdrop(roster.all, 0.06, 0.16, 0.22, 0.98)
+roster.all:GetFontString():SetTextColor(0.70, 0.93, 1.00)
+
+-- memberButton: a name (class colored) and, for a roller, the roll on the right.
+function roster.button(parent, name, width)
+    local button = CreateFrame("Button", name, parent)
+    button:SetWidth(width)
     button:SetHeight(18)
-    button:SetPoint("TOPLEFT", rosterHint, "BOTTOMLEFT", -1 + ((i - 1) % 2) * 100, -5 - math.floor((i - 1) / 2) * 21)
     makeBackdrop(button, 0.045, 0.09, 0.13, 0.98)
     -- 3.3.5a Buttons have no SetTextColor; color the button's own FontString.
     local text = label(button, "GameFontNormalSmall", nil, {0.58, 0.79, 0.88})
     text:SetPoint("LEFT", button, "LEFT", 6, 0)
     text:SetPoint("RIGHT", button, "RIGHT", -6, 0)
+    text:SetJustifyH("LEFT")
     text:SetWordWrap(false)
     button:SetFontString(text)
+    button.roll = label(button, "GameFontNormalSmall", 9, {1.00, 0.80, 0.32})
+    button.roll:SetPoint("RIGHT", button, "RIGHT", -5, 0)
+    button.roll:SetJustifyH("RIGHT")
     button:SetScript("OnClick", function(self) recipientBox:SetText(self.fullName or "") end)
+    return button
+end
+
+-- showMember puts a member (or nobody) on a button; a roller's roll on the right.
+function roster.show(button, member, roll)
+    button.fullName = member and member.name
+    if not member then button:Hide() return end
+    button:SetText(member.name)
+    local color = member.class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[member.class]
+    if color then
+        button:GetFontString():SetTextColor(color.r, color.g, color.b)
+    else
+        button:GetFontString():SetTextColor(0.58, 0.79, 0.88)
+    end
+    button.roll:SetText(roll and tostring(roll.value) or "")
+    button:GetFontString():SetPoint("RIGHT", button, "RIGHT", roll and -26 or -6, 0)
+    if roll then
+        button:SetBackdropColor(0.09, 0.17, 0.24, 0.98)
+    else
+        button:SetBackdropColor(0.045, 0.09, 0.13, 0.98)
+    end
+    button:Show()
+end
+
+local rosterButtons = {}
+for i = 1, 4 do
+    local button = roster.button(detailPane, "RaidLedgerMember" .. i, 96)
+    button:SetPoint("TOPLEFT", roster.all, "BOTTOMLEFT", ((i - 1) % 2) * 100, -4 - math.floor((i - 1) / 2) * 21)
     rosterButtons[i] = button
 end
+
+-- The whole raid, one column per raid group: opens under the member buttons,
+-- over the recent awards, so ALLE stays visible to close it again.
+roster.pane = CreateFrame("Frame", "RaidLedgerMembers", Ledger)
+roster.pane:SetHeight(125)
+roster.pane:SetPoint("TOPLEFT", rollPane, "BOTTOMLEFT", 0, -4)
+roster.pane:SetPoint("TOPRIGHT", detailPane, "BOTTOMRIGHT", 0, -4)
+roster.pane:SetFrameLevel(Ledger:GetFrameLevel() + 20)
+makeBackdrop(roster.pane, 0.025, 0.052, 0.078, 0.99)
+roster.pane:EnableMouse(true)
+roster.pane:Hide()
+roster.headings, roster.groups = {}, {}
+for g = 1, 5 do
+    local x = 11 + (g - 1) * (106 + 4)
+    local heading = label(roster.pane, "GameFontNormalSmall", 9, {1.00, 0.80, 0.32})
+    heading:SetPoint("TOPLEFT", roster.pane, "TOPLEFT", x + 2, -8)
+    heading:SetText(string.format(L["GROUP %d"], g))
+    roster.headings[g] = heading
+    roster.groups[g] = {}
+    for row = 1, 5 do
+        local button = roster.button(roster.pane, nil, 106)
+        button:SetPoint("TOPLEFT", roster.pane, "TOPLEFT", x, -21 - (row - 1) * 20)
+        button:HookScript("OnClick", function() roster.pane:Hide() end)
+        roster.groups[g][row] = button
+    end
+end
+roster.all:SetScript("OnClick", function()
+    if roster.pane:IsShown() then roster.pane:Hide() else roster.pane:Show() end
+end)
+Ledger:HookScript("OnHide", function() roster.pane:Hide() end)
 
 local historyPane = CreateFrame("Frame", "RaidLedgerHistoryPane", Ledger)
 historyPane:SetPoint("TOPLEFT", Ledger, "TOPLEFT", 16, -286)
@@ -823,28 +890,80 @@ local function candidateIndex(name)
     end
 end
 
-local function updateRoster()
-    local names = {}
-    local members = GetNumRaidMembers()
-    if members and members > 0 then
-        for i = 1, members do
-            local name = GetRaidRosterInfo(i)
-            if name then table.insert(names, name) end
+-- raidMembers lists the group: name, raid group and class token.
+function roster.members()
+    local members = {}
+    local count = GetNumRaidMembers()
+    if count and count > 0 then
+        for i = 1, count do
+            local name, _, group, _, _, class = GetRaidRosterInfo(i)
+            if name then table.insert(members, { name = name, group = group or 1, class = class }) end
         end
+        return members
+    end
+    for i = 0, GetNumPartyMembers() do
+        local unit = i == 0 and "player" or ("party" .. i)
+        local name = UnitName(unit)
+        if name then table.insert(members, { name = name, group = 1, class = select(2, UnitClass(unit)) }) end
+    end
+    return members
+end
+
+-- rankedRollers: the counted rolls of the selected item (or of the award being
+-- edited), best first, one per player.
+function roster.rollers()
+    local rolls = {}
+    if editing then
+        for _, r in ipairs(editing.rollLog or {}) do
+            if r.kind and not r.note and r.value then table.insert(rolls, r) end
+        end
+        table.sort(rolls, ranksAbove)
     else
-        local player = UnitName("player")
-        if player then table.insert(names, player) end
-        local party = GetNumPartyMembers()
-        for i = 1, party do
-            local name = UnitName("party" .. i)
-            if name then table.insert(names, name) end
+        local entry = selectedEntry()
+        rolls = entry and entry.rolls or rolls
+    end
+    local ranked, seen = {}, {}
+    for _, r in ipairs(rolls) do
+        if r.name and not seen[string.lower(r.name)] then
+            seen[string.lower(r.name)] = true
+            table.insert(ranked, r)
         end
     end
+    return ranked
+end
+
+local function updateRoster()
+    local members = roster.members()
+    local byName = {}
+    for _, m in ipairs(members) do byName[string.lower(m.name)] = m end
+    local shown, rollOf = {}, {}
+    for _, r in ipairs(roster.rollers()) do
+        rollOf[string.lower(r.name)] = r
+        if table.getn(shown) < 4 then table.insert(shown, byName[string.lower(r.name)] or { name = r.name }) end
+    end
+    for _, m in ipairs(members) do
+        if table.getn(shown) >= 4 then break end
+        if not rollOf[string.lower(m.name)] then table.insert(shown, m) end
+    end
     for i = 1, 4 do
-        local name = names[i]
-        rosterButtons[i].fullName = name
-        rosterButtons[i]:SetText(name or "")
-        if name then rosterButtons[i]:Show() else rosterButtons[i]:Hide() end
+        local m = shown[i]
+        roster.show(rosterButtons[i], m, m and rollOf[string.lower(m.name)])
+    end
+    roster.all:SetText(string.format(L["ALL (%d)"], table.getn(members)))
+    -- The popout: members in roster order within their raid group.
+    local rows = { 0, 0, 0, 0, 0 }
+    for g = 1, 5 do
+        for row = 1, 5 do roster.groups[g][row]:Hide() end
+    end
+    for _, m in ipairs(members) do
+        local g = math.min(math.max(tonumber(m.group) or 1, 1), 5)
+        if rows[g] < 5 then
+            rows[g] = rows[g] + 1
+            roster.show(roster.groups[g][rows[g]], m, rollOf[string.lower(m.name)])
+        end
+    end
+    for g = 1, 5 do
+        if rows[g] > 0 then roster.headings[g]:Show() else roster.headings[g]:Hide() end
     end
 end
 
@@ -2062,6 +2181,9 @@ Ledger:SetScript("OnEvent", function(self, event, ...)
             ForgeTestBridge:RegisterFrame("RaidLedgerExportText", exportText)
             ForgeTestBridge:RegisterFrame("RaidLedgerRollHeading", rollHeading)
             for i = 1, 3 do ForgeTestBridge:RegisterFrame("RaidLedgerRoll" .. i, rows[i]) end
+            for i = 1, 4 do ForgeTestBridge:RegisterFrame("RaidLedgerMember" .. i, rosterButtons[i]) end
+            ForgeTestBridge:RegisterFrame("RaidLedgerAllMembers", roster.all)
+            ForgeTestBridge:RegisterFrame("RaidLedgerMembers", roster.pane)
         end
     elseif event == "LOOT_OPENED" or event == "LOOT_READY" then
         captureMasterLoot()

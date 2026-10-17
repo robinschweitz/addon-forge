@@ -49,6 +49,18 @@
     },
     {
       "type": "click",
+      "value": "RaidLedgerAllMembers"
+    },
+    {
+      "type": "screenshot",
+      "value": "members"
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAllMembers"
+    },
+    {
+      "type": "click",
       "value": "RaidLedgerAward"
     },
     {
@@ -126,6 +138,16 @@
       "type": "frame_text_contains",
       "frame": "RaidLedgerExportText",
       "value": ";boe;1-100;Test"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerAllMembers",
+      "value": "ALLE (2)"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerMember1",
+      "value": "Test"
     },
     {
       "type": "no_lua_errors",
