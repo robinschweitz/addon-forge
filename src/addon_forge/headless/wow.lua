@@ -1200,7 +1200,21 @@ function forge.sketch(name, root)
             add(frame, "box", { color = { 0, 0, 0, 0.5 }, border = { 0.5, 0.5, 0.5, 1 } })
             if s.text and s.text ~= "" then add(frame, "text", { text = plainText(s.text), size = 12, color = { 1, 1, 1 } }) end
         end
-        for _, kid in ipairs(s.children) do
+        -- Regions first, then child frames by frame level (as the client draws).
+        local kids = {}
+        for i, kid in ipairs(s.children) do kids[i] = kid end
+        local order = {}
+        for i, kid in ipairs(kids) do order[kid] = i end
+        local function level(kid)
+            local ks = state[kid]
+            if not Methods[ks.type].CreateFontString then return -1 end
+            return ks.level or 0
+        end
+        table.sort(kids, function(a, b)
+            if level(a) ~= level(b) then return level(a) < level(b) end
+            return order[a] < order[b]
+        end)
+        for _, kid in ipairs(kids) do
             local ks = state[kid]
             if kid:IsVisible() then
                 if ks.type == "Texture" then
