@@ -118,6 +118,65 @@ def _classify(raw: dict, defined: set[str]) -> list[dict]:
     return notes
 
 
+SKETCH_NAME = re.compile(r"[A-Za-z0-9_-]{1,40}")
+
+
+def _rgb(color, default=(0, 0, 0, 1)) -> tuple[str, float]:
+    c = [float(v) for v in (color if isinstance(color, list) else default)][:4] + [1.0]
+    return "#%02x%02x%02x" % tuple(round(max(0.0, min(1.0, v)) * 255) for v in c[:3]), max(0.0, min(1.0, c[3]))
+
+
+def sketch_svg(sketch: dict) -> str:
+    """An SVG picture of one forge.sketch() capture (estimated fonts, no texture files)."""
+    w, h = float(sketch.get("width") or 1), float(sketch.get("height") or 1)
+    out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w * 2:.0f}" height="{h * 2:.0f}" '
+           f'viewBox="0 0 {w:.1f} {h:.1f}" font-family="Arial Narrow, Arial, sans-serif">',
+           f'<rect width="{w:.1f}" height="{h:.1f}" fill="#3a4a2a"/>']
+    for i, item in enumerate(_listify(sketch.get("items"))):
+        x, y, iw, ih = (float(item.get(k) or 0) for k in ("x", "y", "w", "h"))
+        if item.get("kind") == "box":
+            fill, alpha = _rgb(item.get("color"))
+            border = item.get("border")
+            stroke = ""
+            if isinstance(border, list):
+                col, balpha = _rgb(border)
+                stroke = f' stroke="{col}" stroke-opacity="{balpha:.2f}" stroke-width="1"'
+            out.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{iw:.1f}" height="{ih:.1f}" '
+                       f'fill="{fill}" fill-opacity="{alpha:.2f}"{stroke}/>')
+        elif item.get("kind") == "text":
+            fill, _ = _rgb(item.get("color"), (1, 0.82, 0, 1))
+            size = float(item.get("size") or 12)
+            justify = item.get("justify") or "CENTER"
+            anchor, tx = {"LEFT": ("start", x), "RIGHT": ("end", x + iw)}.get(justify, ("middle", x + iw / 2))
+            clip = ""
+            if item.get("clip"):
+                out.append(f'<clipPath id="c{i}"><rect x="{x:.1f}" y="{y:.1f}" width="{iw:.1f}" height="{ih:.1f}"/></clipPath>')
+                clip = f' clip-path="url(#c{i})"'
+            lines = str(item.get("text", "")).split("\n")
+            top = y + (ih - size * len(lines)) / 2
+            for n, line in enumerate(lines):
+                text = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                out.append(f'<text x="{tx:.1f}" y="{top + size * (n + 0.8):.1f}" font-size="{size:.1f}" '
+                           f'fill="{fill}" text-anchor="{anchor}"{clip}>{text}</text>')
+    out.append("</svg>")
+    return "\n".join(out)
+
+
+def _save_sketches(raw: dict, addon_dir: Path) -> list[str]:
+    """Write each forge.sketch() capture to .forge-runs/sketches beside the addon."""
+    paths = []
+    for sketch in _listify(raw.get("sketches")):
+        name = str(sketch.get("name", ""))
+        if not SKETCH_NAME.fullmatch(name):
+            continue
+        folder = addon_dir.parent / ".forge-runs" / "sketches"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"{addon_dir.name}-{name}.svg"
+        path.write_text(sketch_svg(sketch), encoding="utf-8")
+        paths.append(str(path))
+    return paths
+
+
 def run_addon(addon_dir: Path, spec: Path | None = None, *, budget: int = 20_000_000) -> dict:
     """Load the addon (and optionally one spec file) in a fresh headless world."""
     import lupa.lua51 as lua51
@@ -167,7 +226,8 @@ def run_addon(addon_dir: Path, spec: Path | None = None, *, budget: int = 20_000
     return {"status": "failed" if failed else "passed",
             "spec": spec_name.decode() if spec_name else None,
             "load_errors": load_errors, "errors": errors, "tests": tests, "diagnostics": notes,
-            "chat": _listify(raw.get("chat"))[-30:], "sent": _listify(raw.get("sent"))[-30:]}
+            "chat": _listify(raw.get("chat"))[-30:], "sent": _listify(raw.get("sent"))[-30:],
+            "sketches": _save_sketches(raw, addon_dir)}
 
 
 def spec_files(addon_dir: Path) -> list[Path]:

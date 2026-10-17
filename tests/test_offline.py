@@ -216,3 +216,27 @@ end)
 """)
     result = run_specs(root)
     assert result["status"] == "passed", result["runs"][1]
+
+
+def test_sketch_saves_an_svg_of_what_a_window_draws(tmp_path):
+    root = addon(tmp_path, """
+local f = CreateFrame("Frame", "ProbeFrame", UIParent)
+f:SetWidth(200) f:SetHeight(100) f:SetPoint("CENTER")
+f:SetBackdrop({ bgFile = "x", edgeFile = "y" }) f:SetBackdropColor(0, 0, 1, 0.5)
+local t = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+t:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -10) t:SetText("Tom & <Jerry>")
+local hidden = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+hidden:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -40) hidden:SetText("HIDDEN") hidden:Hide()
+""", spec="""
+test("sketch", function() forge.sketch("probe-window", "ProbeFrame") end)
+test("bad names are not written", function() forge.sketch("../evil", "ProbeFrame") end)
+""")
+    result = run_specs(root)
+    assert result["status"] == "passed", result["runs"][1]
+    [path] = result["runs"][1]["sketches"]
+    assert path.endswith("Probe-probe-window.svg") and (tmp_path / ".forge-runs" / "sketches").is_dir()
+    svg = Path(path).read_text(encoding="utf-8")
+    assert 'viewBox="0 0 200.0 100.0"' in svg
+    assert 'fill="#0000ff" fill-opacity="0.50" stroke=' in svg
+    assert '>Tom &amp; &lt;Jerry&gt;</text>' in svg and 'fill="#ffffff"' in svg
+    assert "HIDDEN" not in svg

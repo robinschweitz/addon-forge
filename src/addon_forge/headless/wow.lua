@@ -1162,6 +1162,64 @@ function forge.layoutIssues(root, tolerance)
     walk(asFrame(root))
     return issues
 end
+-- forge.sketch(name, root) records what `root` would draw (backdrops, colored
+-- textures, text with its color and size), in draw order, so the spec runner
+-- can save it as an SVG picture: look at layouts with realistic data (a full
+-- raid, long names) that a live test cannot produce. Estimated text widths,
+-- default fonts; no textures from files. A picture to review, not proof.
+local FONT_COLORS = { Highlight = { 1, 1, 1 }, Disable = { 0.5, 0.5, 0.5 } }
+local function fontColor(obj)
+    local s = state[obj]
+    if s.color then return s.color end
+    local fo = s.fontObject
+    local name = type(fo) == "string" and fo or (fo and state[fo] and state[fo].name) or ""
+    for key, color in pairs(FONT_COLORS) do
+        if sfind(name, key, 1, true) then return color end
+    end
+    return { 1, 0.82, 0 }
+end
+function forge.sketch(name, root)
+    root = asFrame(root)
+    local rr = rectOf(root)
+    if not rr or not root:IsVisible() then error("forge.sketch needs a visible, placed frame", 2) end
+    local items = {}
+    local function add(obj, kind, extra)
+        local r = rectOf(obj)
+        if not r or r.r - r.l <= 0 or r.t - r.b <= 0 then return end
+        extra.kind, extra.x, extra.y = kind, r.l - rr.l, rr.t - r.t
+        extra.w, extra.h = r.r - r.l, r.t - r.b
+        tinsert(items, extra)
+    end
+    local function walk(frame)
+        local s = state[frame]
+        if type(s.backdrop) == "table" then
+            add(frame, "box", { color = s.backdropColor or { 0, 0, 0, 1 },
+                                border = s.backdrop.edgeFile and (s.borderColor or { 1, 1, 1, 1 }) or nil })
+        end
+        if s.type == "EditBox" then
+            add(frame, "box", { color = { 0, 0, 0, 0.5 }, border = { 0.5, 0.5, 0.5, 1 } })
+            if s.text and s.text ~= "" then add(frame, "text", { text = plainText(s.text), size = 12, color = { 1, 1, 1 } }) end
+        end
+        for _, kid in ipairs(s.children) do
+            local ks = state[kid]
+            if kid:IsVisible() then
+                if ks.type == "Texture" then
+                    if ks.color then add(kid, "box", { color = ks.color }) end
+                elseif ks.type == "FontString" then
+                    if ks.text and ks.text ~= "" then
+                        add(kid, "text", { text = plainText(ks.text), size = fontSize(kid), color = fontColor(kid),
+                                           justify = ks.justifyH, clip = ks.wordWrap == false or nil })
+                    end
+                elseif Methods[ks.type].CreateFontString then
+                    walk(kid)
+                end
+            end
+        end
+    end
+    walk(root)
+    W.sketches = W.sketches or {}
+    tinsert(W.sketches, { name = tostring(name), width = rr.r - rr.l, height = rr.t - rr.b, items = items })
+end
 function forge.setSaved(name, value) if not W.reloaded then W.saved[name] = value end end
 function forge.type(editbox, text)
     local f = asFrame(editbox)
@@ -1403,6 +1461,7 @@ function H.run(configJson, fileList, specSource, specName)
         tinsert(report.tests, currentTest)
         currentTest = nil
     end
+    report.sketches = W.sketches
     report.chat = W.chat
     report.sent = W.sent
     return json(report)

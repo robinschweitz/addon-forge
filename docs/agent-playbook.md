@@ -14,7 +14,11 @@ isolated test client (German `deDE`, build 12340) unless marked otherwise.
 3. Write offline specs in `projects/Name/tests/*.spec.lua` **before** fixing a
    bug: reproduce it as a failing spec, then fix, then watch it pass.
 4. `forge spec projects/Name` until green, including `forge.layoutIssues(frame)`
-   for any UI.
+   for any UI. For a window that real data fills (a 25-player raid, long German
+   names, many items), add a spec that sets that data up and calls
+   `forge.sketch("name", frame)`: it saves `.forge-runs/sketches/Addon-name.svg`,
+   a drawing of the frame (backdrops, colors, text) to look at before the
+   live run. Estimated fonts, no texture files: confirm with a live screenshot.
 5. Write the acceptance plan with checks that observe the addon (`chat_contains`,
    `global_equals`, `frame_text_contains`, `event_fired`, `no_lua_errors`) and
    `steps` that drive it (`slash`, `roll`, `wait`, `click`).
