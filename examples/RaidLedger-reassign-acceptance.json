@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger start"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "roll",
+      "value": [
+        1,
+        100
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 33
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "slash",
+      "value": "/ledger tally"
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerHistory1"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidLedgerRecipient",
+        "Cara"
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 2
+    },
+    {
+      "type": "slash",
+      "value": "/ledger tally"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    }
+  ],
+  "checks": [
+    {
+      "type": "player_in_world",
+      "value": true
+    },
+    {
+      "type": "event_fired",
+      "value": "LOOT_OPENED"
+    },
+    {
+      "type": "chat_contains",
+      "value": "gewonnen von Test ("
+    },
+    {
+      "type": "chat_contains",
+      "value": "RaidLedger: Test: 1 Main-Spec, 0 Second-Spec"
+    },
+    {
+      "type": "chat_contains",
+      "value": "geht an Cara - Main-Spec (korrigiert)."
+    },
+    {
+      "type": "chat_contains",
+      "value": "RaidLedger: Cara: 1 Main-Spec, 0 Second-Spec"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.recipient",
+      "value": "Cara"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.state",
+      "value": "manual"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.spec",
+      "value": "ms"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.confirmed",
+      "value": true
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerHistory1",
+      "value": "->  Cara"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}
