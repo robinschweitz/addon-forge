@@ -675,14 +675,7 @@ function roster.button(parent, name, width)
     button.roll = label(button, "GameFontNormalSmall", 9, {1.00, 0.80, 0.32})
     button.roll:SetPoint("RIGHT", button, "RIGHT", -5, 0)
     button.roll:SetJustifyH("RIGHT")
-    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    button:SetScript("OnClick", function(self, which)
-        if which == "RightButton" then
-            if self.rollRef then roster.openMenu(self) end
-            return
-        end
-        recipientBox:SetText(self.fullName or "")
-    end)
+    button:SetScript("OnClick", function(self) recipientBox:SetText(self.fullName or "") end)
     return button
 end
 
@@ -735,7 +728,7 @@ for g = 1, 5 do
     for row = 1, 5 do
         local button = roster.button(roster.pane, nil, 106)
         button:SetPoint("TOPLEFT", roster.pane, "TOPLEFT", x, -21 - (row - 1) * 20)
-        button:HookScript("OnClick", function(_, which) if which ~= "RightButton" then roster.pane:Hide() end end)
+        button:HookScript("OnClick", function() roster.pane:Hide() end)
         roster.groups[g][row] = button
     end
 end
@@ -744,8 +737,9 @@ roster.all:SetScript("OnClick", function()
 end)
 Ledger:HookScript("OnHide", function() roster.pane:Hide() end)
 
--- Right-click on a roller: the master looter takes a pass or changes how the
--- roll counts (rules of 2026-10-17). A free BoE roll takes passes only.
+-- Right-click on a roll in the roll list: the master looter takes a pass or
+-- changes how the roll counts (rules of 2026-10-17). A free BoE roll takes
+-- passes only.
 roster.menu = CreateFrame("Frame", "RaidLedgerRollMenu", Ledger)
 roster.menu:SetWidth(132)
 roster.menu:SetFrameLevel(Ledger:GetFrameLevel() + 30)
@@ -797,13 +791,14 @@ function roster.openMenu(button)
         end
     end
     menu:SetHeight(-y + 6)
-    -- Above the button, opening towards the middle of the window.
+    -- Under the roll (right edge, by its value), or above it near the window's
+    -- bottom: the menu stays inside the window.
     menu:ClearAllPoints()
-    local left, ledgerLeft = button:GetLeft(), Ledger:GetLeft()
-    if left and ledgerLeft and left - ledgerLeft > Ledger:GetWidth() / 2 then
+    local bottom, ledgerBottom = button:GetBottom(), Ledger:GetBottom()
+    if bottom and ledgerBottom and bottom - menu:GetHeight() - 2 < ledgerBottom + 8 then
         menu:SetPoint("BOTTOMRIGHT", button, "TOPRIGHT", 0, 2)
     else
-        menu:SetPoint("BOTTOMLEFT", button, "TOPLEFT", 0, 2)
+        menu:SetPoint("TOPRIGHT", button, "BOTTOMRIGHT", 0, -2)
     end
     menu:Show()
 end
@@ -1114,6 +1109,20 @@ local function winningRoll(log)
     return best
 end
 
+-- roster.lineText: a roll in the active roll list, "Name  MS 21-120".
+function roster.lineText(r, won)
+    local text = r.name
+    if (r.round or 1) > 1 then text = text .. string.format(L["  (tie-break %d)"], r.round - 1) end
+    if r.note then
+        local reason = L[r.note] or r.note
+        return "|cff777777" .. text .. string.format(L["  - ignored: %s"], reason) .. "|r"
+    end
+    if r.kind then text = text .. "  " .. rollLabel(r) end
+    if r.was then text = text .. L["  (corrected)"] end
+    if won then text = text .. L["  - won"] end
+    return text
+end
+
 -- showRollLog fills the roll pane with the rolls of a recorded award.
 local function showRollLog(record)
     local log = record.rollLog
@@ -1173,11 +1182,46 @@ local function updateRows()
     end
     rollHeading:SetText(L["MASTER LOOT ITEMS"])
     emptyRolls:SetText(EMPTY_ACTIVE)
+    -- Under the items: the selected item's rolls (left-click picks the
+    -- recipient, right-click passes or recounts), scrolled by the mouse wheel.
+    local current = selectedEntry()
+    local log = current and sortedRollLog(current) or {}
+    local items = math.min(table.getn(active), MAX_ACTIVE)
+    local room = MAX_ACTIVE - items - 1
+    local count = table.getn(log)
+    if count == 0 or room < 1 then room = 0 end
+    rollOffset = math.max(0, math.min(rollOffset, count - room))
+    local winner = current and current.winner and winningRoll(log)
     local activeCount = 0
     for i = 1, MAX_ACTIVE do
-        local entry = active[i]
+        local entry = i <= items and active[i]
         local row = rows[i]
-        if entry then
+        row.logName, row.fullName, row.rollRef = nil, nil, nil
+        row:GetFontString():SetTextColor(0.82, 0.91, 0.96)
+        row:SetBackdropBorderColor(0.20, 0.63, 0.82, 0.92)
+        if room > 0 and i == items + 1 then
+            row.item = nil
+            row:SetText(count > room and L["ROLLS (SCROLL)"] or L["ROLLS"])
+            row:GetFontString():SetTextColor(1.00, 0.80, 0.32)
+            row.count:SetText("")
+            row.wish:SetText("")
+            row:SetBackdropColor(0, 0, 0, 0)
+            row:SetBackdropBorderColor(0, 0, 0, 0)
+            row:Show()
+        elseif room > 0 and i > items + 1 and log[i - items - 1 + rollOffset] then
+            local r = log[i - items - 1 + rollOffset]
+            row.item = nil
+            row.logName, row.fullName = r.name, r.name
+            if r.kind and not r.note then row.rollRef = r end
+            row:SetText(roster.lineText(r, r == winner))
+            row.count:SetText(tostring(r.value))
+            if r.note then row.count:SetTextColor(0.45, 0.45, 0.45)
+            elseif r == winner then row.count:SetTextColor(0.45, 0.85, 0.55)
+            else row.count:SetTextColor(1.00, 0.79, 0.31) end
+            row.wish:SetText("")
+            row:SetBackdropColor(0.03, 0.06, 0.09, 0.98)
+            row:Show()
+        elseif entry then
             activeCount = activeCount + 1
             row.item = entry
             row.logName = nil
@@ -1220,8 +1264,17 @@ for i = 1, MAX_ACTIVE do
     row.count:SetPoint("RIGHT", row, "RIGHT", -7, 0)
     row.wish = label(row, "GameFontNormalSmall", 9, {0.45, 0.85, 0.55})
     row.wish:SetPoint("RIGHT", row, "RIGHT", -52, 0)
-    row:SetScript("OnClick", function(self)
-        if not self.item then return end   -- a roll-log line
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    row:SetScript("OnClick", function(self, which)
+        if which == "RightButton" then
+            if self.rollRef and not editing then roster.openMenu(self) end
+            return
+        end
+        if not self.item then   -- a roll line: its player becomes the recipient
+            if self.fullName and not editing then recipientBox:SetText(self.fullName) end
+            return
+        end
+        if selected ~= self.item then rollOffset = 0 end
         selected = self.item
         editing = nil
         recipientBox:SetText(selected and selected.winner and selected.winner.name or "")
@@ -1321,7 +1374,6 @@ for _, button in ipairs(rosterButtons) do
 end
 
 rollPane:SetScript("OnMouseWheel", function(_, delta)
-    if not editing then return end
     rollOffset = rollOffset - delta
     updateRows()
 end)

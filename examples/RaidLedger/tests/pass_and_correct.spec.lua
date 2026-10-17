@@ -1,7 +1,7 @@
 -- Rules chosen by the user on 2026-10-17: players sometimes realise only after
 -- rolling that they do not need the item, and the master looter sometimes
 -- decides a roll counts differently. Only the master looter changes rolls
--- (right-click a roller, or /ledger pass|count). A pass strikes the roll; once
+-- (right-click a roll in the roll list under the items, or /ledger pass|count). A pass strikes the roll; once
 -- a winner was announced, the next-best roll wins and is announced. A recount
 -- as plain main spec subtracts the points (110 from 21-120 counts 90), and the
 -- points of an enhanced roll can be corrected (20 EP claimed, 10 EP real:
@@ -38,6 +38,14 @@ local function fresh()
 end
 
 local function member(i) return forge.frame("RaidLedgerMember" .. i) end
+
+-- The selected item's roll line for `name` in the list under the items.
+local function rollRow(name)
+    for i = 1, 10 do
+        local row = forge.frame("RaidLedgerRow" .. i)
+        if row and row:IsVisible() and not row.item and row.fullName == name then return row end
+    end
+end
 
 test("a pass during the roll takes the roller out of the ranking", function()
     forge.raid({ "Alice", "Bob", "Cara", "Dora", "Emil" })
@@ -162,31 +170,52 @@ test("bad corrections are refused", function()
     expect(forge.chat()).toContain("RaidLedger: usage: /ledger pass <name>")
 end)
 
-test("right-click on a roller opens the roll menu; PASS strikes the roll", function()
+test("the selected item's rolls are listed under the items", function()
     -- Alice got an item above, so her tally would rank her last: roll with others.
     fresh()
     forge.roll("Dora", 80)
     forge.roll("Emil", 60)
-    forge.click(member(3), "RightButton")          -- Alice did not roll: no menu
+    forge.roll("Cara", 300, 1, 1000)               -- ignored, listed grey with the reason
+    forge.roll("Bob", 45, 1, 99)
+    expect(forge.text("RaidLedgerRow2")).toBe("ROLLS")
+    expect(forge.text("RaidLedgerRow3")).toBe("Dora  MS")
+    expect(forge.text("RaidLedgerRow4")).toBe("Emil  MS")
+    expect(forge.text("RaidLedgerRow5")).toBe("Bob  OS")
+    expect(forge.text("RaidLedgerRow6")).toContain("Cara  - ignored: 1-1000")
+    expect(forge.text(forge.frame("RaidLedgerRow3").count)).toBe("80")
+    forge.click(rollRow("Emil"))                   -- left-click: recipient
+    expect(forge.text(forge.frame("RaidLedgerRecipient"))).toBe("Emil")
+    expect(forge.layoutIssues("RaidLedgerRollPane")).toEqual({})
+end)
+
+test("right-click on a roll opens the roll menu; PASS strikes the roll", function()
+    forge.click(member(1), "RightButton")          -- member buttons only pick recipients
     expect("RaidLedgerRollMenu").toBeHidden()
-    forge.click(member(1), "RightButton")
+    forge.click(rollRow("Cara"), "RightButton")    -- an ignored roll has nothing to change
+    expect("RaidLedgerRollMenu").toBeHidden()
+    forge.click(rollRow("Dora"), "RightButton")
     expect("RaidLedgerRollMenu").toBeShown()
     expect(RaidLedgerRollMenu.title:GetText()).toBe("Dora (80)")
     expect(forge.findText("Dora (80)")).toBeTruthy()
     expect(forge.layoutIssues("RaidLedgerRollMenu")).toEqual({})
+    -- Under the roll, inside the window.
+    local menu, window = forge.rect("RaidLedgerRollMenu"), forge.rect("RaidLedgerFrame")
+    expect(menu.top <= forge.rect(rollRow("Dora")).bottom).toBe(true)
+    expect(menu.top < window.top - 40 and menu.bottom > window.bottom).toBe(true)
     forge.sketch("roll-menu", "RaidLedgerFrame")
     forge.click("RaidLedgerRollMenuPass")
     expect("RaidLedgerRollMenu").toBeHidden()
     expect(said("Dora passes.")).toBe(1)
     expect(member(1):GetText()).toBe("Emil")
+    expect(forge.text(rollRow("Dora"))).toContain("Dora  - ignored: passed")
 end)
 
 test("the menu recounts, and ENHANCED asks for the points", function()
     mark = #forge.sent()
-    forge.click(member(1), "RightButton")          -- Emil (60)
+    forge.click(rollRow("Emil"), "RightButton")    -- Emil (60)
     forge.click("RaidLedgerRollMenuOS")
     expect(said("Emil's roll counts as off spec (60).")).toBe(1)
-    forge.click(member(1), "RightButton")
+    forge.click(rollRow("Emil"), "RightButton")
     forge.click("RaidLedgerRollMenuEnhanced")
     local popups = forge.popups()
     local popup = popups[#popups]
@@ -195,10 +224,10 @@ test("the menu recounts, and ENHANCED asks for the points", function()
     forge.stub("FakePopupEditBox", { GetText = function() return "12" end })
     StaticPopupDialogs["RAIDLEDGER_POINTS"].OnAccept({ GetName = function() return "FakePopup" end }, popup.data)
     expect(said("Emil's roll counts as main spec 13-112 (72).")).toBe(1)
-    forge.click(member(1), "RightButton")
+    forge.click(rollRow("Emil"), "RightButton")
     forge.click("RaidLedgerRollMenuMS")
     expect(said("Emil's roll counts as main spec (60).")).toBe(1)
-    forge.click(member(1), "RightButton")
+    forge.click(rollRow("Emil"), "RightButton")
     forge.click("RaidLedgerRollMenuNone")
     expect(said("Emil's roll does not count.")).toBe(1)
 end)
@@ -213,11 +242,32 @@ test("a free BoE roll can take passes but no spec changes", function()
     forge.roll("Bob", 60)
     forge.slash("/ledger count Alice os")
     expect(forge.chat()).toContain("RaidLedger: a free BoE roll only takes /rnd 100; pass or none only.")
-    forge.click(member(1), "RightButton")
+    forge.click(rollRow("Alice"), "RightButton")
     expect("RaidLedgerRollMenuOS").toBeHidden()
     expect("RaidLedgerRollMenuPass").toBeShown()
     forge.click("RaidLedgerRollMenuPass")
     forge.advance(31, 0.25)
     expect(raidSaid("[Loot] " .. CLOAK .. " - free BoE roll won by Bob (60).")).toBe(1)
     expect(#forge.errors()).toBe(0)
+end)
+
+test("a long roll list scrolls under the items, which stay in place", function()
+    local names = {}
+    for i = 1, 12 do names[i] = "Raider" .. string.char(64 + i) end
+    forge.raid(names)
+    fresh()
+    for i = 1, 12 do forge.roll(names[i], 100 - i) end
+    expect(forge.text("RaidLedgerRow2")).toBe("ROLLS (SCROLL)")
+    expect(forge.text("RaidLedgerRow3")).toBe("RaiderA  MS")
+    forge.wheel("RaidLedgerRollPane", -1)
+    expect(forge.text("RaidLedgerRow1")).toContain("Bracers of the Untold")
+    expect(forge.text("RaidLedgerRow3")).toBe("RaiderB  MS")
+    forge.wheel("RaidLedgerRollPane", -10)
+    expect(forge.text("RaidLedgerRow10")).toBe("RaiderL  MS")
+    -- The lowest roll's menu still fits inside the window.
+    forge.click(rollRow("RaiderL"), "RightButton")
+    local menu, window = forge.rect("RaidLedgerRollMenu"), forge.rect("RaidLedgerFrame")
+    expect(menu.bottom > window.bottom and menu.top < window.top).toBe(true)
+    forge.sketch("roll-menu-low", "RaidLedgerFrame")
+    forge.sketch("roll-list", "RaidLedgerFrame")
 end)
