@@ -27,6 +27,7 @@ test("highest first /rnd wins after 30 seconds; a re-roll is ignored", function(
     forge.roll("Alice", 50)
     forge.advance(31, 0.25)
     expect(forge.chat()).toContain("15 seconds left")
+    expect(forge.chat()).toContain(" - 8 seconds left.")
     expect(forge.chat()).toContain("won by Bob (97)")
 end)
 

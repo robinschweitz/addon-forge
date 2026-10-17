@@ -116,7 +116,7 @@ Terminal tab; a run started in another window must be pasted.
 - The bridge report is capped near 28 KB; it sheds chat, then error counts,
   then events. Repeated errors are stored once with a count.
 - Plan `chat_contains` is a substring match: `"5 seconds left"` also matches
-  `"15 seconds left"`. Use distinctive text (`" - 5 seconds left!"`).
+  `"15 seconds left"`. Use distinctive text (`" - 5 seconds left."`).
 - Ties cannot be forced live (the server chooses `/rnd` results); cover them
   offline.
 - The `master_loot` fixture's bot rolls with `peer_roll`: `MSG_RANDOM_ROLL`

@@ -8,8 +8,11 @@ local Ledger = CreateFrame("Frame", "RaidLedgerFrame", UIParent)
 local MAX_HISTORY = 250
 local MAX_ACTIVE = 10
 local HISTORY_LINES = 4
+-- Default roll and tie-break lengths; /ledger timer changes them (saved).
 local ROLL_SECONDS = 30
 local TIE_SECONDS = 15
+local ROLL_LIMITS = { 10, 300 }
+local TIE_LIMITS = { 5, 120 }
 local TRADE_GRACE = 5   -- seconds a closed trade window may still report "Trade complete."
 local EXPORT_FORMAT = "RS2"
 -- Tokens are not counted in the item tally (matched in the item link's name).
@@ -155,6 +158,15 @@ local function ensureDatabase()
         end
     end
     return db
+end
+
+local function rollSeconds() return ensureDatabase().rollSeconds or ROLL_SECONDS end
+local function tieSeconds() return ensureDatabase().tieSeconds or TIE_SECONDS end
+
+-- reminders: the seconds left at which a roll of this length is announced
+-- again - half and a quarter of its time, rounded to whole seconds.
+local function reminders(seconds)
+    return { math.floor(seconds / 2 + 0.5), math.floor(seconds / 4 + 0.5) }
 end
 
 local function findRecord(id)
@@ -1648,15 +1660,15 @@ local function startSelectedRoll()
     entry.round = 1
     entry.winner = nil
     entry.tieBreak = nil
-    entry.endsAt = GetTime() + ROLL_SECONDS
+    local seconds = rollSeconds()
+    entry.endsAt = GetTime() + seconds
     entry.startedAt = GetTime()
-    entry.warned15 = false
-    entry.warned5 = false
+    entry.reminders = reminders(seconds)
     entry.rollKey = nil
     announce(string.format(L["[Loot] %s - /rnd now! %d seconds. /rnd 100 main spec (enhanced: 1+X to 100+X, X up to 50), /rnd 99 off spec."],
-        entry.item, ROLL_SECONDS))
-    shareRollStart(entry, ROLL_SECONDS)
-    status:SetText(string.format(L["%d-second raid roll started."], ROLL_SECONDS))
+        entry.item, seconds))
+    shareRollStart(entry, seconds)
+    status:SetText(string.format(L["%d-second raid roll started."], seconds))
     updateRows()
 end
 
@@ -1692,13 +1704,13 @@ local function finishRoll(entry)
         for _, name in ipairs(tied) do entry.tieBreak[name] = true end
         entry.rolls = {}
         entry.round = (entry.round or 1) + 1
-        entry.endsAt = GetTime() + TIE_SECONDS
+        local seconds = tieSeconds()
+        entry.endsAt = GetTime() + seconds
         entry.startedAt = GetTime()
-        entry.warned15 = true
-        entry.warned5 = false
+        entry.reminders = reminders(seconds)
         announce(string.format(L["[Loot] %s - tie between %s (%d)! %s: /rnd again, %d seconds."],
-            entry.item, joinNames(tied), top, table.concat(tied, ", "), TIE_SECONDS))
-        shareRollStart(entry, TIE_SECONDS, tied)
+            entry.item, joinNames(tied), top, table.concat(tied, ", "), seconds))
+        shareRollStart(entry, seconds, tied)
         return
     end
     entry.winner = entry.rolls[1]
@@ -1716,12 +1728,13 @@ local function updateRollTimers()
             if remaining <= 0 then
                 finishRoll(entry)
                 updateRows()
-            elseif remaining <= 5 and not entry.warned5 then
-                entry.warned5 = true
-                announce(string.format(L["[Loot] %s - 5 seconds left!"], entry.item))
-            elseif remaining <= 15 and not entry.warned15 then
-                entry.warned15 = true
-                announce(string.format(L["[Loot] %s - 15 seconds left."], entry.item))
+            else
+                -- One message even if a slow frame passed both reminders.
+                local left
+                while entry.reminders and entry.reminders[1] and remaining <= entry.reminders[1] do
+                    left = table.remove(entry.reminders, 1)
+                end
+                if left then announce(string.format(L["[Loot] %s - %d seconds left."], entry.item, left)) end
             end
         end
     end
@@ -2050,7 +2063,8 @@ ns.help = {}
 
 local HELP = {
     L["/ledger - show or hide the ledger"],
-    L["/ledger start - start a 30 s /rnd roll for the selected item"],
+    L["/ledger start - start a %d s /rnd roll for the selected item"],
+    L["/ledger timer [seconds] [tie-break seconds] - roll lengths for new rolls; /ledger timer reset"],
     L["/ledger set <#> [name] - change the recipient of award #, or to your target"],
     L["/ledger del <#> - remove award # (exported as deleted)"],
     L["/ledger spec <#> ms|os|none - set which tally award # counts for"],
@@ -2079,6 +2093,31 @@ SlashCmdList["RAIDLEDGER"] = function(message)
         updateRows()
     elseif command == "start" then
         startSelectedRoll()
+    elseif command == "timer" then
+        -- /ledger timer [roll] [tie], /ledger timer tie <s>, /ledger timer reset.
+        -- Applies to rolls started afterwards; a running roll keeps its time.
+        local db = ensureDatabase()
+        local args = {}
+        for word in string.gmatch(string.lower(rest), "%S+") do table.insert(args, word) end
+        local roll, tie
+        if args[1] == "reset" and not args[2] then
+            db.rollSeconds, db.tieSeconds = nil, nil
+        elseif args[1] == "tie" and args[2] and not args[3] then
+            tie = tonumber(args[2])
+            if not tie then args.bad = true end
+        elseif args[1] then
+            roll, tie = tonumber(args[1]), args[2] and tonumber(args[2])
+            if not roll or (args[2] and not tie) or args[3] then args.bad = true end
+        end
+        if args.bad or (roll and (roll ~= math.floor(roll) or roll < ROLL_LIMITS[1] or roll > ROLL_LIMITS[2]))
+            or (tie and (tie ~= math.floor(tie) or tie < TIE_LIMITS[1] or tie > TIE_LIMITS[2])) then
+            say(string.format(L["usage: /ledger timer [seconds] [tie-break seconds] (roll %d-%d, tie-break %d-%d), or /ledger timer reset"],
+                ROLL_LIMITS[1], ROLL_LIMITS[2], TIE_LIMITS[1], TIE_LIMITS[2]))
+        else
+            if roll then db.rollSeconds = roll ~= ROLL_SECONDS and roll or nil end
+            if tie then db.tieSeconds = tie ~= TIE_SECONDS and tie or nil end
+            say(string.format(L["roll timer: %d seconds, tie-break: %d seconds."], rollSeconds(), tieSeconds()))
+        end
     elseif command == "set" then
         local id, name = rest:match("^#?(%d+)%s*(.-)$")
         if id then setRecipient(tonumber(id), name) else say(L["usage: /ledger set <#> [name]"]) end
@@ -2141,7 +2180,7 @@ SlashCmdList["RAIDLEDGER"] = function(message)
     elseif ns.commands[command] then
         ns.commands[command](rest)
     else
-        for _, line in ipairs(HELP) do say(line) end
+        for _, line in ipairs(HELP) do say(string.format(line, rollSeconds())) end
         for _, line in ipairs(ns.help) do say(line) end
     end
 end

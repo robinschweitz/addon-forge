@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger timer 20"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger start"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "roll",
+      "value": [
+        1,
+        100
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 20
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "slash",
+      "value": "/ledger timer reset"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    }
+  ],
+  "checks": [
+    {
+      "type": "player_in_world",
+      "value": true
+    },
+    {
+      "type": "frame_visible",
+      "value": "RaidLedgerFrame"
+    },
+    {
+      "type": "event_fired",
+      "value": "LOOT_OPENED"
+    },
+    {
+      "type": "chat_contains",
+      "value": "Wurfzeit: 20 Sekunden, Gleichstand: 15 Sekunden."
+    },
+    {
+      "type": "chat_contains",
+      "value": "jetzt /rnd! 20 Sekunden"
+    },
+    {
+      "type": "chat_contains",
+      "value": " - noch 10 Sekunden."
+    },
+    {
+      "type": "chat_contains",
+      "value": " - noch 5 Sekunden."
+    },
+    {
+      "type": "chat_contains",
+      "value": "gewonnen von Test ("
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.rolls",
+      "value": 1
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.confirmed",
+      "value": true
+    },
+    {
+      "type": "chat_contains",
+      "value": "geht an Test - Main-Spec."
+    },
+    {
+      "type": "chat_contains",
+      "value": "Wurfzeit: 30 Sekunden, Gleichstand: 15 Sekunden."
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.rollSeconds",
+      "value": null
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}

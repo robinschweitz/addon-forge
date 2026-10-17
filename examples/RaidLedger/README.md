@@ -48,8 +48,11 @@ read: export the list again on the website.
 ## Rolls
 
 Opening a loot window lists every item at or above the group's loot threshold.
-Select an item and type `/ledger start` to start a 30-second roll. The raid's
-rules:
+Select an item and type `/ledger start` to start a 30-second roll. Change the
+length with `/ledger timer <seconds> [tie-break seconds]` (roll 10-300 s,
+tie-break 5-120 s, default 30/15; `/ledger timer reset`), saved across `/reload`
+and new raids. A running roll keeps its time. The raid is reminded when half and
+a quarter of the time are left (30 s: at 15 and 8 seconds). The raid's rules:
 
 - `/rnd 100` (1-100) is **main spec**, `/rnd 99` (1-99) is **off spec**.
 - EP enhance a main-spec roll to 1+X..100+X with X = min(EP, 50), the guild

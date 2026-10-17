@@ -78,8 +78,7 @@ L["[Loot] %s - /rnd now! %d seconds. /rnd 100 main spec (enhanced: 1+X to 100+X,
 L["[Loot] %s - no valid rolls."] = "[Loot] %s - keine gültigen Würfe."
 L["[Loot] %s - tie between %s (%d)! %s: /rnd again, %d seconds."] = "[Loot] %s - Gleichstand zwischen %s (%d)! %s: nochmal /rnd, %d Sekunden."
 L["[Loot] %s won by %s (%d) - %s%s, %s so far."] = "[Loot] %s gewonnen von %s (%d) - %s%s, bisher %s."
-L["[Loot] %s - 5 seconds left!"] = "[Loot] %s - noch 5 Sekunden!"
-L["[Loot] %s - 15 seconds left."] = "[Loot] %s - noch 15 Sekunden."
+L["[Loot] %s - %d seconds left."] = "[Loot] %s - noch %d Sekunden."
 L["[Loot] %s is parked with %s until it is rolled."] = "[Loot] %s wird bis zum Auswürfeln von %s verwahrt."
 L["[Loot] %s goes to %s%s%s."] = "[Loot] %s geht an %s%s%s."
 L["traded"] = "gehandelt"
@@ -128,10 +127,15 @@ L["no items counted this raid yet."] = "in diesem Raid noch keine Items gezählt
 L["%s: %d main spec, %d off spec%s"] = "%s: %d Main-Spec, %d Second-Spec%s"
 L[" (tokens)"] = " (Tokens)"
 L["raid ID %s."] = "Raid-ID %s."
+L["roll timer: %d seconds, tie-break: %d seconds."] = "Wurfzeit: %d Sekunden, Gleichstand: %d Sekunden."
+L["usage: /ledger timer [seconds] [tie-break seconds] (roll %d-%d, tie-break %d-%d), or /ledger timer reset"] =
+    "Aufruf: /ledger timer [Sekunden] [Gleichstand-Sekunden] (Wurf %d-%d, Gleichstand %d-%d) oder /ledger timer reset"
 
 -- /ledger help
 L["/ledger - show or hide the ledger"] = "/ledger - Buch zeigen oder verbergen"
-L["/ledger start - start a 30 s /rnd roll for the selected item"] = "/ledger start - 30 s /rnd-Wurf für den gewählten Gegenstand starten"
+L["/ledger start - start a %d s /rnd roll for the selected item"] = "/ledger start - %d s /rnd-Wurf für den gewählten Gegenstand starten"
+L["/ledger timer [seconds] [tie-break seconds] - roll lengths for new rolls; /ledger timer reset"] =
+    "/ledger timer [Sekunden] [Gleichstand-Sekunden] - Wurfzeiten für neue Würfe; /ledger timer reset"
 L["/ledger set <#> [name] - change the recipient of award #, or to your target"] = "/ledger set <#> [Name] - Empfänger von Vergabe # ändern (ohne Name: dein Ziel)"
 L["/ledger del <#> - remove award # (exported as deleted)"] = "/ledger del <#> - Vergabe # entfernen (Export: gelöscht)"
 L["/ledger spec <#> ms|os|none - set which tally award # counts for"] = "/ledger spec <#> ms|os|none - festlegen, wofür Vergabe # zählt"

@@ -96,11 +96,11 @@
     },
     {
       "type": "chat_contains",
-      "value": "noch 15 Sekunden"
+      "value": " - noch 15 Sekunden."
     },
     {
       "type": "chat_contains",
-      "value": " - noch 5 Sekunden!"
+      "value": " - noch 8 Sekunden."
     },
     {
       "type": "chat_contains",
