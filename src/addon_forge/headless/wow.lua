@@ -1095,6 +1095,12 @@ function forge.findText(text, contains)
     end
     return nil
 end
+-- forge.wheel(frame, delta): turn the mouse wheel over a frame (1 = up, -1 = down).
+function forge.wheel(frame, delta)
+    local f = asFrame(frame)
+    if not f:IsVisible() then error("Cannot scroll hidden frame " .. tostring(state[f].name), 2) end
+    runScript(f, "OnMouseWheel", delta)
+end
 function forge.clickText(text, button)
     local obj = forge.findText(text)
     if not obj then error("No visible text " .. tostring(text), 2) end
