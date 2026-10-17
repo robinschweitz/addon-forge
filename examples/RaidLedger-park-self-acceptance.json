@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger start"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "roll",
+      "value": [
+        1,
+        100
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 33
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerHistory1"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerPark"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerHistory1"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidLedgerRecipient",
+        "Test"
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 2
+    }
+  ],
+  "checks": [
+    {
+      "type": "player_in_world",
+      "value": true
+    },
+    {
+      "type": "chat_contains",
+      "value": "gewonnen von Test ("
+    },
+    {
+      "type": "chat_contains",
+      "value": "wird bis zum Auswürfeln von Test verwahrt."
+    },
+    {
+      "type": "chat_contains",
+      "value": "geht an Test (korrigiert)."
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.recipient",
+      "value": "Test"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.state",
+      "value": "manual"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerHistory1",
+      "value": "->  Test"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}

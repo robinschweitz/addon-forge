@@ -1326,7 +1326,10 @@ local function setRecipient(id, name)
         name = UnitName("target")
     end
     record.recipient = field(name)
-    record.state = isPlayer(name) and "held" or "manual"
+    -- Given to the master looter it stays "held" only while it waits for
+    -- another roll winner (the trade); otherwise it is his own award, which
+    -- also closes an open (parked) award he won.
+    record.state = (isPlayer(name) and record.winner and not isPlayer(record.winner)) and "held" or "manual"
     record.confirmed = true
     record.roll = nil
     publish(record)
@@ -1722,8 +1725,10 @@ local function finishRoll(entry)
 end
 
 local function updateRollTimers()
+    local running = false
     for _, entry in ipairs(active) do
         if entry.endsAt and not entry.winner then
+            running = true
             local remaining = entry.endsAt - GetTime()
             if remaining <= 0 then
                 finishRoll(entry)
@@ -1738,6 +1743,8 @@ local function updateRollTimers()
             end
         end
     end
+    -- Keep the countdown in the window ticking between rolls.
+    if running and Ledger:IsShown() then updateSelection() end
 end
 
 -- startLaterRoll rolls an open award (parked, or held without a roll): the
@@ -1973,6 +1980,7 @@ Ledger:SetScript("OnEvent", function(self, event, ...)
             ForgeTestBridge:RegisterFrame("RaidLedgerItem", itemDetail)
             ForgeTestBridge:RegisterFrame("RaidLedgerAward", award)
             ForgeTestBridge:RegisterFrame("RaidLedgerRecipient", recipientBox)
+            ForgeTestBridge:RegisterFrame("RaidLedgerRollDetail", rollDetail)
             ForgeTestBridge:RegisterFrame("RaidLedgerPark", park)
             ForgeTestBridge:RegisterFrame("RaidLedgerDisenchant", disenchantButton)
             ForgeTestBridge:RegisterFrame("RaidLedgerBank", bankButton)

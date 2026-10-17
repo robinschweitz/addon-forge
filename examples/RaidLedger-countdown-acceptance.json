@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger timer reset"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger start"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "roll",
+      "value": [
+        1,
+        100
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 12
+    },
+    {
+      "type": "screenshot",
+      "value": "countdown"
+    }
+  ],
+  "checks": [
+    {
+      "type": "player_in_world",
+      "value": true
+    },
+    {
+      "type": "chat_contains",
+      "value": "jetzt /rnd! 30 Sekunden"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerRollDetail",
+      "value": "1 Würfe  |  noch 1"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}
