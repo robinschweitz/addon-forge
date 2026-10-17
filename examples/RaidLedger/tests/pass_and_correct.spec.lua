@@ -271,3 +271,62 @@ test("a long roll list scrolls under the items, which stay in place", function()
     forge.sketch("roll-menu-low", "RaidLedgerFrame")
     forge.sketch("roll-list", "RaidLedgerFrame")
 end)
+
+-- Rule of 2026-10-17: in a given-out award's roll log, a pass or recount that
+-- makes someone else the winner re-awards the item (like changing the
+-- recipient by hand); with nobody valid left the award stays.
+local function awardLine(name)
+    local line = forge.findText("->  " .. name .. "  (", true)
+    while line and not line.Click do line = line:GetParent() end
+    return line
+end
+
+test("a pass in a given-out award's roll log gives the award to the next-best roll", function()
+    local names = {}
+    for i = 1, 12 do names[i] = "Raider" .. string.char(64 + i) end
+    forge.masterLoot(names)
+    fresh()
+    forge.roll("RaiderA", 90)
+    forge.roll("RaiderB", 70)
+    forge.roll("RaiderC", 95, 1, 99)
+    forge.advance(31, 0.25)
+    forge.clickText("GIVE + RECORD")
+    local record = forge.saved("RaidLedgerDB").history[1]
+    expect(record.recipient).toBe("RaiderA")
+    forge.click(awardLine("RaiderA"))              -- show the award's roll log
+    expect(forge.findText("ROLLS FOR AWARD #" .. record.id)).toBeTruthy()
+    forge.click(rollRow("RaiderA"), "RightButton")
+    expect("RaidLedgerRollMenu").toBeShown()
+    forge.sketch("award-roll-menu", "RaidLedgerFrame")
+    forge.click("RaidLedgerRollMenuPass")
+    expect(said("RaiderA passes.")).toBe(1)
+    expect(raidSaid("[Loot] " .. BRACERS .. " goes to RaiderB - main spec (corrected).")).toBe(1)
+    expect(record.recipient).toBe("RaiderB")
+    expect(forge.text(forge.frame("RaidLedgerRecipient"))).toBe("RaiderB")   -- the shown award's recipient
+    expect(record.winner).toBe("RaiderB")
+    expect(record.roll).toBe(70)
+    expect(record.spec).toBe("ms")
+    -- The award's log shows the pass; the tally moved with the award.
+    expect(forge.text(rollRow("RaiderA"))).toContain("RaiderA  - ignored: passed")
+    forge.slash("/ledger tally")
+    expect(forge.chat()).toContain("RaiderB")
+end)
+
+test("slash commands work on the shown award too; a recount can move it again", function()
+    forge.slash("/ledger count RaiderB os")        -- now RaiderC's 95 OS beats RaiderB's 70 OS
+    expect(said("RaiderB's roll counts as off spec (70).")).toBe(1)
+    local record = forge.saved("RaidLedgerDB").history[1]
+    expect(record.recipient).toBe("RaiderC")
+    expect(record.spec).toBe("os")
+    expect(record.roll).toBe(95)
+end)
+
+test("with nobody valid left the award stays and asks the master looter", function()
+    forge.slash("/ledger pass RaiderB")
+    forge.slash("/ledger pass RaiderC")
+    local record = forge.saved("RaidLedgerDB").history[1]
+    expect(record.recipient).toBe("RaiderC")
+    expect(forge.findText("Award #" .. record.id .. ": no valid roll is left; decide who gets it (DE, BANK or another recipient).")).toBeTruthy()
+    forge.slash("/ledger pass RaiderZ")
+    expect(forge.chat()).toContain("RaidLedger: RaiderZ has no counted roll on award #" .. record.id .. ".")
+end)

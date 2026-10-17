@@ -252,7 +252,9 @@ Terminal tab; a run started in another window must be pasted.
   export. The 3.3.5a `StaticPopup_Show` returns the dialog frame.
 - Passes and roll corrections (master looter only; right-click a roll in the
   roll list under the items, or `/ledger pass|count`) passed live in runs
-  `52b16cd1e4ce` and `7f6b5bfccbc8` (with the roll list)
+  `52b16cd1e4ce` and `7f6b5bfccbc8` (with the roll list). A pass in a given-out
+  award's roll log re-awards it to the next-best roll (the bot's off-spec
+  roll): `RaidLedger-pass-award-acceptance.json`, run `d04ac8ef909e`
   (`RaidLedger-pass-acceptance.json`): a corrected enhanced roll, a pass after
   the winner was announced, the bot's off-spec roll winning instead. The
   right-click menu and the points popup are verified offline only (plan

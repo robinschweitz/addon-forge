@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger timer 10"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger start"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "roll",
+      "value": [
+        21,
+        120
+      ]
+    },
+    {
+      "type": "peer_roll",
+      "value": [
+        1,
+        99
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 12
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerHistory1"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "screenshot",
+      "value": "award_log"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger pass Test"
+    },
+    {
+      "type": "wait",
+      "value": 2
+    },
+    {
+      "type": "screenshot",
+      "value": "reawarded"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger raid 42"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger export"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger timer reset"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    }
+  ],
+  "checks": [
+    {
+      "type": "player_in_world",
+      "value": true
+    },
+    {
+      "type": "event_fired",
+      "value": "LOOT_OPENED"
+    },
+    {
+      "type": "chat_contains",
+      "value": " gewonnen von Test ("
+    },
+    {
+      "type": "chat_contains",
+      "value": " - Test passt."
+    },
+    {
+      "type": "chat_contains",
+      "value": " geht an Flo"
+    },
+    {
+      "type": "chat_contains",
+      "value": " - Second-Spec (korrigiert)."
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.spec",
+      "value": "os"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.rollLog.2.name",
+      "value": "Test"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.rollLog.2.note",
+      "value": "passed"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerExportText",
+      "value": ";os;1-99;Flo"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}

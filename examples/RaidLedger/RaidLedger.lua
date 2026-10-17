@@ -1134,7 +1134,8 @@ local function showRollLog(record)
     for i = 1, MAX_ACTIVE do
         local row, r = rows[i], log and log[i + rollOffset]
         row.item = nil
-        row.logName = r and r.name
+        row.logName, row.fullName = r and r.name, r and r.name
+        row.rollRef = r and r.kind and not r.note and r or nil
         if r then
             local text = r.name
             if r.round > 1 then text = text .. string.format(L["  (tie-break %d)"], r.round - 1) end
@@ -1267,11 +1268,11 @@ for i = 1, MAX_ACTIVE do
     row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     row:SetScript("OnClick", function(self, which)
         if which == "RightButton" then
-            if self.rollRef and not editing then roster.openMenu(self) end
+            if self.rollRef then roster.openMenu(self) end
             return
         end
         if not self.item then   -- a roll line: its player becomes the recipient
-            if self.fullName and not editing then recipientBox:SetText(self.fullName) end
+            if self.fullName then recipientBox:SetText(self.fullName) end
             return
         end
         if selected ~= self.item then rollOffset = 0 end
@@ -1577,8 +1578,9 @@ end
 
 -- setRecipient corrects an award by hand, e.g. when someone else held a unique
 -- item for a moment and traded it on to the winner. Without a name the
--- current player target is used.
-local function setRecipient(id, name)
+-- current player target is used. With `roll` (a re-decided roll), that roll's
+-- player becomes the award's winner.
+local function setRecipient(id, name, roll)
     local record = findRecord(id)
     if not record then
         say(string.format(L["no award #%s."], tostring(id)))
@@ -1593,12 +1595,13 @@ local function setRecipient(id, name)
         name = UnitName("target")
     end
     record.recipient = field(name)
+    if roll then record.winner, record.spec = roll.name, roll.kind end
     -- Given to the master looter it stays "held" only while it waits for
     -- another roll winner (the trade); otherwise it is his own award, which
     -- also closes an open (parked) award he won.
     record.state = (isPlayer(name) and record.winner and not isPlayer(record.winner)) and "held" or "manual"
     record.confirmed = true
-    record.roll = nil
+    record.roll, record.low, record.high = roll and roll.value, roll and roll.low, roll and roll.high
     publish(record)
     status:SetText(string.format(L["Award #%d now goes to %s."], record.id, record.recipient))
     announceAward(record, L["corrected"])
@@ -2080,21 +2083,14 @@ function roster.decide(entry)
     finishRoll(entry)
 end
 
--- roster.apply: how = "pass", "none" (strike the roll), "ms", "os" or "enh"
--- with `points` (0-50) for the selected item's roll of `name`.
-function roster.apply(name, how, points)
-    local entry = selectedEntry()
-    local logs = entry and roster.counted(entry, name or "") or {}
-    if not logs[1] then
-        say(string.format(L["%s has no counted roll on the selected item."], name or "?"))
-        return
-    end
-    name = logs[1].name
+-- roster.change strikes or recounts a player's logged rolls and announces it.
+function roster.change(item, logs, how, points, free)
     local strike = how == "pass" or how == "none"
-    if entry.free and not strike then
+    if free and not strike then
         say(L["a free BoE roll only takes /rnd 100; pass or none only."])
-        return
+        return false
     end
+    local name = logs[1].name
     for _, r in ipairs(logs) do
         if strike then
             r.note = how == "pass" and "passed" or "not counted"
@@ -2112,13 +2108,30 @@ function roster.apply(name, how, points)
     end
     local r = logs[1]
     if how == "pass" then
-        announce(string.format(L["[Loot] %s - %s passes."], entry.item, name))
+        announce(string.format(L["[Loot] %s - %s passes."], item, name))
     elseif how == "none" then
-        announce(string.format(L["[Loot] %s - %s's roll does not count."], entry.item, name))
+        announce(string.format(L["[Loot] %s - %s's roll does not count."], item, name))
     else
-        announce(string.format(L["[Loot] %s - %s's roll counts as %s (%d)."], entry.item, name,
+        announce(string.format(L["[Loot] %s - %s's roll counts as %s (%d)."], item, name,
             SPEC_NAMES[r.kind] .. (r.low > 1 and (" " .. r.low .. "-" .. r.high) or ""), r.value))
     end
+    return true
+end
+
+-- roster.apply: how = "pass", "none" (strike the roll), "ms", "os" or "enh"
+-- with `points` (0-50), for `name`'s roll on the selected item, or on the
+-- award whose roll log is shown.
+function roster.apply(name, how, points)
+    if editing then return roster.applyAward(editing, name, how, points) end
+    local entry = selectedEntry()
+    local logs = entry and roster.counted(entry, name or "") or {}
+    if not logs[1] then
+        say(string.format(L["%s has no counted roll on the selected item."], name or "?"))
+        return
+    end
+    if not roster.change(entry.item, logs, how, points, entry.free) then return end
+    name = logs[1].name
+    local strike = how == "pass" or how == "none"
     if entry.endsAt and not entry.winner then
         -- Still rolling. A tie-break with fewer than two tied players left is decided now.
         local left = 0
@@ -2140,8 +2153,71 @@ function roster.apply(name, how, points)
     updateRows()
 end
 
+-- roster.sortLog orders a roll log like sortedRollLog: by round, counted rolls
+-- in winning order, then ignored rolls as they came in.
+function roster.sortLog(log)
+    local order = {}
+    for i, r in ipairs(log) do order[r] = i end
+    table.sort(log, function(a, b)
+        if (a.round or 1) ~= (b.round or 1) then return (a.round or 1) < (b.round or 1) end
+        if (a.note == nil) ~= (b.note == nil) then return a.note == nil end
+        if a.note == nil and (a.kind ~= b.kind or a.tally ~= b.tally or a.value ~= b.value) then
+            return ranksAbove(a, b)
+        end
+        return order[a] < order[b]
+    end)
+end
+
+-- roster.applyAward: a pass or recount on a given-out award (rules of
+-- 2026-10-17). If someone else now wins, the award goes to them like a manual
+-- recipient change; with nobody valid left (or a tie) the master looter decides.
+function roster.applyAward(record, name, how, points)
+    local logs = roster.counted(record, name or "")
+    if not logs[1] then
+        say(string.format(L["%s has no counted roll on award #%d."], name or "?", record.id))
+        return
+    end
+    if record.state ~= "given" and record.state ~= "held" and record.state ~= "manual" then
+        say(string.format(L["award #%d is not with a player; change it by hand."], record.id))
+        return
+    end
+    if not roster.change(record.item, logs, how, points, record.spec == "boe") then return end
+    -- Rank again as if this award had not happened: its holder's tally without it.
+    local round = 0
+    for _, r in ipairs(record.rollLog) do
+        if r.kind and not r.note and (r.round or 1) > round then round = r.round or 1 end
+    end
+    local counts = tallies(record.token)
+    local holder = lower((record.state == "held" and record.winner) or record.recipient or "")
+    local rolls = {}
+    for _, r in ipairs(record.rollLog) do
+        if r.kind and not r.note then
+            r.tally = tallyOf(counts, r.name, r.kind)
+            if lower(r.name) == holder and record.spec == r.kind then r.tally = math.max(r.tally - 1, 0) end
+            if (r.round or 1) == round then table.insert(rolls, r) end
+        end
+    end
+    table.sort(rolls, ranksAbove)
+    roster.sortLog(record.rollLog)
+    local best, second = rolls[1], rolls[2]
+    if not best then
+        status:SetText(string.format(L["Award #%d: no valid roll is left; decide who gets it (DE, BANK or another recipient)."], record.id))
+    elseif second and second.kind == best.kind and second.tally == best.tally and second.value == best.value then
+        status:SetText(string.format(L["Award #%d: %s and %s tie; decide who gets it."], record.id, best.name, second.name))
+    elseif lower(best.name) ~= lower(record.recipient or "") then
+        if editing == record then recipientBox:SetText(best.name) end
+        setRecipient(record.id, best.name, best)
+        return
+    else
+        record.winner, record.spec = best.name, best.kind
+        record.roll, record.low, record.high = best.value, best.low, best.high
+    end
+    publish(record)
+    updateRows()
+end
+
 function roster.askPoints(name)
-    local entry = selectedEntry()
+    local entry = editing or selectedEntry()
     local r = entry and roster.counted(entry, name or "")[1]
     roster.points = (r and r.kind == "ms" and r.low and r.low > 1) and (r.low - 1) or 0
     StaticPopup_Show("RAIDLEDGER_POINTS", name, nil, name)
