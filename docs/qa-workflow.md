@@ -435,6 +435,15 @@ and hand party leadership to the GUI character after setting master loot, so
 a plan can test inviting, converting to a raid and sorting groups
 (`RaidLedger-raid-setup-acceptance.json`).
 
+Adding `"boe_loot"` (`"fixtures": ["master_loot", "boe_loot"]`) kills The
+Rake (creature 5807) instead of the Crimson Templar. Its stock loot table drops
+Lionfur Armor (item 17922, uncommon, binds when equipped) at 100%, so plans can
+test what an addon does with a bind-on-equip drop
+(`RaidLedger-boe-popup-acceptance.json`). No world data is changed: the fixture
+confirms the drop with a fixed read-only query and fails if the realm's loot
+table no longer guarantees it. The Rake's stock world-loot reference may add a
+random extra item.
+
 `peer_roll` and `peer_trade` need `"fixtures": ["master_loot"]`. A step the
 client or bot does not perform (missing command, hidden button, trade not
 completed) fails the plan with `stage: "steps"` and a log of the steps run.

@@ -348,6 +348,14 @@ def test_raid_lead_fixture_extends_master_loot():
         validate_plan({**BASE, "fixtures": ["raid_lead"], "checks": [{"type": "player_in_world", "value": True}]})
 
 
+def test_boe_loot_fixture_extends_master_loot():
+    ok = validate_plan({**BASE, "fixtures": ["master_loot", "boe_loot"],
+                        "checks": [{"type": "player_in_world", "value": True}]})
+    assert ok["fixtures"] == ["master_loot", "boe_loot"]
+    with pytest.raises(ValueError, match="boe_loot"):
+        validate_plan({**BASE, "fixtures": ["boe_loot"], "checks": [{"type": "player_in_world", "value": True}]})
+
+
 def test_companions_and_paste_steps_are_validated():
     ok = validate_plan({**BASE, "companions": ["X2"], "steps": [
         {"type": "paste", "value": ["XImport", "WL1;Test;1\n20513;ms;20;1;Crest"]}],

@@ -239,6 +239,13 @@ Terminal tab; a run started in another window must be pasted.
   (no saved-data migration). Passed live after the rename: two-player
   `1b1ccbcd9cc7`, raid setup `be409e5ef19a`. The old deploy folders were moved
   to the test client's `Interface/AddOns/archive`.
+- The `boe_loot` fixture option (`["master_loot", "boe_loot"]`) kills The Rake
+  (5807, stock 100% Lionfur Armor 17922, uncommon BoE) instead of the Crimson
+  Templar; no realm change. RaidLedger's free BoE roll passed live on it
+  (run `88000397b237`): a normal roll without takers, the tooltip-scanned BoE
+  popup (its JETZT button is the bridge frame `RaidLedgerFreeRollNow`, since
+  the popup can land in any StaticPopup slot), the free roll and the `boe`
+  export. The 3.3.5a `StaticPopup_Show` returns the dialog frame.
 - Offline text widths are estimates (0.6 em per character); confirm UI with a
   live screenshot.
 - `flake.nix` gained `python.pkgs.lupa`; not yet built with Nix.

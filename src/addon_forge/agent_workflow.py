@@ -144,7 +144,8 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
                 fixtures["master_loot"] = stack.enter_context(
                     master_loot_fixture(cfg, character=plan["character"], output=evidence_dir,
                                         member=plan.get("member"),
-                                        lead="raid_lead" in plan.get("fixtures", [])))
+                                        lead="raid_lead" in plan.get("fixtures", []),
+                                        boe="boe_loot" in plan.get("fixtures", [])))
                 peer = fixtures["master_loot"].pop("peer", None)
             except RuntimeError as exc:
                 return {"status": "infrastructure_error", "stage": "fixture", **preview,

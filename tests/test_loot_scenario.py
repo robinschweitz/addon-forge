@@ -234,3 +234,14 @@ def test_fixture_peer_waits_until_the_bot_listens(tmp_path):
     assert peer.wait_armed(opening, timeout=1) == "timeout"
     (tmp_path / "cmd-001.armed").write_text("{}")
     assert peer.wait_armed(opening, timeout=1) == "ok"
+
+
+def test_boe_variant_describes_its_own_corpse_and_item():
+    plan = loot_scenario.fixture_plan(boe=True)
+    text = " ".join(plan["changes"])
+    assert "Lionfur Armor (item 17922" in text and "The Rake" in text
+    assert "Abyssal Crest" not in text and "fixed Crimson Templar loot fixture" not in text
+    assert plan["fixture"] == "master_loot" and len(plan["limitations"]) == len(loot_scenario.PLAN["limitations"]) + 1
+    assert loot_scenario.fixture_plan() is loot_scenario.PLAN
+    assert loot_scenario._corpse_names({}, "The Rake") == ["The Rake"]
+    assert loot_scenario._corpse_names({"names": ["Der Kratzer"]}, "The Rake") == ["Der Kratzer"]

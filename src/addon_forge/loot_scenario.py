@@ -24,12 +24,12 @@ LOOT_OPEN_CODE = "return (LootFrame and LootFrame:IsShown() and GetNumLootItems(
 LEAVE_PARTY_CODE = "if GetNumPartyMembers() > 0 or GetNumRaidMembers() > 0 then LeaveParty() end return true"
 
 
-def _corpse_names(state: dict) -> list[str]:
+def _corpse_names(state: dict, fallback: str = "Crimson Templar") -> list[str]:
     """Validated corpse names from the fixture (localized first)."""
     names = state.get("names")
     clean = [n for n in names if isinstance(n, str) and 0 < len(n) <= 64
              and not any(ord(c) < 32 or c in '"\\' for c in n)] if isinstance(names, list) else []
-    return list(dict.fromkeys(clean)) or ["Crimson Templar"]
+    return list(dict.fromkeys(clean)) or [fallback]
 
 
 def _target_code(name: str) -> str:
@@ -243,9 +243,29 @@ PLAN = {"fixture": "master_loot", "changes": [
                     "temporarily bound CTRL-SHIFT-F12 interact key (previous binding restored)",
                     "Does not automate a player vote or award"]}
 
+# The boe_loot option: a stock creature whose loot table always drops a
+# bind-on-equip item. Unchanged world data; the Go fixture confirms the drop
+# with a fixed read-only query before spawning.
+BOE_PLAN_CHANGES = [
+    "Spawns, kills and cleans up The Rake (creature 5807) instead of the Crimson Templar",
+    "Designates the graphical character as master looter for Lionfur Armor (item 17922, "
+    "uncommon, binds when equipped; stock 100% drop)"]
+BOE_LIMITATIONS = ["The Rake's stock world-loot reference may add a random extra item "
+                   "(rarely uncommon or better) beside Lionfur Armor"]
+
+
+def fixture_plan(*, boe: bool = False) -> dict:
+    """What the fixture changes, for the plan preview and the result."""
+    if not boe:
+        return PLAN
+    changes = [c for c in PLAN["changes"] if "Crimson Templar" not in c and "Abyssal Crest" not in c]
+    return {**PLAN, "changes": changes[:1] + BOE_PLAN_CHANGES + changes[1:],
+            "limitations": PLAN["limitations"] + BOE_LIMITATIONS}
+
 
 @contextmanager
-def master_loot_fixture(cfg, *, character: str, output: Path, member: str | None = None, lead: bool = False):
+def master_loot_fixture(cfg, *, character: str, output: Path, member: str | None = None, lead: bool = False,
+                        boe: bool = False):
     """Hold a real master-loot window open on the graphical client for the duration."""
     if not CHARACTER.fullmatch(character):
         raise ValueError("Invalid test character")
@@ -287,6 +307,7 @@ def master_loot_fixture(cfg, *, character: str, output: Path, member: str | None
                     "FORGE_LOOT_COMMANDS": str(folder),
                     "FORGE_MEMBER_CHARACTER": member or "",
                     "FORGE_LEAD_TO_TARGET": "1" if lead else "",
+                    "FORGE_LOOT_BOE": "1" if boe else "",
                     "FORGE_CLIENT_LOCALE": locale if isinstance(locale, str) and locale.isalpha() else "enUS"})
         with (output / "loot-fixture.log").open("wb+") as log:
             proc = subprocess.Popen(["go", "test", "-tags=e2e", "-run", "^TestLootRollFixture$", "-count=1", "-v", "-timeout", "420s", "-p", "1", "-parallel", "1"], cwd=Path(__file__).resolve().parents[2] / "agent_scenarios", env=env, stdout=log, stderr=subprocess.STDOUT)
@@ -302,7 +323,7 @@ def master_loot_fixture(cfg, *, character: str, output: Path, member: str | None
                     state = _wait_for_status(ready, "master_loot_ready", proc, timeout=80)
                     try:
                         corpse, items = _open_corpse(
-                            _corpse_names(state), pid,
+                            _corpse_names(state, "The Rake" if boe else "Crimson Templar"), pid,
                             press_key=WindowsClientController(cfg).press_interact_key)
                     finally:
                         image = WindowsClientController(cfg).screenshot(output / "loot-open.png")
@@ -311,7 +332,7 @@ def master_loot_fixture(cfg, *, character: str, output: Path, member: str | None
                     log.seek(0)
                     tail = log.read()[-4000:].decode("utf-8", "replace")
                     raise RuntimeError(str(exc) + "\nFixture log:\n" + tail) from exc
-                yield {**PLAN, "item": state.get("item"), "corpse_name": corpse, "loot_items": items,
+                yield {**fixture_plan(boe=boe), "item": state.get("item"), "corpse_name": corpse, "loot_items": items,
                        "screenshot": str(image), "invite_screenshot": str(invite_image),
                        "peer": FixturePeer(folder, proc, invited.get("bot"))}
             finally:

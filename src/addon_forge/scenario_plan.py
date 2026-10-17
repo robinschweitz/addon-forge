@@ -17,7 +17,10 @@ PATH = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}(?:\.[A-Za-z0-9_]{1,64}){0,5}\Z")
 ALLOWED_SUITE = {"smoke", "peer"}
 # raid_lead extends master_loot: the fixture bot then hands party leadership
 # to the plan's character, like a real raid lead who invites and sorts groups.
-FIXTURES = {"master_loot", "raid_lead"}
+# boe_loot extends master_loot too: the corpse is a stock creature that always
+# drops a bind-on-equip item (Lionfur Armor) instead of the Abyssal Crest.
+FIXTURES = {"master_loot", "raid_lead", "boe_loot"}
+EXTENDS_MASTER_LOOT = ("raid_lead", "boe_loot")
 
 # type -> exact key set (besides "type")
 CHECK_KEYS = {
@@ -152,8 +155,9 @@ def validate_plan(data: dict) -> dict:
         raise ValueError(f"fixtures must be a list drawn from {sorted(FIXTURES)}")
     if fixtures and (peers or observer != "bridge"):
         raise ValueError("Fixtures run with the bridge observer and peers=0")
-    if "raid_lead" in fixtures and "master_loot" not in fixtures:
-        raise ValueError("raid_lead extends the master_loot fixture; list both")
+    for extension in EXTENDS_MASTER_LOOT:
+        if extension in fixtures and "master_loot" not in fixtures:
+            raise ValueError(f"{extension} extends the master_loot fixture; list both")
     steps = data.get("steps", [])
     if not isinstance(steps, list) or len(steps) > MAX_STEPS:
         raise ValueError(f"steps must be a list of at most {MAX_STEPS} steps")

@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot",
+    "boe_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger timer 10"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger start"
+    },
+    {
+      "type": "wait",
+      "value": 13
+    },
+    {
+      "type": "screenshot",
+      "value": "boe_popup"
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerFreeRollNow"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "roll",
+      "value": [
+        1,
+        100
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 12
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "slash",
+      "value": "/ledger raid 42"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger export"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger timer reset"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    }
+  ],
+  "checks": [
+    {
+      "type": "player_in_world",
+      "value": true
+    },
+    {
+      "type": "event_fired",
+      "value": "LOOT_OPENED"
+    },
+    {
+      "type": "chat_contains",
+      "value": " - jetzt /rnd! 10 Sekunden."
+    },
+    {
+      "type": "chat_contains",
+      "value": " - keine gültigen Würfe."
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerFreeRollText",
+      "value": "Hitem:17922:"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerFreeRollText",
+      "value": "Jetzt als freien BoE-Wurf für jeden Charakter erneut posten?"
+    },
+    {
+      "type": "chat_contains",
+      "value": " - freier BoE-Wurf für jeden Charakter! /rnd 100, 10 Sekunden."
+    },
+    {
+      "type": "chat_contains",
+      "value": " - freier BoE-Wurf gewonnen von Test ("
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.itemID",
+      "value": 17922
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.spec",
+      "value": "boe"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.rollLog.1.kind",
+      "value": "boe"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerExportText",
+      "value": ";boe;1-100;Test"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}

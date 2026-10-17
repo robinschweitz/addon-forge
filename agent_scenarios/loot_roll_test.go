@@ -75,9 +75,14 @@ func TestLootRollFixture(t *testing.T) {
 		}
 		time.Sleep(time.Second)
 	}
-	corpse := bot.SpawnKillLootable(t, e2eharness.CreatureGroupLootFixture, 45*time.Second)
-	names := corpseNames(t, e2eharness.CreatureGroupLootFixture, os.Getenv("FORGE_CLIENT_LOCALE"))
-	if err := writeStateAtomic(ready, map[string]any{"status": "master_loot_ready", "item": e2eharness.ItemGroupLootFixture, "corpse": corpse, "names": names}); err != nil {
+	creature, item := e2eharness.CreatureGroupLootFixture, e2eharness.ItemGroupLootFixture
+	if os.Getenv("FORGE_LOOT_BOE") == "1" {
+		creature, item = boeLootCreature, boeLootItem
+		requireBoeLoot(t)
+	}
+	corpse := bot.SpawnKillLootable(t, creature, 45*time.Second)
+	names := corpseNames(t, creature, os.Getenv("FORGE_CLIENT_LOCALE"))
+	if err := writeStateAtomic(ready, map[string]any{"status": "master_loot_ready", "item": item, "corpse": corpse, "names": names}); err != nil {
 		t.Fatalf("could not publish loot readiness: %v", err)
 	}
 	// Plans may run steps (rolls, waits, peer actions) while the loot window
@@ -106,6 +111,36 @@ func TestLootRollFixture(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatal("loot fixture was not released after client capture")
+}
+
+// The boe_loot variant: The Rake (5807), a stock level-10 rare whose loot
+// table drops Lionfur Armor (17922, uncommon, binds when equipped) at 100%.
+// Stock world data, so no realm change is needed; its other fixed drops are
+// grey and stay below the master-loot threshold.
+const (
+	boeLootCreature uint32 = 5807
+	boeLootItem     uint32 = 17922
+)
+
+// requireBoeLoot confirms with fixed read-only queries that the realm's world
+// data still guarantees the bind-on-equip drop, so a changed loot table fails
+// the fixture instead of silently dropping something else.
+func requireBoeLoot(t *testing.T) {
+	db, err := e2eharness.OpenWorldDB()
+	if err != nil {
+		t.Fatalf("world DB unavailable to confirm the BoE drop: %v", err)
+	}
+	defer db.Close()
+	var chance float64
+	var quality, bonding int
+	err = db.QueryRow("SELECT l.Chance, i.Quality, i.bonding FROM creature_loot_template l "+
+		"JOIN creature_template c ON c.lootid = l.Entry JOIN item_template i ON i.entry = l.Item "+
+		"WHERE c.entry = ? AND l.Item = ? AND l.Reference = 0 AND l.GroupId = 0 AND l.QuestRequired = 0",
+		boeLootCreature, boeLootItem).Scan(&chance, &quality, &bonding)
+	if err != nil || chance < 100 || quality < int(e2eharness.LootThresholdUncommon) || bonding != 2 {
+		t.Fatalf("creature %d no longer drops BoE item %d at 100%% (chance=%v quality=%d bonding=%d err=%v)",
+			boeLootCreature, boeLootItem, chance, quality, bonding, err)
+	}
 }
 
 // msgRandomRoll is MSG_RANDOM_ROLL (AzerothCore Opcodes.h, 0x1FB): the client
