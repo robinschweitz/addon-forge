@@ -22,8 +22,10 @@ end)
 test("the ledger window is German and the longer texts still fit", function()
     if not RaidLedgerFrame:IsShown() then forge.slash("/ledger") end   -- loot opened it already
     expect("RaidLedgerFrame").toBeShown()
-    expect(forge.findText("PLÜNDERMEISTER-BUCH")).toBeTruthy()
-    expect(forge.findText("BEUTE  /  WÜRFE  /  VERGABEN")).toBeTruthy()
+    -- The title is the addon's name in every language, without a subtitle.
+    expect(forge.findText("RaidLedger")).toBeTruthy()
+    expect(forge.findText("PLÜNDERMEISTER-BUCH")).toBeFalsy()
+    expect(forge.findText("BEUTE  /  WÜRFE  /  VERGABEN")).toBeFalsy()
     expect(forge.findText("PARKEN")).toBeTruthy()
     expect(forge.findText("LEEREN")).toBeTruthy()
     expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})

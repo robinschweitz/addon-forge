@@ -543,11 +543,7 @@ accent:SetVertexColor(0.25, 0.78, 1.00, 0.95)
 
 local title = label(Ledger, "GameFontNormalLarge", 17, {0.54, 0.88, 1.00})
 title:SetPoint("TOPLEFT", Ledger, "TOPLEFT", 18, -18)
-title:SetText(L["MASTER LOOT LEDGER"])
-
-local subtitle = label(Ledger, "GameFontNormalSmall", 10, {0.48, 0.62, 0.72})
-subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 1, -2)
-subtitle:SetText(L["LOOT WINDOW  /  PLAYER ROLLS  /  AWARD RECORDS"])
+title:SetText("RaidLedger")   -- the addon's name, not translated
 
 local close = CreateFrame("Button", nil, Ledger)
 close:SetWidth(24)

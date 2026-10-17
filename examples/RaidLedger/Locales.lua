@@ -8,8 +8,6 @@ ns.L = L
 if GetLocale() ~= "deDE" then return end
 
 -- Window
-L["MASTER LOOT LEDGER"] = "PLÜNDERMEISTER-BUCH"
-L["LOOT WINDOW  /  PLAYER ROLLS  /  AWARD RECORDS"] = "BEUTE  /  WÜRFE  /  VERGABEN"
 L["EXPORT"] = "EXPORT"
 L["MASTER LOOT ITEMS"] = "BEUTE DES PLÜNDERMEISTERS"
 L["Open the master loot window\nPlayers can then use /rnd"] = "Beutefenster als Plündermeister öffnen\nDann können alle /rnd würfeln"
