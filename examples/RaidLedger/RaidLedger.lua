@@ -522,7 +522,7 @@ local function flatButton(parent, caption, width)
 end
 
 Ledger:SetWidth(600)
-Ledger:SetHeight(430)
+Ledger:SetHeight(410)
 Ledger:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
 Ledger:SetFrameStrata("DIALOG")
 Ledger:SetClampedToScreen(true)
@@ -559,7 +559,7 @@ local exportButton = flatButton(Ledger, L["EXPORT"], 70)
 exportButton:SetPoint("RIGHT", close, "LEFT", -8, 0)
 
 local rollPane = CreateFrame("Frame", "RaidLedgerRollPane", Ledger)
-rollPane:SetPoint("TOPLEFT", Ledger, "TOPLEFT", 16, -68)
+rollPane:SetPoint("TOPLEFT", Ledger, "TOPLEFT", 16, -48)
 rollPane:SetWidth(336)
 rollPane:SetHeight(228)
 makeBackdrop(rollPane, 0.035, 0.070, 0.105, 0.97)
@@ -671,7 +671,7 @@ for i = 1, 4 do
 end
 
 local historyPane = CreateFrame("Frame", "RaidLedgerHistoryPane", Ledger)
-historyPane:SetPoint("TOPLEFT", Ledger, "TOPLEFT", 16, -306)
+historyPane:SetPoint("TOPLEFT", Ledger, "TOPLEFT", 16, -286)
 historyPane:SetWidth(568)
 historyPane:SetHeight(94)
 makeBackdrop(historyPane, 0.025, 0.052, 0.078, 0.97)
@@ -726,7 +726,7 @@ status:SetText(L["CLICK AN AWARD FOR ITS ROLLS OR TO CHANGE ITS RECIPIENT  |  /l
 
 -- Export overlay: replaces the three panes while shown.
 local exportPanel = CreateFrame("Frame", "RaidLedgerExportPanel", Ledger)
-exportPanel:SetPoint("TOPLEFT", Ledger, "TOPLEFT", 16, -68)
+exportPanel:SetPoint("TOPLEFT", Ledger, "TOPLEFT", 16, -48)
 exportPanel:SetWidth(568)
 exportPanel:SetHeight(332)
 makeBackdrop(exportPanel, 0.035, 0.070, 0.105, 0.97)
