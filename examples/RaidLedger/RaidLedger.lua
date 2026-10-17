@@ -314,7 +314,7 @@ local function sortedRollLog(entry)
     local log = {}
     for index, r in ipairs(entry.rollLog) do
         local copy = { name = r.name, value = r.value, round = r.round, note = r.note, order = index,
-            kind = r.kind, low = r.low, high = r.high }
+            kind = r.kind, low = r.low, high = r.high, was = r.was }
         if r.kind and not r.note then copy.tally = tallyOf(counts, r.name, r.kind) end
         table.insert(log, copy)
     end
@@ -337,7 +337,7 @@ end
 ---------------------------------------------------------------------------
 local SYNC_PREFIX = "FLLedger"
 local outbox = {}
-local NOTE_CODES = { ["re-roll"] = "r", ["not in tie-break"] = "t" }
+local NOTE_CODES = { ["re-roll"] = "r", ["not in tie-break"] = "t", passed = "p", ["not counted"] = "n" }
 
 local function groupChannel()
     if GetNumRaidMembers() and GetNumRaidMembers() > 0 then return "RAID" end
@@ -675,13 +675,20 @@ function roster.button(parent, name, width)
     button.roll = label(button, "GameFontNormalSmall", 9, {1.00, 0.80, 0.32})
     button.roll:SetPoint("RIGHT", button, "RIGHT", -5, 0)
     button.roll:SetJustifyH("RIGHT")
-    button:SetScript("OnClick", function(self) recipientBox:SetText(self.fullName or "") end)
+    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    button:SetScript("OnClick", function(self, which)
+        if which == "RightButton" then
+            if self.rollRef then roster.openMenu(self) end
+            return
+        end
+        recipientBox:SetText(self.fullName or "")
+    end)
     return button
 end
 
 -- showMember puts a member (or nobody) on a button; a roller's roll on the right.
 function roster.show(button, member, roll)
-    button.fullName = member and member.name
+    button.fullName, button.rollRef = member and member.name, member and roll
     if not member then button:Hide() return end
     button:SetText(member.name)
     local color = member.class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[member.class]
@@ -728,7 +735,7 @@ for g = 1, 5 do
     for row = 1, 5 do
         local button = roster.button(roster.pane, nil, 106)
         button:SetPoint("TOPLEFT", roster.pane, "TOPLEFT", x, -21 - (row - 1) * 20)
-        button:HookScript("OnClick", function() roster.pane:Hide() end)
+        button:HookScript("OnClick", function(_, which) if which ~= "RightButton" then roster.pane:Hide() end end)
         roster.groups[g][row] = button
     end
 end
@@ -736,6 +743,71 @@ roster.all:SetScript("OnClick", function()
     if roster.pane:IsShown() then roster.pane:Hide() else roster.pane:Show() end
 end)
 Ledger:HookScript("OnHide", function() roster.pane:Hide() end)
+
+-- Right-click on a roller: the master looter takes a pass or changes how the
+-- roll counts (rules of 2026-10-17). A free BoE roll takes passes only.
+roster.menu = CreateFrame("Frame", "RaidLedgerRollMenu", Ledger)
+roster.menu:SetWidth(132)
+roster.menu:SetFrameLevel(Ledger:GetFrameLevel() + 30)
+makeBackdrop(roster.menu, 0.035, 0.070, 0.105, 0.99)
+roster.menu:EnableMouse(true)
+roster.menu:Hide()
+roster.menu.title = label(roster.menu, "GameFontNormalSmall", 10, {0.94, 0.97, 1.00})
+roster.menu.title:SetPoint("TOPLEFT", roster.menu, "TOPLEFT", 10, -8)
+roster.menu.title:SetPoint("TOPRIGHT", roster.menu, "TOPRIGHT", -10, -8)
+roster.menu.title:SetJustifyH("LEFT")
+roster.menu.title:SetWordWrap(false)
+roster.menu.options = {}
+for _, option in ipairs({ { "Pass", L["PASS"], "pass" }, { "MS", L["MAIN SPEC"], "ms" },
+        { "Enhanced", L["ENHANCED..."], "enh" }, { "OS", L["OFF SPEC"], "os" },
+        { "None", L["DOES NOT COUNT"], "none" } }) do
+    local button = CreateFrame("Button", "RaidLedgerRollMenu" .. option[1], roster.menu)
+    button:SetWidth(112)
+    button:SetHeight(18)
+    if option[3] == "pass" then makeBackdrop(button, 0.20, 0.12, 0.30, 0.98)
+    else makeBackdrop(button, 0.06, 0.16, 0.22, 0.98) end
+    local text = label(button, "GameFontNormalSmall", 9, option[3] == "pass" and {0.92, 0.80, 1.00} or {0.70, 0.93, 1.00})
+    text:SetPoint("CENTER", button, "CENTER", 0, 0)
+    button:SetFontString(text)
+    button:SetText(option[2])
+    button.how = option[3]
+    button:SetScript("OnClick", function(self)
+        local name = roster.menu.name
+        roster.menu:Hide()
+        if self.how == "enh" then roster.askPoints(name) else roster.apply(name, self.how) end
+    end)
+    table.insert(roster.menu.options, button)
+end
+
+function roster.openMenu(button)
+    local menu = roster.menu
+    if menu:IsShown() and menu.name == button.fullName then menu:Hide() return end
+    menu.name = button.fullName
+    menu.title:SetText(string.format("%s (%d)", button.fullName, button.rollRef.value))
+    local free = button.rollRef.kind == "boe"
+    local y = -26
+    for _, option in ipairs(menu.options) do
+        if free and option.how ~= "pass" and option.how ~= "none" then
+            option:Hide()
+        else
+            option:ClearAllPoints()
+            option:SetPoint("TOPLEFT", menu, "TOPLEFT", 10, y)
+            option:Show()
+            y = y - 20
+        end
+    end
+    menu:SetHeight(-y + 6)
+    -- Above the button, opening towards the middle of the window.
+    menu:ClearAllPoints()
+    local left, ledgerLeft = button:GetLeft(), Ledger:GetLeft()
+    if left and ledgerLeft and left - ledgerLeft > Ledger:GetWidth() / 2 then
+        menu:SetPoint("BOTTOMRIGHT", button, "TOPRIGHT", 0, 2)
+    else
+        menu:SetPoint("BOTTOMLEFT", button, "TOPLEFT", 0, 2)
+    end
+    menu:Show()
+end
+Ledger:HookScript("OnHide", function() roster.menu:Hide() end)
 
 local historyPane = CreateFrame("Frame", "RaidLedgerHistoryPane", Ledger)
 historyPane:SetPoint("TOPLEFT", Ledger, "TOPLEFT", 16, -286)
@@ -1070,6 +1142,7 @@ local function showRollLog(record)
             if r.kind and not r.note then
                 text = text .. "  (" .. rollLabel(r) .. ", " .. itemCount(r.tally or 0, record.token) .. ")"
             end
+            if r.was then text = text .. string.format(L["  - corrected, rolled %s"], r.was) end
             -- Rollers who listed the item show their wishlist rank.
             local wish = wishOf(r.name, record.itemID)
             if wish then text = text .. string.format(L["  [WL #%d]"], wish.rank) end
@@ -1496,7 +1569,7 @@ end
 
 -- Receiving the shared ledger -------------------------------------------------
 local STATES = { given = true, held = true, manual = true, deleted = true, parked = true, disenchanted = true, bank = true }
-local NOTE_NAMES = { r = "re-roll", t = "not in tie-break" }
+local NOTE_NAMES = { r = "re-roll", t = "not in tie-break", p = "passed", n = "not counted" }
 local warnedSession
 
 local function split(text)
@@ -1916,6 +1989,145 @@ local function finishRoll(entry)
         itemCount(best.tally or 0, isToken(entry.item))))
 end
 
+-- Passes and recounts work on the roll log: a struck roll gets a note, a
+-- recount changes the logged roll and keeps what was rolled in `was`. Once the
+-- roll has ended the winner is decided again from the latest round that still
+-- has counted rolls (after a tie-break: the tied players, then the earlier rolls).
+function roster.counted(entry, name)
+    local found = {}
+    for _, r in ipairs(entry.rollLog or {}) do
+        if r.kind and not r.note and string.lower(r.name) == string.lower(name) then table.insert(found, r) end
+    end
+    table.sort(found, function(a, b) return (a.round or 1) > (b.round or 1) end)
+    return found
+end
+
+function roster.rank(entry, round)
+    local counts = tallies(isToken(entry.item))
+    local rolls = {}
+    for _, r in ipairs(entry.rollLog or {}) do
+        if r.kind and not r.note and (r.round or 1) == round then
+            table.insert(rolls, { name = r.name, value = r.value, kind = r.kind, low = r.low, high = r.high,
+                tally = tallyOf(counts, r.name, r.kind) })
+        end
+    end
+    table.sort(rolls, ranksAbove)
+    return rolls
+end
+
+function roster.decide(entry)
+    local round = 0
+    for _, r in ipairs(entry.rollLog or {}) do
+        if r.kind and not r.note and (r.round or 1) > round then round = r.round or 1 end
+    end
+    if entry.winner and selectedEntry() == entry and not editing and recipientBox:GetText() == entry.winner.name then
+        recipientBox:SetText("")
+    end
+    entry.winner, entry.tieBreak = nil, nil
+    entry.rolls = roster.rank(entry, round)
+    finishRoll(entry)
+end
+
+-- roster.apply: how = "pass", "none" (strike the roll), "ms", "os" or "enh"
+-- with `points` (0-50) for the selected item's roll of `name`.
+function roster.apply(name, how, points)
+    local entry = selectedEntry()
+    local logs = entry and roster.counted(entry, name or "") or {}
+    if not logs[1] then
+        say(string.format(L["%s has no counted roll on the selected item."], name or "?"))
+        return
+    end
+    name = logs[1].name
+    local strike = how == "pass" or how == "none"
+    if entry.free and not strike then
+        say(L["a free BoE roll only takes /rnd 100; pass or none only."])
+        return
+    end
+    for _, r in ipairs(logs) do
+        if strike then
+            r.note = how == "pass" and "passed" or "not counted"
+        else
+            -- The roll without points; enhanced main spec adds them again.
+            local base = r.value - ((r.kind == "ms" and r.low and r.low > 1) and (r.low - 1) or 0)
+            r.was = r.was or string.format("%d (%d-%d)", r.value, r.low or 1, r.high or 100)
+            local add = how == "enh" and points or 0
+            if how == "os" then
+                r.kind, r.low, r.high, r.value = "os", 1, 99, base
+            else
+                r.kind, r.low, r.high, r.value = "ms", 1 + add, 100 + add, base + add
+            end
+        end
+    end
+    local r = logs[1]
+    if how == "pass" then
+        announce(string.format(L["[Loot] %s - %s passes."], entry.item, name))
+    elseif how == "none" then
+        announce(string.format(L["[Loot] %s - %s's roll does not count."], entry.item, name))
+    else
+        announce(string.format(L["[Loot] %s - %s's roll counts as %s (%d)."], entry.item, name,
+            SPEC_NAMES[r.kind] .. (r.low > 1 and (" " .. r.low .. "-" .. r.high) or ""), r.value))
+    end
+    if entry.endsAt and not entry.winner then
+        -- Still rolling. A tie-break with fewer than two tied players left is decided now.
+        local left = 0
+        if entry.tieBreak and strike then
+            for tied in pairs(entry.tieBreak) do
+                if string.lower(tied) == string.lower(name) then entry.tieBreak[tied] = nil end
+            end
+            for _ in pairs(entry.tieBreak) do left = left + 1 end
+        end
+        if entry.tieBreak and strike and left < 2 then
+            entry.endsAt = nil
+            roster.decide(entry)
+        else
+            entry.rolls = roster.rank(entry, entry.round or 1)
+        end
+    else
+        roster.decide(entry)
+    end
+    updateRows()
+end
+
+function roster.askPoints(name)
+    local entry = selectedEntry()
+    local r = entry and roster.counted(entry, name or "")[1]
+    roster.points = (r and r.kind == "ms" and r.low and r.low > 1) and (r.low - 1) or 0
+    StaticPopup_Show("RAIDLEDGER_POINTS", name, nil, name)
+end
+
+StaticPopupDialogs["RAIDLEDGER_POINTS"] = {
+    text = L["Points for %s's enhanced roll (1+X to 100+X, X 0-50; 0 = plain main spec):"],
+    button1 = OKAY,
+    button2 = CANCEL,
+    hasEditBox = 1,
+    maxLetters = 2,
+    OnShow = function(self)
+        local box = _G[self:GetName() .. "EditBox"]
+        if box then
+            box:SetText(tostring(roster.points or 0))
+            box:HighlightText()
+        end
+    end,
+    OnAccept = function(self, name)
+        local box = _G[self:GetName() .. "EditBox"]
+        local points = tonumber(box and box:GetText() or "")
+        if points and points >= 0 and points <= 50 and points == math.floor(points) then
+            roster.apply(name, "enh", points)
+        else
+            say(L["usage: /ledger count <name> ms|os|none|enh <0-50>"])
+        end
+    end,
+    EditBoxOnEnterPressed = function(self)
+        local dialog = self:GetParent()
+        StaticPopupDialogs["RAIDLEDGER_POINTS"].OnAccept(dialog, dialog.data)
+        dialog:Hide()
+    end,
+    EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+    timeout = 0,
+    whileDead = 1,
+    hideOnEscape = 1,
+}
+
 local function updateRollTimers()
     local running = false
     for _, entry in ipairs(active) do
@@ -2273,6 +2485,8 @@ local HELP = {
     L["/ledger set <#> [name] - change the recipient of award #, or to your target"],
     L["/ledger del <#> - remove award # (exported as deleted)"],
     L["/ledger spec <#> ms|os|none - set which tally award # counts for"],
+    L["/ledger pass <name> - the player passes: the next-best roll wins"],
+    L["/ledger count <name> ms|os|none|enh <0-50> - change how a roll on the selected item counts"],
     L["/ledger tally - items per player this raid (main spec / off spec)"],
     L["/ledger raid <id> - set the website raid ID"],
     L["/ledger export - show the website export"],
@@ -2300,6 +2514,19 @@ SlashCmdList["RAIDLEDGER"] = function(message)
         startSelectedRoll()
     elseif command == "free" then
         startFreeRoll()
+    elseif command == "pass" then
+        local name = rest:match("^(%S+)$")
+        if name then roster.apply(name, "pass") else say(L["usage: /ledger pass <name>"]) end
+    elseif command == "count" then
+        local name, how, points = rest:match("^(%S+)%s+(%a+)%s*(%d*)$")
+        how, points = how and string.lower(how), tonumber(points)
+        if name and (how == "ms" or how == "os" or how == "none") and not points then
+            roster.apply(name, how)
+        elseif name and how == "enh" and points and points <= 50 then
+            roster.apply(name, "enh", points)
+        else
+            say(L["usage: /ledger count <name> ms|os|none|enh <0-50>"])
+        end
     elseif command == "timer" then
         -- /ledger timer [roll] [tie], /ledger timer tie <s>, /ledger timer reset.
         -- Applies to rolls started afterwards; a running roll keeps its time.
