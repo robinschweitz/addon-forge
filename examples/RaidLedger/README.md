@@ -218,6 +218,13 @@ Items do not have to be rolled right away:
   (or `/ledger roll <item link or ID>`). It is recorded as held by you (or its
   open award is used) and the roll starts at once; the winner gets it by trade.
   Only the master looter or the raid lead (solo: you) can start these rolls.
+- Open items stay in the **master loot list**, after the loot, until they are
+  rolled: marked `OPEN` with a purple frame and the holder ("with Bob"), and the
+  heading counts them ("MASTER LOOT ITEMS (2 OPEN)"), so none is forgotten
+  after the loot window closed. Click one to select its award (the button
+  reads **ROLL**). While a roll's log is shown, open rows leave it room for
+  four rolls. DE and guild-bank items are handed out for good and are not
+  listed there.
 - Open items do not count in anyone's tally. Wishlist users see them, and the
   loot still on the corpse, under **OPEN ITEMS**.
 

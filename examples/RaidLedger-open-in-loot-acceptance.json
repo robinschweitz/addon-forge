@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerPark"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "screenshot",
+      "value": "open_in_loot"
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerRoll1"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "screenshot",
+      "value": "open_selected"
+    }
+  ],
+  "checks": [
+    {
+      "type": "player_in_world",
+      "value": true
+    },
+    {
+      "type": "chat_contains",
+      "value": "wird bis zum Auswürfeln von Test verwahrt."
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.state",
+      "value": "parked"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.recipient",
+      "value": "Test"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerRollHeading",
+      "value": "BEUTE DES PLÜNDERMEISTERS  (1 OFFEN)"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerRoll1",
+      "value": "|Hitem:"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerRoll1Count",
+      "value": "OFFEN"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerRoll1Holder",
+      "value": "bei Test"
+    },
+    {
+      "type": "frame_visible",
+      "value": "RaidLedgerRoll1"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerParkText",
+      "value": "WÜRFELN"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerRollDetail",
+      "value": "JETZT: Test (OFFEN)"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}

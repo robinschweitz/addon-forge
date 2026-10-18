@@ -10,6 +10,8 @@ if GetLocale() ~= "deDE" then return end
 -- Window
 L["EXPORT"] = "EXPORT"
 L["MASTER LOOT ITEMS"] = "BEUTE DES PLÜNDERMEISTERS"
+L["MASTER LOOT ITEMS  (%d OPEN)"] = "BEUTE DES PLÜNDERMEISTERS  (%d OFFEN)"
+L["with %s"] = "bei %s"
 L["Open the master loot window\nPlayers can then use /rnd"] = "Beutefenster als Plündermeister öffnen\nDann können alle /rnd würfeln"
 L["AWARD SELECTED LOOT"] = "AUSWAHL VERGEBEN"
 L["Select an active roll"] = "Einen Gegenstand auswählen"

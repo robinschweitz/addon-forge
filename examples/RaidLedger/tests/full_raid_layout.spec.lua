@@ -8,12 +8,23 @@ local NAMES = {
     "Kriegsschrei", "Heiligenlied", "Steinhaut", "Waldläuferin", "Zornesglut", "Mondsichel",
     "Knochenmann", "Seelenfänger", "Glutfaust", "Runenwächter", "Elfenstaub",
 }
+-- Loot with long German names: three wait parked with raiders, one on the corpse.
+local LONG_ITEMS = {
+    [45510] = "Schulterschutz des unerschütterlichen Wächters",
+    [45511] = "Siegelring der verlorenen Hoffnung",
+    [45512] = "Gamaschen des Sturmrufers",
+    [45513] = "Halskette der gefallenen Sterne",
+}
+local function linkOf(id) return "|cffa335ee|Hitem:" .. id .. ":0:0:0:0:0:0:0:80|h[" .. LONG_ITEMS[id] .. "]|h|r" end
 local CLASSES = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "DEATHKNIGHT", "SHAMAN", "MAGE", "WARLOCK", "DRUID" }
 
 before_load(function()
     forge.locale("deDE", { RANDOM_ROLL_RESULT = "%1$s würfelt. Ergebnis: %2$d (%3$d-%4$d)" })
     forge.item(45509, { name = "Armschienen des Unsagbaren",
         link = "|cffa335ee|Hitem:45509:0:0:0:0:0:0:0:80|h[Armschienen des Unsagbaren]|h|r", quality = 4 })
+    for id, name in pairs(LONG_ITEMS) do
+        forge.item(id, { name = name, link = "|cffa335ee|Hitem:" .. id .. ":0:0:0:0:0:0:0:80|h[" .. name .. "]|h|r", quality = 4 })
+    end
 end)
 
 local function memberButton(i) return forge.frame("RaidLedgerMember" .. i) end
@@ -79,4 +90,33 @@ test("ALLE closes the list again", function()
     expect("RaidLedgerMembers").toBeShown()
     forge.click("RaidLedgerAllMembers")
     expect("RaidLedgerMembers").toBeHidden()
+end)
+
+test("open items parked with raiders stay in the loot list, under the running roll's loot", function()
+    forge.openLoot({ { id = 45510 }, { id = 45511 }, { id = 45512 }, { id = 45513 } })
+    for _, park in ipairs({ { 45510, NAMES[2] }, { 45511, NAMES[22] }, { 45512, NAMES[1] } }) do
+        forge.clickText(linkOf(park[1]))
+        forge.type("RaidLedgerRecipient", park[2])
+        forge.click("RaidLedgerPark")
+        forge.advance(0.1)
+    end
+    expect(forge.findText("BEUTE DES PLÜNDERMEISTERS  (3 OFFEN)")).toBeTruthy()
+    -- The corpse's loot first (the running roll, then the last drop), then the open items.
+    local open = 0
+    for i = 1, 10 do
+        local row = forge.frame("RaidLedgerRow" .. i)
+        if row:IsShown() and forge.text(row.count) == "OFFEN" then open = open + 1 end
+    end
+    expect(open).toBe(3)
+    expect(forge.text("RaidLedgerRow3")).toContain("Schulterschutz")
+    expect(forge.text(forge.frame("RaidLedgerRow3").holder)).toBe("bei " .. NAMES[2])
+    -- With shared wishlists each row also counts its wishes: WL, holder and OFFEN share the row.
+    forge.fire("CHAT_MSG_ADDON", "FLLedger", "W;1792130000;1;1;45510:m:0:1,45512:o:0:2,45509:m:1:1", "RAID", NAMES[7])
+    expect(forge.text(forge.frame("RaidLedgerRow3").wish)).toBe("WL 1")
+    -- The running roll selected: its rolls show under the items.
+    forge.clickText("|cffa335ee|Hitem:45509:0:0:0:0:0:0:0:80|h[Armschienen des Unsagbaren]|h|r")
+    expect(forge.findText(NAMES[12], true)).toBeTruthy()
+    forge.sketch("full-raid-open", "RaidLedgerFrame")
+    expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
+    expect(#forge.errors()).toBe(0)
 end)

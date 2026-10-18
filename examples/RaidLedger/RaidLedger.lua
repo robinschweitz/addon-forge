@@ -1133,7 +1133,9 @@ local function showRollLog(record)
     local winner = log and winningRoll(log)
     for i = 1, MAX_ACTIVE do
         local row, r = rows[i], log and log[i + rollOffset]
-        row.item = nil
+        row.item, row.record = nil, nil
+        row.holder:SetText("")
+        row.text:SetPoint("RIGHT", row, "RIGHT", -86, 0)
         row.logName, row.fullName = r and r.name, r and r.name
         row.rollRef = r and r.kind and not r.note and r or nil
         if r then
@@ -1173,31 +1175,59 @@ local function showRollLog(record)
     end
 end
 
+-- openRecords: awards still to be rolled (parked, or kept without a roll),
+-- oldest first, except those whose later roll is already in the roll list.
+local function openRecords()
+    local rolling, list = {}, {}
+    for _, entry in ipairs(active) do
+        if entry.later and entry.record then rolling[entry.record] = true end
+    end
+    local history = ensureDatabase().history
+    for i = table.getn(history), 1, -1 do
+        local record = history[i]
+        if isOpenAward(record) and not rolling[record] then table.insert(list, record) end
+    end
+    return list
+end
+
 local function updateRows()
-    if editing then
+    -- An open award has no roll log: it stays selected in the loot list.
+    if editing and not isOpenAward(editing) then
         showRollLog(editing)
         updateSelection()
         updateRoster()
         updateHistory()
         return
     end
-    rollHeading:SetText(L["MASTER LOOT ITEMS"])
+    -- Open awards still have to be rolled: they stay in the loot list, after
+    -- the loot, marked OPEN, so the master looter cannot overlook them.
+    local open = openRecords()
+    rollHeading:SetText(table.getn(open) > 0 and string.format(L["MASTER LOOT ITEMS  (%d OPEN)"], table.getn(open))
+        or L["MASTER LOOT ITEMS"])
     emptyRolls:SetText(EMPTY_ACTIVE)
     -- Under the items: the selected item's rolls (left-click picks the
     -- recipient, right-click passes or recounts), scrolled by the mouse wheel.
     local current = selectedEntry()
     local log = current and sortedRollLog(current) or {}
-    local items = math.min(table.getn(active), MAX_ACTIVE)
-    local room = MAX_ACTIVE - items - 1
     local count = table.getn(log)
+    local loot = math.min(table.getn(active), MAX_ACTIVE)
+    -- Open items give way to the selected roll's log (up to four lines); the
+    -- heading still counts them all.
+    local openRoom = MAX_ACTIVE - loot
+    if count > 0 then openRoom = math.max(0, openRoom - 1 - math.min(count, 4)) end
+    local items = loot + math.min(table.getn(open), openRoom)
+    local room = MAX_ACTIVE - items - 1
     if count == 0 or room < 1 then room = 0 end
     rollOffset = math.max(0, math.min(rollOffset, count - room))
     local winner = current and current.winner and winningRoll(log)
     local activeCount = 0
     for i = 1, MAX_ACTIVE do
-        local entry = i <= items and active[i]
+        local entry = i <= loot and active[i]
+        local record = not entry and i <= items and open[i - loot]
         local row = rows[i]
-        row.logName, row.fullName, row.rollRef = nil, nil, nil
+        row.logName, row.fullName, row.rollRef, row.record = nil, nil, nil, nil
+        row.holder:SetText("")
+        row.text:SetPoint("RIGHT", row, "RIGHT", -86, 0)
         row:GetFontString():SetTextColor(0.82, 0.91, 0.96)
         row:SetBackdropBorderColor(0.20, 0.63, 0.82, 0.92)
         if room > 0 and i == items + 1 then
@@ -1236,6 +1266,24 @@ local function updateRows()
             local isSelected = selected == entry
             row:SetBackdropColor(isSelected and 0.10 or 0.045, isSelected and 0.21 or 0.09, isSelected and 0.29 or 0.13, 0.98)
             row:Show()
+        elseif record then
+            activeCount = activeCount + 1
+            row.item, row.logName, row.record = nil, nil, record
+            local color = stateColors.parked
+            row:SetText(record.item)
+            row.count:SetText(L["OPEN"])
+            row.count:SetTextColor(color[1], color[2], color[3])
+            local wished = table.getn(wishersOf(record.itemID))
+            row.wish:SetText(knowsWishlists() and string.format(L["WL %d"], wished) or "")
+            row.holder:SetText(string.format(L["with %s"], record.recipient or ""))
+            row.holder:ClearAllPoints()
+            row.holder:SetPoint("RIGHT", row, "RIGHT", knowsWishlists() and -86 or -52, 0)
+            row.text:SetPoint("RIGHT", row.holder, "LEFT", -6, 0)
+            if wished > 0 then row.wish:SetTextColor(0.45, 0.85, 0.55) else row.wish:SetTextColor(0.50, 0.50, 0.50) end
+            local isSelected = editing == record
+            row:SetBackdropColor(isSelected and 0.10 or 0.045, isSelected and 0.21 or 0.09, isSelected and 0.29 or 0.13, 0.98)
+            row:SetBackdropBorderColor(color[1], color[2], color[3], 0.80)
+            row:Show()
         else
             row.item = nil
             row:Hide()
@@ -1265,10 +1313,20 @@ for i = 1, MAX_ACTIVE do
     row.count:SetPoint("RIGHT", row, "RIGHT", -7, 0)
     row.wish = label(row, "GameFontNormalSmall", 9, {0.45, 0.85, 0.55})
     row.wish:SetPoint("RIGHT", row, "RIGHT", -52, 0)
+    -- Who holds an open item: its own column, so a long item name is cut, not the name.
+    row.holder = label(row, "GameFontNormalSmall", 9, {0.85, 0.62, 1.00})
+    row.holder:SetPoint("RIGHT", row, "RIGHT", -52, 0)
+    row.text = rowText
     row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     row:SetScript("OnClick", function(self, which)
         if which == "RightButton" then
             if self.rollRef then roster.openMenu(self) end
+            return
+        end
+        if self.record then     -- an open award: select it, PARK reads ROLL
+            editing, selected, rollOffset = self.record, nil, 0
+            recipientBox:SetText(self.record.recipient or "")
+            updateRows()
             return
         end
         if not self.item then   -- a roll line: its player becomes the recipient
@@ -2588,13 +2646,18 @@ Ledger:SetScript("OnEvent", function(self, event, ...)
             ForgeTestBridge:RegisterFrame("RaidLedgerRecipient", recipientBox)
             ForgeTestBridge:RegisterFrame("RaidLedgerRollDetail", rollDetail)
             ForgeTestBridge:RegisterFrame("RaidLedgerPark", park)
+            ForgeTestBridge:RegisterFrame("RaidLedgerParkText", parkText)
             ForgeTestBridge:RegisterFrame("RaidLedgerDisenchant", disenchantButton)
             ForgeTestBridge:RegisterFrame("RaidLedgerBank", bankButton)
             ForgeTestBridge:RegisterFrame("RaidLedgerHistory1", historyLines[1])
             ForgeTestBridge:RegisterFrame("RaidLedgerExportButton", exportButton)
             ForgeTestBridge:RegisterFrame("RaidLedgerExportText", exportText)
             ForgeTestBridge:RegisterFrame("RaidLedgerRollHeading", rollHeading)
-            for i = 1, 3 do ForgeTestBridge:RegisterFrame("RaidLedgerRoll" .. i, rows[i]) end
+            for i = 1, 3 do
+                ForgeTestBridge:RegisterFrame("RaidLedgerRoll" .. i, rows[i])
+                ForgeTestBridge:RegisterFrame("RaidLedgerRoll" .. i .. "Count", rows[i].count)
+                ForgeTestBridge:RegisterFrame("RaidLedgerRoll" .. i .. "Holder", rows[i].holder)
+            end
             for i = 1, 4 do ForgeTestBridge:RegisterFrame("RaidLedgerMember" .. i, rosterButtons[i]) end
             ForgeTestBridge:RegisterFrame("RaidLedgerAllMembers", roster.all)
             ForgeTestBridge:RegisterFrame("RaidLedgerMembers", roster.pane)
