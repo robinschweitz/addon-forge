@@ -81,6 +81,9 @@ func TestLootRollFixture(t *testing.T) {
 		requireBoeLoot(t)
 	}
 	corpse := bot.SpawnKillLootable(t, creature, 45*time.Second)
+	// Registered after SpawnKillLootable, so it runs before the harness's own
+	// cleanup (SQL delete, then an unconfirmed `.npc delete`).
+	t.Cleanup(func() { removeLiveCorpse(t, bot, corpse) })
 	names := corpseNames(t, creature, os.Getenv("FORGE_CLIENT_LOCALE"))
 	if err := writeStateAtomic(ready, map[string]any{"status": "master_loot_ready", "item": item, "corpse": corpse, "names": names}); err != nil {
 		t.Fatalf("could not publish loot readiness: %v", err)
@@ -111,6 +114,34 @@ func TestLootRollFixture(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatal("loot fixture was not released after client capture")
+}
+
+// removeLiveCorpse deletes the fixture creature from the running world and
+// waits until the bot sees it vanish. The harness deletes only the DB row for
+// sure: its `.npc delete` is unconfirmed, and a corpse it missed stayed in the
+// world, respawned alive and killed the Northshire guards.
+func removeLiveCorpse(t *testing.T, bot *e2eharness.ScenarioBot, guid uint64) {
+	if guid == 0 || bot.World == nil || bot.World.IsStopped() {
+		t.Errorf("fixture creature 0x%X may still be in the world: bot session gone before cleanup", guid)
+		return
+	}
+	for attempt := 1; attempt <= 3; attempt++ {
+		if bot.World.GetObject(guid) == nil {
+			t.Logf("fixture creature 0x%X removed from the world", guid)
+			return
+		}
+		_ = bot.World.SendGMCommand(".gm on")
+		_ = bot.World.SetTarget(guid)
+		time.Sleep(100 * time.Millisecond)
+		_ = bot.World.SendGMCommand(".npc delete")
+		for end := time.Now().Add(3 * time.Second); time.Now().Before(end); time.Sleep(100 * time.Millisecond) {
+			if bot.World.GetObject(guid) == nil {
+				t.Logf("fixture creature 0x%X removed from the world (attempt %d)", guid, attempt)
+				return
+			}
+		}
+	}
+	t.Errorf("fixture creature 0x%X is still in the world after 3 .npc delete attempts; restart the worldserver", guid)
 }
 
 // The boe_loot variant: The Rake (5807), a stock level-10 rare whose loot
