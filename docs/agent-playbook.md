@@ -87,6 +87,15 @@ Terminal tab; a run started in another window must be pasted.
 - `RandomRoll(low, high)` is not protected: an addon may call it from a button
   click and from an `OnUpdate` timer without any hardware event
   (RaidWishlist's prompt and auto-roll, runs `e0284c58e3ab`, `bb9f6ee936ce`).
+- **Calendar** (runs `08455f4dff39`, `51bc301bfff3`): `CalendarEventInvite`
+  on a new event works from a timer, but the server resolves each name first,
+  so invites are listed a moment later (`CalendarEventGetNumInvites`).
+  `CalendarAddEvent` from a timer is `ADDON_ACTION_BLOCKED`: it needs a real
+  click or key press, which plan steps (SDK `lua.evaluate`) are not.
+  `CalendarSetAbsMonth` fires `CALENDAR_UPDATE_EVENT_LIST` synchronously, so
+  never read the list from that event's handler (C stack overflow).
+- Lua 5.1 drops unknown escapes: `"Interface\ChatFrame"` written with single
+  backslashes becomes `InterfaceChatFrame`, a missing (invisible) texture.
 - `SendAddonMessage` to PARTY/RAID also arrives at the sender as
   `CHAT_MSG_ADDON`, so two cooperating addons (ledger and wishlist) can be
   tested on one client.
