@@ -477,3 +477,79 @@ def test_member_character_loads_only_the_chosen_addons(tmp_path):
         write_character_addons(tmp_path, "FORGEMEMBER", "AzerothCore", "../Test", ["RaidWishlist"])
     with pytest.raises(RuntimeError, match="not installed"):
         write_character_addons(tmp_path, "FORGEMEMBER", "AzerothCore", "Raidmember", ["Missing"])
+
+
+def test_hardware_click_steps_are_validated():
+    ok = validate_plan({**BASE, "steps": [{"type": "hardware_click", "value": "XCreate"}],
+                        "checks": [{"type": "player_in_world", "value": True}]})
+    assert ok["steps"] == [{"type": "hardware_click", "value": "XCreate"}]
+    for bad in ("x'] os.exit()", "X Create", "", 7, ["XCreate"]):
+        with pytest.raises(ValueError, match="hardware_click"):
+            validate_plan({**BASE, "steps": [{"type": "hardware_click", "value": bad}],
+                           "checks": [{"type": "player_in_world", "value": True}]})
+
+
+def _click_rpc(bound, clicks):
+    codes = []
+    def rpc(method, params=None, *, expected_pid):
+        code = params["code"]
+        codes.append((expected_pid, code))
+        if "SetBindingClick" in code:
+            return {"ok": True, "result": bound}
+        if "hardwareClicks[" in code and code.startswith("return"):
+            return {"ok": True, "result": clicks.pop(0) if clicks else 0.0}
+        return {"ok": True, "result": "ok"}
+    return rpc, codes
+
+
+def test_hardware_click_binds_presses_and_restores_the_key():
+    from addon_forge.plan_steps import CLICK_KEY, run_steps
+    presses = []
+    rpc, codes = _click_rpc("bound:0:CLICK Other:LeftButton", [0.0, 1.0])
+    log = run_steps([{"type": "hardware_click", "value": "XCreate"}], 9, rpc=rpc, sleep=lambda s: None,
+                    press_click=lambda client="main": presses.append(client))
+    assert log[0]["result"] == "ok" and presses == ["main"]
+    bind = codes[0][1]
+    assert 'local name, key = "XCreate", \'CTRL-SHIFT-F10\'' in bind and CLICK_KEY == "CTRL-SHIFT-F10"
+    assert "f:GetName() ~= name or _G[name] ~= f" in bind and "SetBindingClick(key, name, 'LeftButton')" in bind
+    assert codes[-1][1] == "SetBinding('CTRL-SHIFT-F10', \"CLICK Other:LeftButton\") return 'ok'"
+
+
+def test_hardware_click_fails_without_a_click_and_still_restores():
+    from addon_forge.plan_steps import StepFailed, run_steps
+    rpc, codes = _click_rpc("bound:2:", [])
+    with pytest.raises(StepFailed, match="not_clicked"):
+        run_steps([{"type": "hardware_click", "value": "XCreate"}], 9, rpc=rpc, sleep=lambda s: None,
+                  press_click=lambda client="main": None)
+    assert codes[-1][1] == "SetBinding('CTRL-SHIFT-F10') return 'ok'"
+
+    def broken(client="main"):
+        raise RuntimeError("WoW is not the active window")
+    rpc, codes = _click_rpc("bound:0:", [])
+    with pytest.raises(StepFailed, match="key_press_failed"):
+        run_steps([{"type": "hardware_click", "value": "XCreate"}], 9, rpc=rpc, press_click=broken)
+    assert codes[-1][1] == "SetBinding('CTRL-SHIFT-F10') return 'ok'"
+
+
+def test_hardware_click_presses_nothing_for_an_unusable_frame():
+    from addon_forge.plan_steps import StepFailed, run_steps
+    presses = []
+    for answer in ("missing", "hidden", "no_global_name", "bind_failed"):
+        rpc, codes = _click_rpc(answer, [])
+        with pytest.raises(StepFailed, match=answer):
+            run_steps([{"type": "hardware_click", "value": "XCreate"}], 9, rpc=rpc,
+                      press_click=lambda client="main": presses.append(client))
+        assert len(codes) == 1
+    with pytest.raises(StepFailed, match="no_hardware_input"):
+        run_steps([{"type": "hardware_click", "value": "XCreate"}], 9, rpc=_click_rpc("bound:0:", [])[0])
+    assert presses == []
+
+
+def test_hardware_click_on_the_member_client():
+    from addon_forge.plan_steps import run_steps
+    presses = []
+    rpc, codes = _click_rpc("bound:0:", [1.0])
+    run_steps([{"type": "hardware_click", "value": "XCreate", "client": "member"}], 9, rpc=rpc,
+              sleep=lambda s: None, pids={"member": 12},
+              press_click=lambda client="main": presses.append(client))
+    assert presses == ["member"] and {pid for pid, _ in codes} == {12}

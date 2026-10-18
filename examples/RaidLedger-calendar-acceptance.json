@@ -39,6 +39,18 @@
       "value": "calendar_event"
     },
     {
+      "type": "hardware_click",
+      "value": "RaidLedgerCalendar"
+    },
+    {
+      "type": "wait",
+      "value": 8
+    },
+    {
+      "type": "screenshot",
+      "value": "calendar_created"
+    },
+    {
       "type": "slash",
       "value": "/wish"
     },
@@ -85,7 +97,34 @@
     {
       "type": "frame_text_contains",
       "frame": "RaidLedgerCalendar",
-      "value": "TERMIN ERSTELLEN (1)"
+      "value": "KALENDER-TERMIN"
+    },
+    {
+      "type": "chat_contains",
+      "value": "am 25.11. 20:00 mit 1 Einladungen erstellt."
+    },
+    {
+      "type": "chat_contains",
+      "value": "RaidLedger: 1 Charaktere konnten nicht eingeladen werden (nicht gefunden?)."
+    },
+    {
+      "type": "chat_contains",
+      "value": "RaidLedger: Der Kalender-Termin steht im Kalender: vom Server bestätigt."
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.setup.calendar.confirmed",
+      "value": true
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.setup.calendar.invites",
+      "value": 1
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.setup.calendar.raid",
+      "value": 43
     },
     {
       "type": "event_fired",

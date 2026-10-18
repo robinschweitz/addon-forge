@@ -21,7 +21,7 @@ isolated test client (German `deDE`, build 12340) unless marked otherwise.
    live run. Estimated fonts, no texture files: confirm with a live screenshot.
 5. Write the acceptance plan with checks that observe the addon (`chat_contains`,
    `global_equals`, `frame_text_contains`, `event_fired`, `no_lua_errors`) and
-   `steps` that drive it (`slash`, `roll`, `wait`, `click`).
+   `steps` that drive it (`slash`, `roll`, `wait`, `click`, `hardware_click`).
 6. Live run: close WoW, then
    `forge --config forge.local.toml agent session projects/Name-acceptance.json --approve-fixtures`.
    Use `agent session` after **any** addon change: a running client keeps the
@@ -91,7 +91,9 @@ Terminal tab; a run started in another window must be pasted.
   on a new event works from a timer, but the server resolves each name first,
   so invites are listed a moment later (`CalendarEventGetNumInvites`).
   `CalendarAddEvent` from a timer is `ADDON_ACTION_BLOCKED`: it needs a real
-  click or key press, which plan steps (SDK `lua.evaluate`) are not.
+  click or key press, which `click` steps (SDK `lua.evaluate`) are not. A
+  `hardware_click` step on the button did it: the server confirmed the event
+  with its one invite (run `f1e7af99ab2b`).
   `CalendarSetAbsMonth` fires `CALENDAR_UPDATE_EVENT_LIST` synchronously, so
   never read the list from that event's handler (C stack overflow).
 - Lua 5.1 drops unknown escapes: `"Interface\ChatFrame"` written with single
@@ -110,6 +112,12 @@ Terminal tab; a run started in another window must be pasted.
 - SDK `lua.evaluate` may call protected `TargetUnit`, but opening loot
   (`InteractUnit`) needs a hardware event: bind `INTERACTTARGET` to a fixed
   unbound chord, press it once with `SendInput`, restore the binding.
+- The `hardware_click` step uses the same trick for any registered frame:
+  `SetBindingClick("CTRL-SHIFT-F10", name, "LeftButton")`, one `SendInput`
+  press, then the previous binding back. Binding clicks find the frame by its
+  global name, so create it with that name (the step requires
+  `frame:GetName()` and `_G[name]` to match). The step hooks `OnClick` to prove
+  the press arrived (`not_clicked` otherwise).
 - Lua numbers come back as JSON **floats** (`1.0`); compare numerically.
 - The pipe is **message-mode and single-threaded**: replies over 64 KB arrive
   in `ERROR_MORE_DATA` pieces, and between requests no pipe instance exists
@@ -148,6 +156,13 @@ Terminal tab; a run started in another window must be pasted.
   change saw no items and recorded nothing (run `1445c70cd623`); snapshot the
   offer in a `hooksecurefunc("AcceptTrade", ...)` hook instead (passed in run
   `b1b2079d8755`).
+- The loot fixture's creature is a persistent `.npc add` spawn. The
+  AzerothGhost cleanup deletes its DB row, then sends `.npc delete` without
+  waiting; when that missed, the corpse stayed in the running world, respawned
+  alive and killed the Nordhaintal guards (2026-10-18). The fixture now deletes
+  the live corpse itself and waits until the bot sees it vanish
+  (`loot-fixture.log`: "removed from the world"). A clean `creature` table
+  plus a worldserver restart removes any leftover.
 - A session's final screenshot (`RUN_ID.png`) shows the end state; use
   `screenshot` steps for anything in between.
 

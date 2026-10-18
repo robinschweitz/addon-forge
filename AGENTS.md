@@ -29,7 +29,9 @@ The CLI equivalents are listed below.
    `frame_text_contains`, `global_equals` (SavedVariables paths),
    `chat_contains`, `event_fired`, `no_lua_errors`, plus world/party checks
    and named `fixtures` (currently `master_loot`). Use `steps` (`slash`,
-   `roll`, `wait`, `click` on registered frames, `paste` into registered edit
+   `roll`, `wait`, `click` on registered frames, `hardware_click` (the same
+   with a real key press, for functions that are `ADDON_ACTION_BLOCKED` from
+   Lua; the frame needs that global name), `paste` into registered edit
    boxes, `screenshot`, and with
    `master_loot` the bot's `peer_roll` and `peer_trade`) to drive the addon in
    the real client before checks. A scenario needing a second addon lists it in

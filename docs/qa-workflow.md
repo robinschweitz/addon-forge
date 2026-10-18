@@ -404,6 +404,7 @@ one fixed SDK action:
 | `roll` | `[low, high]` | `RandomRoll(low, high)` as the test character (a real server `/rnd`) |
 | `wait` | seconds (≤ 60) | Lets timers and server messages arrive |
 | `click` | `"FrameName"` | Clicks a visible frame the addon registered with `ForgeTestBridge:RegisterFrame` |
+| `hardware_click` | `"FrameName"` | Clicks a visible registered frame with a **real key press**: binds the fixed chord `CTRL-SHIFT-F10` to `CLICK FrameName:LeftButton`, presses it with `SendInput` in the WoW window, waits for the frame's `OnClick`, then restores the binding. For functions that refuse Lua calls (`ADDON_ACTION_BLOCKED`, e.g. `CalendarAddEvent`). The frame needs that global name (`CreateFrame("Button", "FrameName", ...)`); nobody may type while it runs |
 | `paste` | `["EditBoxName", "text"]` | Pastes text (printable ASCII and newlines, no `\|`, up to 1000 characters) into a visible EditBox the addon registered, as a user pressing Ctrl+V would |
 | `screenshot` | `"name"` | Saves the client window as `.forge-runs/step-name.png` at that moment |
 | `peer_roll` | `[low, high]` | The `master_loot` fixture's bot sends a real `/rnd` (`MSG_RANDOM_ROLL`), seen by the whole party |

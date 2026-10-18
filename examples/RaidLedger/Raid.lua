@@ -245,8 +245,9 @@ retryButton:SetPoint("LEFT", inviteButton, "RIGHT", 6, 0)
 local benchButton = ns.flatButton(panel, L["BENCH: NO"], 140)
 benchButton:SetHeight(20)
 benchButton:SetPoint("TOPLEFT", readButton, "BOTTOMLEFT", 0, -6)
-local calendarButton = ns.flatButton(panel, L["CALENDAR EVENT"], 154)
-_G.RaidLedgerCalendar = calendarButton
+-- A real frame name: key bindings (CLICK RaidLedgerCalendar:LeftButton) find
+-- the button by it, and CalendarAddEvent needs such a hardware click.
+local calendarButton = ns.flatButton(panel, L["CALENDAR EVENT"], 154, "RaidLedgerCalendar")
 calendarButton:SetHeight(20)
 calendarButton:SetPoint("LEFT", benchButton, "RIGHT", 6, 0)
 

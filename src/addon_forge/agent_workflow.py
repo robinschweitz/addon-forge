@@ -40,6 +40,11 @@ def _step_screenshot(cfg: Config, evidence_dir: Path, name: str, client: str = "
     return WindowsClientController(cfg, role=client).screenshot(evidence_dir / f"step-{name}{suffix}.png")
 
 
+def _press_click(cfg: Config, client: str = "main") -> None:
+    from .windows_client import WindowsClientController
+    WindowsClientController(cfg, role=client).press_click_key()
+
+
 def _member_suite(cfg: Config, plan: dict, evidence_dir: Path) -> dict:
     """Run the bridge suite on the member client and judge it like the main one."""
     import uuid
@@ -157,7 +162,8 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
                 pids = {"member": client_pid(cfg, "member")} if plan.get("member") else None
                 step_log = run_steps(plan["steps"], client_pid(cfg), peer=peer, pids=pids,
                                      screenshot=lambda name, client="main": _step_screenshot(
-                                         cfg, evidence_dir, name, client))
+                                         cfg, evidence_dir, name, client),
+                                     press_click=lambda client="main": _press_click(cfg, client))
             except StepFailed as exc:
                 return {"status": "failed", "stage": "steps", **preview, "offline": offline,
                         "steps": getattr(exc, "log", []),

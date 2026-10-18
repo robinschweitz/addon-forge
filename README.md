@@ -145,6 +145,8 @@ forge --config forge.local.toml mcp            # check/spec/new/api tools; real-
 forge --config forge.local.toml mcp --allow-fixtures   # human opt-in: forge_run_plan may use the realm
 ```
 
+Acceptance plans drive the real client with data-only `steps` (`slash`, `roll`, `wait`, `click`, `hardware_click`, `paste`, `screenshot`, ...; see [docs/qa-workflow.md](docs/qa-workflow.md)). `click` calls the frame's `Click()` from SDK Lua, which is no hardware event; for client functions that refuse that (`ADDON_ACTION_BLOCKED`, such as `CalendarAddEvent`), `hardware_click` clicks the same registered frame through a temporary key binding pressed with real input. The frame must have that global name.
+
 Offline specs live in `projects/MyAddon/tests/*.spec.lua` and are never deployed:
 
 ```lua

@@ -509,8 +509,8 @@ local function label(parent, template, size, color)
     return text
 end
 
-local function flatButton(parent, caption, width)
-    local button = CreateFrame("Button", nil, parent)
+local function flatButton(parent, caption, width, name)
+    local button = CreateFrame("Button", name, parent)
     button:SetWidth(width)
     button:SetHeight(24)
     makeBackdrop(button, 0.08, 0.25, 0.34, 0.98)

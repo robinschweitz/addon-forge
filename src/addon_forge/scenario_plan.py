@@ -82,12 +82,12 @@ def _step(item: dict) -> dict:
     elif kind == "wait":
         if not isinstance(value, (int, float)) or isinstance(value, bool) or not 0 < value <= 60:
             raise ValueError("wait step value must be seconds in (0, 60]")
-    elif kind == "click":
+    elif kind in ("click", "hardware_click"):
         if not isinstance(value, str) or not NAME.fullmatch(value):
-            raise ValueError("click step value must be a frame name registered with ForgeTestBridge")
+            raise ValueError(f"{kind} step value must be a frame name registered with ForgeTestBridge")
     else:
-        raise ValueError(f"Unsupported step {kind!r}; use slash, roll, wait, click, paste, screenshot, "
-                         "peer_roll or peer_trade")
+        raise ValueError(f"Unsupported step {kind!r}; use slash, roll, wait, click, hardware_click, paste, "
+                         "screenshot, peer_roll or peer_trade")
     return {"type": kind, "value": value}
 
 

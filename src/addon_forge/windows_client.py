@@ -303,6 +303,11 @@ class WindowsClientController:
     IDLE_KEY = "CTRL-SHIFT-F11"
     IDLE_VKS = (0x11, 0x10, 0x7A)  # VK_CONTROL, VK_SHIFT, VK_F11
 
+    # Fixed, otherwise unused chord that the hardware_click plan step temporarily
+    # binds to CLICK <Frame>:LeftButton.
+    CLICK_KEY = "CTRL-SHIFT-F10"
+    CLICK_VKS = (0x11, 0x10, 0x79)  # VK_CONTROL, VK_SHIFT, VK_F10
+
     def _press(self, vks: tuple[int, ...]) -> None:
         hwnd = int(self.window_id())
         self.api.focus(hwnd)
@@ -314,6 +319,11 @@ class WindowsClientController:
         InteractUnit needs a hardware event; SDK Lua alone cannot open loot.
         """
         self._press(self.INTERACT_VKS)
+
+    def press_click_key(self) -> None:
+        """Send the hardware_click step's chord: a real key event that clicks the
+        frame bound to it, for functions that refuse Lua calls (ADDON_ACTION_BLOCKED)."""
+        self._press(self.CLICK_VKS)
 
     def press_idle_key(self) -> None:
         """One real key event so WoW stops treating the SDK client as idle."""

@@ -56,6 +56,63 @@ def _code(step: dict) -> str:
     raise ValueError(f"No SDK action for step {kind!r}")
 
 
+# hardware_click: SDK Lua (f:Click()) is no hardware event, so functions such as
+# CalendarAddEvent refuse it (ADDON_ACTION_BLOCKED). The step binds one fixed,
+# otherwise unused chord to CLICK <Frame>:LeftButton, presses it with SendInput
+# and restores the previous binding. Binding clicks look the frame up by its
+# global name, so the registered frame must carry that name.
+CLICK_KEY = "CTRL-SHIFT-F10"
+PREVIOUS_BINDING = re.compile(r"[A-Za-z0-9_: -]{0,80}")
+
+
+def _bind_click_code(name: str) -> str:
+    n = json.dumps(name)
+    return ("local name, key = " + n + ", '" + CLICK_KEY + "' "
+            "local b = ForgeTestBridge local f = b and b.frames and b.frames[name] "
+            "if not f then return 'missing' end if not f:IsVisible() then return 'hidden' end "
+            "if type(f.Click) ~= 'function' then return 'not_clickable' end "
+            "if f:GetName() ~= name or _G[name] ~= f then return 'no_global_name' end "
+            "b.hardwareClicks = b.hardwareClicks or {} "
+            "if not b.hardwareClicks[name] then b.hardwareClicks[name] = 0 "
+            "f:HookScript('OnClick', function() b.hardwareClicks[name] = b.hardwareClicks[name] + 1 end) end "
+            "local prev = GetBindingAction(key) or '' "
+            "SetBindingClick(key, name, 'LeftButton') "
+            "if GetBindingAction(key) ~= 'CLICK ' .. name .. ':LeftButton' then return 'bind_failed' end "
+            "return 'bound:' .. b.hardwareClicks[name] .. ':' .. prev")
+
+
+def _click_count_code(name: str) -> str:
+    return "return ForgeTestBridge.hardwareClicks[" + json.dumps(name) + "]"
+
+
+def _restore_click_code(previous: str) -> str:
+    if previous:
+        return f"SetBinding('{CLICK_KEY}', {json.dumps(previous)}) return 'ok'"
+    return f"SetBinding('{CLICK_KEY}') return 'ok'"
+
+
+def _hardware_click(name: str, lua, press, sleep, timeout: float = 3) -> str:
+    bound = lua(_bind_click_code(name))
+    if not isinstance(bound, str) or not bound.startswith("bound:"):
+        return bound if isinstance(bound, str) else "sdk_error"
+    _, count, previous = bound.split(":", 2)
+    if not PREVIOUS_BINDING.fullmatch(previous):
+        lua(_restore_click_code(""))
+        return "unexpected_previous_binding"
+    before = float(count)
+    try:
+        press()
+        # The key arrives through the window's message queue; wait for OnClick.
+        for _ in range(int(timeout / 0.25)):
+            sleep(0.25)
+            now = lua(_click_count_code(name))
+            if isinstance(now, (int, float)) and not isinstance(now, bool) and now > before:
+                return "ok"
+        return "not_clicked"
+    finally:
+        lua(_restore_click_code(previous))
+
+
 def _find_item_code(item_id: int) -> str:
     return ("for bag = 0, 4 do for slot = 1, GetContainerNumSlots(bag) do "
             "local link = GetContainerItemLink(bag, slot) "
@@ -116,11 +173,12 @@ def _trade_to_peer(item_id: int, peer, lua, sleep) -> str:
 
 
 def run_steps(steps: list[dict], pid: int, *, rpc=None, sleep=time.sleep, peer=None,
-              screenshot=None, pids: dict | None = None) -> list[dict]:
+              screenshot=None, pids: dict | None = None, press_click=None) -> list[dict]:
     """Run steps in order; stop at the first one the client did not perform.
 
     `peer` is the master_loot fixture's bot (peer_roll, peer_trade); `screenshot`
-    saves a client window under a name and returns the file path. In a
+    saves a client window under a name and returns the file path; `press_click`
+    sends the hardware_click chord to a client's window. In a
     two-player plan `pids` maps "member" to the second client's process, and a
     step with "client": "member" runs there.
     """
@@ -154,6 +212,15 @@ def run_steps(steps: list[dict], pid: int, *, rpc=None, sleep=time.sleep, peer=N
                     result = "ok"
                 except (OSError, RuntimeError) as exc:
                     result = f"screenshot_failed:{type(exc).__name__}"
+        elif kind == "hardware_click":
+            if press_click is None:
+                result = "no_hardware_input"
+            else:
+                press = (lambda: press_click()) if client == "main" else (lambda: press_click(client))
+                try:
+                    result = _hardware_click(value, lua, press, sleep)
+                except (OSError, RuntimeError) as exc:
+                    result = f"key_press_failed:{exc}"
         elif kind in ("peer_roll", "peer_trade"):
             if peer is None:
                 result = "no_fixture_peer"
