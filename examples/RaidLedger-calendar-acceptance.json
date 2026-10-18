@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "companions": [
+    "RaidWishlist"
+  ],
+  "character": "Test",
+  "member": "Raidmember",
+  "member_addons": [
+    "RaidWishlist"
+  ],
+  "peers": 0,
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger setup"
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidLedgerInviteText",
+        "RS2;INV;43;Live Kalender;10;2026-11-25;20:00\nRaidmember;DD;Krieger;0\nNobodyhere;HEAL;Priester;0"
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerRead"
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerCalendar"
+    },
+    {
+      "type": "wait",
+      "value": 12
+    },
+    {
+      "type": "screenshot",
+      "value": "calendar_event"
+    },
+    {
+      "type": "slash",
+      "value": "/wish"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "screenshot",
+      "value": "wishlist_header"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistColor"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "screenshot",
+      "value": "wishlist_color_picker"
+    }
+  ],
+  "checks": [
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.setup.raid.id",
+      "value": 43
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.setup.raid.month",
+      "value": 11
+    },
+    {
+      "type": "chat_contains",
+      "value": "RaidLedger: Erstelle den Kalender-Termin: lade 2 Charaktere ein..."
+    },
+    {
+      "type": "chat_contains",
+      "value": "RaidLedger: 1 Einladungen bereit: TERMIN ERSTELLEN klicken (oder nochmal /ledger calendar), um den Termin anzulegen."
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerCalendar",
+      "value": "TERMIN ERSTELLEN (1)"
+    },
+    {
+      "type": "event_fired",
+      "value": "CALENDAR_UPDATE_INVITE_LIST"
+    },
+    {
+      "type": "frame_visible",
+      "value": "RaidWishlistFrame"
+    },
+    {
+      "type": "frame_visible",
+      "value": "RaidWishlistColor"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true,
+      "client": "member"
+    }
+  ]
+}

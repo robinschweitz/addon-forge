@@ -2299,6 +2299,80 @@ local function startLaterRoll(record)
     startSelectedRoll()
 end
 
+-- Rolls on items in the bags (raider feedback 2026-10-18): Alt+click a bag
+-- item, or /ledger roll <item link>. The item is in the roller's bags, so it
+-- is an award held by them: an open one for that item is rolled, otherwise a
+-- new held award is recorded first. The roll then runs like any later roll,
+-- and the winner gets the item by trade.
+local function mayStartRolls()
+    local raid, party = GetNumRaidMembers() or 0, GetNumPartyMembers() or 0
+    if raid == 0 and party == 0 then return true end
+    local method, partyMaster, raidMaster = GetLootMethod()
+    if method == "master" then
+        if raid > 0 and raidMaster and isPlayer(UnitName("raid" .. raidMaster)) then return true end
+        if raid == 0 and partyMaster == 0 then return true end
+    end
+    if raid > 0 then return (IsRaidLeader() or IsRaidOfficer()) and true or false end
+    return IsPartyLeader() and true or false
+end
+
+-- bagLink finds an item ID's link in the bags (for /ledger roll <itemID>).
+local function bagLink(itemID)
+    for bag = 0, NUM_BAG_SLOTS or 4 do
+        for slot = 1, GetContainerNumSlots(bag) or 0 do
+            local link = GetContainerItemLink(bag, slot)
+            if itemIDFromLink(link) == itemID then return link end
+        end
+    end
+end
+
+local function rollBagItem(link)
+    link = trim(link)
+    if string.match(link, "^%d+$") then
+        local found = bagLink(tonumber(link))
+        if not found then
+            say(string.format(L["item %s is not in your bags."], link))
+            return
+        end
+        link = found
+    end
+    local itemID = itemIDFromLink(link)
+    if not itemID then
+        say(L["usage: /ledger roll <item link> (or Alt+click the item in your bags)"])
+        return
+    end
+    if not mayStartRolls() then
+        say(L["only the master looter or the raid lead can start rolls."])
+        return
+    end
+    Ledger:Show()
+    for _, entry in ipairs(active) do
+        if entry.later and entry.record and entry.record.itemID == itemID and entry.endsAt and not entry.winner then
+            selected, editing = entry, nil
+            updateRows()
+            status:SetText(string.format(L["%s is already being rolled."], entry.item))
+            return
+        end
+    end
+    local record
+    for _, r in ipairs(ensureDatabase().history) do
+        if r.itemID == itemID and isOpenAward(r) and isPlayer(r.recipient) then
+            record = r
+            break
+        end
+    end
+    record = record or recordAward({ item = link, rolls = {} }, playerName(), "held", true)
+    startLaterRoll(record)
+end
+ns.rollBagItem = rollBagItem
+
+if ContainerFrameItemButton_OnModifiedClick then
+    hooksecurefunc("ContainerFrameItemButton_OnModifiedClick", function(self, button)
+        if button ~= "LeftButton" or not IsAltKeyDown() or IsShiftKeyDown() or IsControlKeyDown() then return end
+        rollBagItem(GetContainerItemLink(self:GetParent():GetID(), self:GetID()))
+    end)
+end
+
 -- finishLaterRoll records the winner of a later roll. Held by the master
 -- looter, the award stays "held" for the winner until the trade; parked with
 -- another raider, the winner becomes the recipient (the hand-over between two
@@ -2610,6 +2684,7 @@ local HELP = {
     L["/ledger start - start a %d s /rnd roll for the selected item"],
     L["/ledger timer [seconds] [tie-break seconds] - roll lengths for new rolls; /ledger timer reset"],
     L["/ledger free - post the selected item again: free BoE roll for any character (/rnd 100)"],
+    L["/ledger roll <item link or ID> - roll an item from your bags (or Alt+click it in your bags)"],
     L["/ledger set <#> [name] - change the recipient of award #, or to your target"],
     L["/ledger del <#> - remove award # (exported as deleted)"],
     L["/ledger spec <#> ms|os|none - set which tally award # counts for"],
@@ -2640,6 +2715,8 @@ SlashCmdList["RAIDLEDGER"] = function(message)
         updateRows()
     elseif command == "start" then
         startSelectedRoll()
+    elseif command == "roll" then
+        rollBagItem(rest)
     elseif command == "free" then
         startFreeRoll()
     elseif command == "pass" then
