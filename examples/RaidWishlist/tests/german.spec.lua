@@ -12,7 +12,7 @@ end
 
 test("the window and the import are German and fit", function()
     forge.slash("/wish")
-    expect(forge.findText("LOOT-WUNSCHLISTE")).toBeTruthy()
+    expect(forge.findText("RaidWishlist")).toBeTruthy()   -- the name, like RaidLedger
     expect(forge.findText("Noch keine Wunschliste.\nExport auf der Gildenwebseite kopieren, dann IMPORT.")).toBeTruthy()
     expect(forge.findText("AUTO-WURF: AUS")).toBeTruthy()
     expect(forge.layoutIssues("RaidWishlistFrame")).toEqual({})
