@@ -295,7 +295,11 @@ Terminal tab; a run started in another window must be pasted.
   shared as `E`) and addon users (`HQ`/`H`/`HW`); tooltips on every control
   (`tests/tooltips.spec.lua` walks all panels). The main, peer and trade plans
   passed live on 2.4.0 (runs `e53b59b2ca15`, `f01bd8b9796f`, `a0b4a748e3b0`; the
-  new "bisher 0 MS / 0 OS Items" text, one announcement per award). Still
+  new "bisher 0 MS / 0 OS Items" text, one announcement per award). `RaidLedger-tally-acceptance.json` rolls twice
+  (corpse, then `/ledger roll` on the same item from the bags) and proves the
+  second roll counts the first award: "bisher 1 MS / 0 OS Items", roll-log
+  tally 1, "(MS, 1 Item)" in the window, `/ledger tally` 2 (run
+  `db6c04492d34`; a BANK tooltip shows in its screenshot). Still
   offline only: editors, addon users, group loot, token bundles (the fixture
   drops one item, no second ledger client). Lessons: the main chunk of
   `RaidLedger.lua` is at Lua's 200-local limit, so new code goes into

@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger start"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "roll",
+      "value": [
+        1,
+        100
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 33
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "slash",
+      "value": "/ledger roll 20513"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "roll",
+      "value": [
+        1,
+        100
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 33
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 2
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerHistory1"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "slash",
+      "value": "/ledger tally"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "screenshot",
+      "value": "second_roll_tally"
+    }
+  ],
+  "checks": [
+    {
+      "type": "frame_visible",
+      "value": "RaidLedgerFrame"
+    },
+    {
+      "type": "chat_contains",
+      "value": " - Main-Spec, bisher 0 MS / 0 OS Items."
+    },
+    {
+      "type": "chat_contains",
+      "value": " - Main-Spec, bisher 1 MS / 0 OS Items."
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.2.spec",
+      "value": "ms"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.2.winner",
+      "value": "Test"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.2.rollLog.1.tally",
+      "value": 0
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.spec",
+      "value": "ms"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.rollLog.1.tally",
+      "value": 1
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidLedgerRoll1",
+      "value": "(MS, 1 Item)"
+    },
+    {
+      "type": "chat_contains",
+      "value": "RaidLedger: Test: 2 Main-Spec, 0 Second-Spec"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}
