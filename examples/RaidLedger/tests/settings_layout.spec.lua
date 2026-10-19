@@ -40,7 +40,7 @@ test("the German settings panel fits a full raid", function()
 end)
 
 test("a German token bundle with its winners fits the loot view", function()
-    forge.clickText("ZURÜCK")
+    forge.click("RaidLedgerTabButtonLoot")
     forge.masterLoot(NAMES)
     forge.openLoot({ { id = 52027 }, { id = 52027 }, { id = 52027 } })
     expect(forge.findText("3x " .. TOKEN)).toBeTruthy()

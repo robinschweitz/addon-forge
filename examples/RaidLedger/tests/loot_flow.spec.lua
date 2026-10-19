@@ -38,5 +38,7 @@ test("recording the award stores history that survives /reload", function()
     expect(db.history[1].rolls).toBe(2)
     forge.reload()
     expect(forge.saved("RaidLedgerDB").history[1].item).toContain("Abyssal Crest")
+    -- Awards are listed in the VERGABEN tab.
+    forge.click("RaidLedgerTabButtonAwards")
     expect(forge.findText("Abyssal Crest", true)).toBeTruthy()
 end)

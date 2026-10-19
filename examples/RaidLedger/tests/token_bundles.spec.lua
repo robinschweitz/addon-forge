@@ -21,7 +21,7 @@ end
 
 local function pick(text)
     for i = 1, 10 do
-        local row = forge.frame("RaidLedgerRow" .. i)
+        local row = forge.frame("RaidLedgerItemRow" .. i)
         if row and row:IsShown() and forge.text(row) == text then return forge.click(row) end
     end
     error("no loot row shows " .. text)
@@ -77,7 +77,7 @@ test("each handout gives one copy; the next winner is picked for the next", func
     expect(db().history[1].recipient).toBe("Cara")
     expect(db().history[1].roll).toBe(70)
     for i = 1, 10 do                                     -- all three handed out
-        local row = forge.frame("RaidLedgerRow" .. i)
+        local row = forge.frame("RaidLedgerItemRow" .. i)
         if row and row:IsShown() then expect(string.find(forge.text(row) or "", TOKEN, 1, true)).toBeNil() end
     end
     expect(db().history[1].rollLog[1].name).toBe("Alice")   -- the log of the decision

@@ -28,6 +28,7 @@ end)
 
 test("a re-parked award the master looter gives himself is no longer open", function()
     -- Re-park the award with the master looter...
+    forge.click("RaidLedgerTabButtonAwards")
     forge.click(forge.findText("#1  ", true))   -- the box shows Tester
     forge.clickText("PARK")
     local record = db().history[1]
@@ -37,7 +38,7 @@ test("a re-parked award the master looter gives himself is no longer open", func
     -- ...then he won it: give it to himself by hand.
     forge.click(forge.findText("#1  ", true))
     expect(forge.findText("ROLL")).toBeTruthy()
-    expect(forge.findText("NOW: Tester (OPEN)")).toBeTruthy()
+    expect(forge.findText("NOW: Tester (OPEN)", true)).toBeTruthy()
     forge.clickText("CHANGE RECIPIENT")
     record = db().history[1]
     expect(record.recipient).toBe("Tester")

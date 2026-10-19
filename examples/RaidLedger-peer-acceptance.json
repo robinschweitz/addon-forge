@@ -66,6 +66,10 @@
     },
     {
       "type": "click",
+      "value": "RaidLedgerTabawards"
+    },
+    {
+      "type": "click",
       "value": "RaidLedgerHistory1"
     },
     {
@@ -122,7 +126,7 @@
     {
       "type": "frame_text_contains",
       "frame": "RaidLedgerHistory1",
-      "value": "(1 Würfe)"
+      "value": "|Hitem:20513"
     },
     {
       "type": "frame_text_contains",

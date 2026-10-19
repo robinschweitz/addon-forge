@@ -37,6 +37,7 @@ test("the award button hands the item to the roll winner and records the real re
     expect(record.npc).toBe(15209)
     expect(record.roll).toBe(88)
     expect(record.rolls).toBe(2)
+    forge.click("RaidLedgerTabButtonAwards")
     expect(forge.findText("GIVEN?")).toBeTruthy()
 end)
 
@@ -45,6 +46,7 @@ test("the server's loot message confirms the handout", function()
     expect(db().history[1].confirmed).toBe(true)
     expect(forge.findText("GIVEN")).toBeTruthy()
     expect(forge.findText("Award #1 confirmed: Bob received the item.")).toBeTruthy()
+    forge.click("RaidLedgerTabButtonLoot")
     expect(forge.findText(CREST)).toBeNil()     -- gone from the active list, not re-added
     forge.closeLoot()
 end)
@@ -68,7 +70,7 @@ test("a recipient who is no master-loot candidate is refused, not recorded", fun
     lootTemplar({ { id = 20513, link = CREST } })
     forge.slash("/ledger clear")             -- also forgets the source, so the crest is new
     forge.advance(0.25, 0.25)
-    forge.clickText("Bob")                      -- roster button fills the recipient
+    forge.type("RaidLedgerRecipient", "Bob")
     forge.clickText("GIVE + RECORD")
     expect(table.getn(forge.awards())).toBe(2)
     expect(table.getn(db().history)).toBe(2)
@@ -109,7 +111,8 @@ test("an item given to yourself is held, and your completed trade passes it on",
     expect(record.recipient).toBe("Tester")
     expect(record.state).toBe("held")
     expect(record.confirmed).toBe(true)
-    expect(forge.findText("1 HELD BY YOU  |  SCROLL FOR MORE")).toBeTruthy()
+    forge.click("RaidLedgerTabButtonAwards")
+    expect(forge.findText("  |  1 HELD BY YOU", true)).toBeTruthy()
     forge.closeLoot()
     forge.trade("Alice", { TOME }, { cancel = true })
     expect(db().history[1].state).toBe("held")

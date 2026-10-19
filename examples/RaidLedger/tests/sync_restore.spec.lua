@@ -15,7 +15,7 @@ test("restored awards keep their numbers and new awards continue after them", fu
     expect(forge.saved("RaidLedgerDB").history[1].id).toBe(7)
     expect(forge.saved("RaidLedgerDB").session).toBe("Tester-77")
     forge.openLoot({ { id = 20513 } })
-    forge.clickText("Alice")
+    forge.type("RaidLedgerRecipient", "Alice")
     forge.clickText("RECORD AWARD")
     forge.closeLoot()
     expect(forge.saved("RaidLedgerDB").history[1].id).toBe(8)

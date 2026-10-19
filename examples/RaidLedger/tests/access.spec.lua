@@ -44,24 +44,24 @@ test("after login the ledger says hello and asks who runs the addons", function(
     forge.advance(10, 0.25)
     local sent = table.concat(sentSince(0), "\n")
     expect(sent).toContain("HQ;Tester")
-    expect(sent).toContain("H;2.4.0;1")
+    expect(sent).toContain("H;2.5.0;1")
 end)
 
 test("a hello query is answered with this ledger's version", function()
     local before = #forge.addonMessages()
     receive("HQ;Alice")
     forge.advance(2, 0.25)
-    expect(table.concat(sentSince(before), "\n")).toContain("H;2.4.0;1")
+    expect(table.concat(sentSince(before), "\n")).toContain("H;2.5.0;1")
 end)
 
 test("the settings list raid members with their addons", function()
-    receive("H;2.4.0;1", "Alice")
+    receive("H;2.5.0;1", "Alice")
     receive("HW;1.5.0", "Bob")
     receive("H;2.3.0;0", "Cara")
     if not RaidLedgerFrame:IsShown() then forge.slash("/ledger") end
     forge.click(forge.frame("RaidLedgerSettingsButton"))
     expect(settings():IsShown()).toBe(true)
-    expect(forge.findText("Alice  2.4.0")).toBeTruthy()
+    expect(forge.findText("Alice  2.5.0")).toBeTruthy()
     expect(forge.findText("Bob  WL 1.5.0")).toBeTruthy()
     expect(forge.findText("Cara  2.3.0")).toBeTruthy()
     expect(forge.findText("Dora  -")).toBeTruthy()
@@ -107,7 +107,7 @@ test("a newer list from an editor replaces this one; one from anybody else does 
 end)
 
 test("off the list the ledger only watches: no rolls, no awards, no corrections", function()
-    forge.clickText("BACK")   -- from the settings to the loot
+    forge.click("RaidLedgerTabButtonLoot")   -- from the settings to the loot
     forge.slash("/ledger newraid confirm")
     local before = #forge.sent()
     forge.openLoot({ { id = 20513 } })
@@ -165,7 +165,7 @@ test("with several ledgers only the first eligible one records group loot", func
     forge.raid({ { name = "Tester", rank = 2 }, { name = "Alice", rank = 1 }, "Bob", "Cara", "Dora" })
     forge.raid({ { name = "Tester", rank = 2 }, { name = "Alice", rank = 1 }, "Bob", "Cara", "Dora" })
     forge.slash("/ledger newraid confirm")
-    receive("H;2.4.0;1", "Alice")      -- Alice is an assistant and sorts first
+    receive("H;2.5.0;1", "Alice")      -- Alice is an assistant and sorts first
     forge.fire("CHAT_MSG_LOOT", "Bob won: " .. TOME)
     expect(#db().history).toBe(0)
 end)

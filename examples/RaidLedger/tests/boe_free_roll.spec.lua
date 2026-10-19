@@ -93,6 +93,7 @@ end)
 test("a BoE award counts for nobody", function()
     forge.slash("/ledger tally")
     expect(forge.chat()).toContain("RaidLedger: no items counted this raid yet.")
+    forge.click("RaidLedgerTabButtonTally")
     forge.hover(forge.findText("Dora"))
     local found = false
     for _, line in ipairs(forge.tooltip()) do

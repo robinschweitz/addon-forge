@@ -40,6 +40,10 @@
     },
     {
       "type": "click",
+      "value": "RaidLedgerTabawards"
+    },
+    {
+      "type": "click",
       "value": "RaidLedgerHistory1"
     },
     {
@@ -48,11 +52,15 @@
     },
     {
       "type": "click",
-      "value": "RaidLedgerPark"
+      "value": "RaidLedgerAwardPark"
     },
     {
       "type": "wait",
       "value": 1
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerTabawards"
     },
     {
       "type": "click",
@@ -65,13 +73,13 @@
     {
       "type": "paste",
       "value": [
-        "RaidLedgerRecipient",
+        "RaidLedgerAwardRecipient",
         "Test"
       ]
     },
     {
       "type": "click",
-      "value": "RaidLedgerAward"
+      "value": "RaidLedgerChangeRecipient"
     },
     {
       "type": "wait",
@@ -107,8 +115,8 @@
     },
     {
       "type": "frame_text_contains",
-      "frame": "RaidLedgerHistory1",
-      "value": "->  Test"
+      "frame": "RaidLedgerHistory1Recipient",
+      "value": "Test"
     },
     {
       "type": "no_lua_errors",

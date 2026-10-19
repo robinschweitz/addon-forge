@@ -51,11 +51,15 @@
     },
     {
       "type": "click",
+      "value": "RaidLedgerTabawards"
+    },
+    {
+      "type": "click",
       "value": "RaidLedgerHistory1"
     },
     {
       "type": "click",
-      "value": "RaidLedgerPark"
+      "value": "RaidLedgerAwardPark"
     },
     {
       "type": "wait",

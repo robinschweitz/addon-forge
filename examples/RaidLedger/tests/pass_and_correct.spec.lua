@@ -31,19 +31,24 @@ local function won(text) return raidSaid("[Loot] " .. BRACERS .. " won by " .. t
 
 local function fresh()
     mark = #forge.sent()
+    forge.click("RaidLedgerTabButtonLoot")
     forge.closeLoot()
     forge.slash("/ledger clear")
     forge.openLoot({ { id = 45509 } })
     forge.slash("/ledger start")
 end
 
-local function member(i) return forge.frame("RaidLedgerMember" .. i) end
+-- The top roll of the selected item (the ranking's leader) and its value.
+local function topRoll() return forge.text("RaidLedgerRollLine1") end
+local function topValue() return forge.text(forge.frame("RaidLedgerRollLine1").columns[1]) end
 
--- The selected item's roll line for `name` in the list under the items.
+-- The roll line for `name`: the selected item's rolls, or the shown award's log.
 local function rollRow(name)
-    for i = 1, 10 do
-        local row = forge.frame("RaidLedgerRow" .. i)
-        if row and row:IsVisible() and not row.item and row.fullName == name then return row end
+    for _, prefix in ipairs({ "RaidLedgerRollLine", "RaidLedgerRoll" }) do
+        for i = 1, 10 do
+            local row = forge.frame(prefix .. i)
+            if row and row:IsVisible() and row.playerName == name then return row end
+        end
     end
 end
 
@@ -53,11 +58,11 @@ test("a pass during the roll takes the roller out of the ranking", function()
     fresh()
     forge.roll("Alice", 80)
     forge.roll("Bob", 60)
-    expect(member(1):GetText()).toBe("Alice")
+    expect(topRoll()).toBe("Alice  MS")
     forge.slash("/ledger pass alice")              -- names in any case
     expect(said("Alice passes.")).toBe(1)
-    expect(member(1):GetText()).toBe("Bob")
-    expect(forge.text(member(1).roll)).toBe("60")
+    expect(topRoll()).toBe("Bob  MS")
+    expect(topValue()).toBe("60")
     forge.advance(31, 0.25)
     expect(won("Bob (60)")).toBe(1)
     expect(won("Alice")).toBe(0)
@@ -123,7 +128,7 @@ test("the points of an enhanced roll can be corrected", function()
     forge.roll("Bob", 95)
     forge.slash("/ledger count Alice enh 10")      -- had 10 EP: 100 from 11-110
     expect(said("Alice's roll counts as main spec 11-110 (100).")).toBe(1)
-    expect(forge.text(member(1).roll)).toBe("100")
+    expect(topValue()).toBe("100")
     forge.slash("/ledger count Bob enh 5")         -- a plain roll can gain points too
     expect(said("Bob's roll counts as main spec 6-105 (100).")).toBe(1)
     forge.slash("/ledger count Bob enh 0")         -- 0 points: plain main spec
@@ -144,6 +149,7 @@ test("the points of an enhanced roll can be corrected", function()
     forge.slash("/ledger export")
     expect(forge.text("RaidLedgerExportText")).toContain(";100;ms;11-110;Alice")
     forge.clickText("BACK")
+    forge.click("RaidLedgerTabButtonLoot")
 end)
 
 test("a main-spec roll can count as off spec, or not at all", function()
@@ -170,27 +176,26 @@ test("bad corrections are refused", function()
     expect(forge.chat()).toContain("RaidLedger: usage: /ledger pass <name>")
 end)
 
-test("the selected item's rolls are listed under the items", function()
+test("the selected item's rolls are listed beside the items, with what each roller has so far", function()
     -- Alice got an item above, so her tally would rank her last: roll with others.
     fresh()
     forge.roll("Dora", 80)
     forge.roll("Emil", 60)
     forge.roll("Cara", 300, 1, 1000)               -- ignored, listed grey with the reason
     forge.roll("Bob", 45, 1, 99)
-    expect(forge.text("RaidLedgerRow2")).toBe("ROLLS")
-    expect(forge.text("RaidLedgerRow3")).toBe("Dora  MS")
-    expect(forge.text("RaidLedgerRow4")).toBe("Emil  MS")
-    expect(forge.text("RaidLedgerRow5")).toBe("Bob  OS")
-    expect(forge.text("RaidLedgerRow6")).toContain("Cara  - ignored: 1-1000")
-    expect(forge.text(forge.frame("RaidLedgerRow3").count)).toBe("80")
+    expect(forge.findText("ROLLS (4)")).toBeTruthy()
+    expect(forge.text("RaidLedgerRollLine1")).toBe("Dora  MS")
+    expect(forge.text("RaidLedgerRollLine2")).toBe("Emil  MS")
+    expect(forge.text("RaidLedgerRollLine3")).toBe("Bob  OS")
+    expect(forge.text("RaidLedgerRollLine4")).toContain("Cara  - ignored: 1-1000")
+    expect(topValue()).toBe("80")
+    expect(forge.text(forge.frame("RaidLedgerRollLine1").columns[2])).toBe("0")   -- Dora's items so far
     forge.click(rollRow("Emil"))                   -- left-click: recipient
     expect(forge.text(forge.frame("RaidLedgerRecipient"))).toBe("Emil")
-    expect(forge.layoutIssues("RaidLedgerRollPane")).toEqual({})
+    expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
 end)
 
 test("right-click on a roll opens the roll menu; PASS strikes the roll", function()
-    forge.click(member(1), "RightButton")          -- member buttons only pick recipients
-    expect("RaidLedgerRollMenu").toBeHidden()
     forge.click(rollRow("Cara"), "RightButton")    -- an ignored roll has nothing to change
     expect("RaidLedgerRollMenu").toBeHidden()
     forge.click(rollRow("Dora"), "RightButton")
@@ -206,7 +211,7 @@ test("right-click on a roll opens the roll menu; PASS strikes the roll", functio
     forge.click("RaidLedgerRollMenuPass")
     expect("RaidLedgerRollMenu").toBeHidden()
     expect(said("Dora passes.")).toBe(1)
-    expect(member(1):GetText()).toBe("Emil")
+    expect(topRoll()).toBe("Emil  MS")
     expect(forge.text(rollRow("Dora"))).toContain("Dora  - ignored: passed")
 end)
 
@@ -251,19 +256,19 @@ test("a free BoE roll can take passes but no spec changes", function()
     expect(#forge.errors()).toBe(0)
 end)
 
-test("a long roll list scrolls under the items, which stay in place", function()
+test("a long roll list scrolls; the items stay in place", function()
     local names = {}
     for i = 1, 12 do names[i] = "Raider" .. string.char(64 + i) end
     forge.raid(names)
     fresh()
     for i = 1, 12 do forge.roll(names[i], 100 - i) end
-    expect(forge.text("RaidLedgerRow2")).toBe("ROLLS (SCROLL)")
-    expect(forge.text("RaidLedgerRow3")).toBe("RaiderA  MS")
-    forge.wheel("RaidLedgerRollPane", -1)
-    expect(forge.text("RaidLedgerRow1")).toContain("Bracers of the Untold")
-    expect(forge.text("RaidLedgerRow3")).toBe("RaiderB  MS")
-    forge.wheel("RaidLedgerRollPane", -10)
-    expect(forge.text("RaidLedgerRow10")).toBe("RaiderL  MS")
+    expect(forge.findText("ROLLS (12, SCROLL)")).toBeTruthy()
+    expect(forge.text("RaidLedgerRollLine1")).toBe("RaiderA  MS")
+    forge.wheel("RaidLedgerDetailPane", -1)
+    expect(forge.text("RaidLedgerItemRow1")).toContain("Bracers of the Untold")
+    expect(forge.text("RaidLedgerRollLine1")).toBe("RaiderB  MS")
+    forge.wheel("RaidLedgerDetailPane", -10)
+    expect(forge.text("RaidLedgerRollLine10")).toBe("RaiderL  MS")
     -- The lowest roll's menu still fits inside the window.
     forge.click(rollRow("RaiderL"), "RightButton")
     local menu, window = forge.rect("RaidLedgerRollMenu"), forge.rect("RaidLedgerFrame")
@@ -276,9 +281,11 @@ end)
 -- makes someone else the winner re-awards the item (like changing the
 -- recipient by hand); with nobody valid left the award stays.
 local function awardLine(name)
-    local line = forge.findText("->  " .. name .. "  (", true)
-    while line and not line.Click do line = line:GetParent() end
-    return line
+    forge.click("RaidLedgerTabButtonAwards")
+    for i = 1, 18 do
+        local line = forge.frame("RaidLedgerAwardLine" .. i)
+        if line and line:IsVisible() and forge.text(line.columns[2]) == name then return line end
+    end
 end
 
 test("a pass in a given-out award's roll log gives the award to the next-best roll", function()
@@ -294,7 +301,7 @@ test("a pass in a given-out award's roll log gives the award to the next-best ro
     local record = forge.saved("RaidLedgerDB").history[1]
     expect(record.recipient).toBe("RaiderA")
     forge.click(awardLine("RaiderA"))              -- show the award's roll log
-    expect(forge.findText("ROLLS FOR AWARD #" .. record.id)).toBeTruthy()
+    expect(forge.findText("ROLLS (3)")).toBeTruthy()
     forge.click(rollRow("RaiderA"), "RightButton")
     expect("RaidLedgerRollMenu").toBeShown()
     forge.sketch("award-roll-menu", "RaidLedgerFrame")
@@ -302,7 +309,7 @@ test("a pass in a given-out award's roll log gives the award to the next-best ro
     expect(said("RaiderA passes.")).toBe(1)
     expect(raidSaid("[Loot] " .. BRACERS .. " goes to RaiderB - main spec (corrected).")).toBe(1)
     expect(record.recipient).toBe("RaiderB")
-    expect(forge.text(forge.frame("RaidLedgerRecipient"))).toBe("RaiderB")   -- the shown award's recipient
+    expect(forge.text(forge.frame("RaidLedgerAwardRecipient"))).toBe("RaiderB")   -- the shown award's recipient
     expect(record.winner).toBe("RaiderB")
     expect(record.roll).toBe(70)
     expect(record.spec).toBe("ms")

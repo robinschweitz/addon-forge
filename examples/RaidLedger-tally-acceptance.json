@@ -67,6 +67,10 @@
     },
     {
       "type": "click",
+      "value": "RaidLedgerTabawards"
+    },
+    {
+      "type": "click",
       "value": "RaidLedgerHistory1"
     },
     {

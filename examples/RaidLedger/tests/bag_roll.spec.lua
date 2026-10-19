@@ -135,6 +135,7 @@ test("the next roll after an award counts the winner's item", function()
     expect(db().history[2].rollLog[1].tally).toBe(0)
     -- The award's roll log in the window names the tally the ranking used.
     local r = db().history[1]
-    forge.clickText(string.format("#%d  %s  |  %s  ->  Tester  (1 rolls)", r.id, r.time, CREST))
-    expect(forge.text(forge.frame("RaidLedgerRow1"))).toBe("Tester  - won  (MS, 1 item)")
+    forge.click("RaidLedgerTabButtonAwards")
+    forge.clickText(string.format("#%d  %s  %s", r.id, r.time, CREST))
+    expect(forge.text("RaidLedgerRoll1")).toBe("Tester  - won  (MS, 1 item)")
 end)

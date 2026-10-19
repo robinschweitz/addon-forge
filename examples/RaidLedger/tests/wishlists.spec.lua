@@ -20,7 +20,7 @@ end
 -- rowOf finds the loot row of an item (rows are not in drop order).
 local function rowOf(link)
     for i = 1, 3 do
-        local row = _G["RaidLedgerRow" .. i]
+        local row = _G["RaidLedgerItemRow" .. i]
         if forge.text(row) == link then return row end
     end
 end
@@ -67,6 +67,7 @@ test("rollers who listed the item show their wishlist rank", function()
     forge.advance(31, 0.25)
     forge.clickText("GIVE + RECORD")
     forge.advance(0.1)
+    forge.click("RaidLedgerTabButtonAwards")
     forge.click(forge.findText("#1  ", true))
     expect(forge.findText("Alice  (OS, 0 items)  [WL #4]")).toBeTruthy()
     expect(forge.findText("Cara  - won  (MS, 0 items)")).toBeTruthy()

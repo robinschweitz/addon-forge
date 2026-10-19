@@ -18,29 +18,32 @@ before_load(function()
 end)
 
 local function db() return forge.saved("RaidLedgerDB") end
-local function row(i) return forge.frame("RaidLedgerRow" .. i) end
+local function row(i) return forge.frame("RaidLedgerItemRow" .. i) end
+local function status(i) return forge.text(row(i).columns[1]) end
+local function heading() return forge.text(forge.frame("RaidLedgerRollPane").heading) end
 
 test("parked and kept items stay in the loot list as OPEN; DE and bank items do not", function()
     forge.raid({ "Tester", "Alice", "Bob", "Cara" })
     forge.masterLoot({ "Tester", "Alice", "Bob", "Cara" })
     forge.openLoot({ { id = 20513 }, { id = 21281 }, { id = 20514 } })
-    forge.clickText("Bob")
+    forge.type("RaidLedgerRecipient", "Bob")
     forge.click("RaidLedgerPark")                       -- crest parked with Bob
-    forge.click("RaidLedgerRow1")
-    forge.clickText("Cara")
+    forge.click("RaidLedgerItemRow1")
+    forge.type("RaidLedgerRecipient", "Cara")
     forge.click("RaidLedgerBank")                       -- tome to the bank character
-    forge.click("RaidLedgerRow1")
+    forge.click("RaidLedgerItemRow1")
     forge.click("RaidLedgerDisenchant")                 -- boots disenchanted by Tester
     forge.advance(0.1)
     forge.closeLoot()
     expect(db().history[1].state).toBe("disenchanted")
     expect(db().history[2].state).toBe("bank")
     expect(db().history[3].state).toBe("parked")
-    expect(forge.text("RaidLedgerRow1")).toBe(CREST)
-    expect(forge.text(row(1).holder)).toBe("with Bob")
-    expect(forge.text(row(1).count)).toBe("OPEN")
-    expect(row(2):IsShown()).toBe(false)               -- not the bank or DE items
-    expect(forge.text(forge.findText("MASTER LOOT ITEMS", true))).toBe("MASTER LOOT ITEMS  (1 OPEN)")
+    -- The open items have their own section under the loot.
+    expect(forge.text("RaidLedgerItemRow1")).toBe("OPEN ITEMS (1)")
+    expect(forge.text("RaidLedgerItemRow2")).toBe(CREST)
+    expect(status(2)).toBe("with Bob")
+    expect(row(3):IsShown()).toBe(false)               -- not the bank or DE items
+    expect(heading()).toBe("LOOT (0)  |  1 OPEN")
     expect(forge.findText("Open the master loot window", true)).toBeFalsy()
 end)
 
@@ -50,63 +53,63 @@ test("an item kept by the master looter without a roll is open too, after the lo
     forge.advance(0.1)
     expect(db().history[1].state).toBe("held")
     forge.openLoot({ { id = 20514 } })                 -- new loot comes first
-    expect(forge.text("RaidLedgerRow1")).toBe(BOOTS)
-    expect(forge.text("RaidLedgerRow2")).toBe(CREST)
-    expect(forge.text("RaidLedgerRow3")).toBe(RING)
-    expect(forge.text(row(3).holder)).toBe("with Tester")
-    expect(forge.text(row(3).count)).toBe("OPEN")
-    forge.click("RaidLedgerRow1")
+    expect(forge.text("RaidLedgerItemRow1")).toBe(BOOTS)
+    expect(forge.text("RaidLedgerItemRow2")).toBe("OPEN ITEMS (2)")
+    expect(forge.text("RaidLedgerItemRow3")).toBe(CREST)
+    expect(forge.text("RaidLedgerItemRow4")).toBe(RING)
+    expect(status(4)).toBe("with Tester")
+    forge.click("RaidLedgerItemRow1")
     forge.click("RaidLedgerDisenchant")
     forge.advance(0.1)
     forge.closeLoot()
-    expect(forge.text("RaidLedgerRow1")).toBe(CREST)
+    expect(forge.text("RaidLedgerItemRow2")).toBe(CREST)
 end)
 
-test("clicking an open item selects its award: ROLL, and the list stays", function()
-    forge.click("RaidLedgerRow1")
-    expect(forge.findText("ROLL")).toBeTruthy()
-    expect(forge.text(forge.frame("RaidLedgerRecipient"))).toBe("Bob")
-    expect(forge.text(forge.findText("MASTER LOOT ITEMS", true))).toBe("MASTER LOOT ITEMS  (2 OPEN)")
-    expect(forge.text("RaidLedgerRow1")).toBe(CREST)
+test("clicking an open item selects it: ROLL starts its roll, the list stays", function()
+    forge.click("RaidLedgerItemRow2")
+    expect(forge.text("RaidLedgerItem")).toBe(CREST)
+    expect(forge.text("RaidLedgerRollDetail")).toContain("Bob holds it")
+    expect(forge.frame("RaidLedgerStart"):IsEnabled()).toBeTruthy()
+    expect(forge.frame("RaidLedgerAward"):IsEnabled()).toBeFalsy()   -- an open item is rolled first
+    expect(heading()).toBe("LOOT (0)  |  2 OPEN")
 end)
 
 test("a later roll lists the item once, as a roll; the award ends its OPEN row", function()
-    forge.click("RaidLedgerPark")                       -- reads ROLL
-    expect(forge.text("RaidLedgerRow1")).toBe(CREST)
-    expect(forge.text(row(1).count)).toBe("0 ROLLS")
-    expect(forge.text(row(1).holder)).toBe("")         -- a roll row has no holder column
-    expect(forge.text("RaidLedgerRow2")).toBe(RING)
-    expect(forge.text(row(2).count)).toBe("OPEN")
-    expect(row(3):IsShown()).toBe(false)
+    forge.click("RaidLedgerStart")
+    expect(forge.text("RaidLedgerItemRow1")).toBe(CREST)
+    expect(status(1)).toBe("30s LEFT")
+    expect(forge.text("RaidLedgerItemRow2")).toBe("OPEN ITEMS (1)")
+    expect(forge.text("RaidLedgerItemRow3")).toBe(RING)
+    expect(row(4):IsShown()).toBe(false)
     forge.roll("Alice", 80)
     forge.advance(31, 0.25)
+    expect(forge.text("RaidLedgerRecipient")).toBe("Alice")
     forge.clickText("RECORD AWARD")
     forge.advance(0.1)
-    expect(forge.text("RaidLedgerRow1")).toBe(RING)
-    expect(forge.text(forge.findText("MASTER LOOT ITEMS", true))).toBe("MASTER LOOT ITEMS  (1 OPEN)")
+    expect(forge.text("RaidLedgerItemRow2")).toBe(RING)
+    expect(heading()).toBe("LOOT (0)  |  1 OPEN")
     expect(#forge.errors()).toBe(0)
 end)
 
-test("many open items leave room for the selected roll's log", function()
+test("many open items and a long roll both stay readable", function()
     local drops = {}
     for id = 30001, 30007 do table.insert(drops, { id = id }) end
     forge.openLoot(drops)
     for _ = 1, 7 do
-        forge.click("RaidLedgerRow1")
+        forge.click("RaidLedgerItemRow1")
         forge.click("RaidLedgerPark")
         forge.advance(0.1)
     end
     forge.closeLoot()
-    expect(forge.findText("MASTER LOOT ITEMS  (8 OPEN)")).toBeTruthy()
-    expect(forge.frame("RaidLedgerRow8"):IsShown()).toBe(true)   -- eight open rows fit while nothing rolls
+    expect(heading()).toBe("LOOT (0)  |  8 OPEN")
+    expect(row(9):IsShown()).toBe(true)                -- the heading and all eight open items
     forge.openLoot({ { id = 20514 } })
+    forge.click("RaidLedgerItemRow1")
     forge.slash("/ledger start")
     for _, name in ipairs({ "Alice", "Bob", "Cara", "Tester" }) do forge.roll(name, 50) end
     forge.advance(1, 0.25)
-    expect(forge.text("RaidLedgerRow1")).toBe(BOOTS)
-    expect(forge.text(forge.frame("RaidLedgerRow5").count)).toBe("OPEN")
-    expect(forge.text("RaidLedgerRow6")).toBe("ROLLS")             -- 4 open rows, then all four rolls
-    expect(forge.text("RaidLedgerRow10")).toContain("Alice")
-    expect(forge.findText("MASTER LOOT ITEMS  (8 OPEN)")).toBeTruthy()
+    expect(forge.text("RaidLedgerItemRow1")).toBe(BOOTS)
+    expect(row(10):IsShown()).toBe(true)               -- the open items stay listed during the roll
+    for i = 1, 4 do expect(forge.frame("RaidLedgerRollLine" .. i):IsShown()).toBe(true) end
     expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
 end)

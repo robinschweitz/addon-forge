@@ -29,7 +29,7 @@
     },
     {
       "type": "click",
-      "value": "RaidLedgerRoll1"
+      "value": "RaidLedgerItemRow2"
     },
     {
       "type": "wait",
@@ -62,36 +62,36 @@
     {
       "type": "frame_text_contains",
       "frame": "RaidLedgerRollHeading",
-      "value": "BEUTE DES PLÜNDERMEISTERS  (1 OFFEN)"
+      "value": "BEUTE (0)  |  1 OFFEN"
     },
     {
       "type": "frame_text_contains",
-      "frame": "RaidLedgerRoll1",
+      "frame": "RaidLedgerItemRow2",
       "value": "|Hitem:"
     },
     {
       "type": "frame_text_contains",
-      "frame": "RaidLedgerRoll1Count",
-      "value": "OFFEN"
+      "frame": "RaidLedgerItemRow1",
+      "value": "OFFENE ITEMS (1)"
     },
     {
       "type": "frame_text_contains",
-      "frame": "RaidLedgerRoll1Holder",
+      "frame": "RaidLedgerItemRow2Status",
       "value": "bei Test"
     },
     {
       "type": "frame_visible",
-      "value": "RaidLedgerRoll1"
+      "value": "RaidLedgerItemRow2"
     },
     {
       "type": "frame_text_contains",
-      "frame": "RaidLedgerParkText",
+      "frame": "RaidLedgerStart",
       "value": "WÜRFELN"
     },
     {
       "type": "frame_text_contains",
       "frame": "RaidLedgerRollDetail",
-      "value": "JETZT: Test (OFFEN)"
+      "value": "Test verwahrt es bis zum Auswürfeln"
     },
     {
       "type": "no_lua_errors",

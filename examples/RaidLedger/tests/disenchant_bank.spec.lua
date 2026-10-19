@@ -26,7 +26,7 @@ test("DE hands the item to the enchanter named in the box; it counts for nobody"
     forge.slash("/ledger start")
     forge.roll("Alice", 40)             -- someone rolled, but the raid lead disenchants it
     forge.advance(31, 0.25)
-    forge.clickText("Bob")
+    forge.type("RaidLedgerRecipient", "Bob")
     forge.click("RaidLedgerDisenchant")
     expect(forge.awards()[1].candidate).toBe("Bob")
     local record = db().history[1]
@@ -36,11 +36,13 @@ test("DE hands the item to the enchanter named in the box; it counts for nobody"
     forge.advance(0.1)
     expect(record.confirmed).toBe(true)
     expect(raidSaid("[Loot] " .. CREST .. " will be disenchanted (Bob).")).toBe(true)
+    forge.click("RaidLedgerTabButtonAwards")
     expect(forge.findText("DISENCHANT")).toBeTruthy()
+    forge.click("RaidLedgerTabButtonLoot")
 end)
 
 test("BANK without a name keeps the item with the master looter for the guild bank", function()
-    forge.click("RaidLedgerRow1")
+    forge.click("RaidLedgerItemRow1")
     forge.click("RaidLedgerBank")
     forge.advance(0.1)
     local record = db().history[1]
@@ -51,7 +53,7 @@ test("BANK without a name keeps the item with the master looter for the guild ba
 end)
 
 test("neither counts in a tally; a normal award still does", function()
-    forge.click("RaidLedgerRow1")
+    forge.click("RaidLedgerItemRow1")
     forge.slash("/ledger start")
     forge.roll("Bob", 70)
     forge.advance(31, 0.25)
@@ -67,8 +69,9 @@ test("neither counts in a tally; a normal award still does", function()
 end)
 
 test("an existing award can be turned into DE; the export keeps the state", function()
+    forge.click("RaidLedgerTabButtonAwards")
     forge.click(forge.findText("#3  ", true))          -- Bob's tome
-    forge.click("RaidLedgerDisenchant")
+    forge.click("RaidLedgerAwardDE")
     local record = db().history[1]
     expect(record.state).toBe("disenchanted")
     expect(record.spec).toBeNil()

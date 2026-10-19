@@ -44,6 +44,10 @@
     },
     {
       "type": "click",
+      "value": "RaidLedgerTabawards"
+    },
+    {
+      "type": "click",
       "value": "RaidLedgerHistory1"
     },
     {
@@ -53,13 +57,13 @@
     {
       "type": "paste",
       "value": [
-        "RaidLedgerRecipient",
+        "RaidLedgerAwardRecipient",
         "Cara"
       ]
     },
     {
       "type": "click",
-      "value": "RaidLedgerAward"
+      "value": "RaidLedgerChangeRecipient"
     },
     {
       "type": "wait",
@@ -121,8 +125,8 @@
     },
     {
       "type": "frame_text_contains",
-      "frame": "RaidLedgerHistory1",
-      "value": "->  Cara"
+      "frame": "RaidLedgerHistory1Recipient",
+      "value": "Cara"
     },
     {
       "type": "no_lua_errors",

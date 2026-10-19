@@ -33,7 +33,7 @@ test("PARK hands loot to a raider to hold until it is rolled", function()
     forge.raid({ "Tester", "Alice", "Bob", "Cara" })
     forge.masterLoot({ "Tester", "Alice", "Bob", "Cara" })
     forge.openLoot({ { id = 20513 }, { id = 21281 } })
-    forge.clickText("Bob")
+    forge.type("RaidLedgerRecipient", "Bob")
     forge.click("RaidLedgerPark")
     expect(forge.awards()[1].candidate).toBe("Bob")
     local record = db().history[1]
@@ -43,12 +43,12 @@ test("PARK hands loot to a raider to hold until it is rolled", function()
     forge.advance(0.1)
     expect(record.confirmed).toBe(true)
     expect(raidSaid("[Loot] " .. CREST .. " is parked with Bob until it is rolled.")).toBe(true)
-    expect(forge.findText("OPEN")).toBeTruthy()
+    expect(forge.findText("LOOT (1)  |  1 OPEN")).toBeTruthy()
 end)
 
 test("PARK without a name keeps the item with the master looter", function()
-    expect(forge.text("RaidLedgerRow1")).toBe(TOME)
-    forge.click("RaidLedgerRow1")
+    expect(forge.text("RaidLedgerItemRow1")).toBe(TOME)
+    forge.click("RaidLedgerItemRow1")
     forge.click("RaidLedgerPark")
     forge.advance(0.1)
     local record = db().history[1]
@@ -63,10 +63,11 @@ test("parked items do not count in anyone's tally", function()
 end)
 
 test("an open award reads ROLL, and its roll runs like any other", function()
+    forge.click("RaidLedgerTabButtonAwards")
     forge.click(forge.findText("#1  ", true))           -- the crest, parked with Bob
-    expect(forge.findText("ROLL")).toBeTruthy()
-    forge.click("RaidLedgerPark")
-    expect(forge.findText("MASTER LOOT ITEMS  (1 OPEN)")).toBeTruthy()    -- the tome is still open
+    expect(forge.text("RaidLedgerAwardPark")).toBe("ROLL")
+    forge.click("RaidLedgerAwardPark")
+    expect(forge.findText("LOOT (1)  |  1 OPEN")).toBeTruthy()    -- the roll shows in BEUTE; the tome is still open
     expect(raidSaid("[Loot] " .. CREST .. " - /rnd now! 30 seconds. /rnd 100 main spec (enhanced: 1+X to 100+X, X up to 50), /rnd 99 off spec.")).toBe(true)
     forge.advance(3, 0.25)               -- the list queues behind award messages
     expect(lastOpenList()).toBe("20513:r:a1:")
@@ -94,8 +95,9 @@ test("a later roll on an item another raider holds goes to the winner, from the 
 end)
 
 test("a later roll on an item the master looter holds waits for the trade to the winner", function()
+    forge.click("RaidLedgerTabButtonAwards")
     forge.click(forge.findText("#2  ", true))           -- the tome, kept by Tester
-    forge.click("RaidLedgerPark")
+    forge.click("RaidLedgerAwardPark")
     forge.roll("Alice", 70, 1, 99)
     forge.advance(31, 0.25)
     forge.clickText("RECORD AWARD")
@@ -118,6 +120,7 @@ test("an item kept without a roll is open, and trading it parks it with the part
     forge.closeLoot()
     local record = db().history[1]
     expect(record.state).toBe("held")
+    forge.click("RaidLedgerTabButtonAwards")
     expect(forge.findText("OPEN")).toBeTruthy()
     forge.trade("Dora", { BOOTS })
     expect(record.recipient).toBe("Dora")
@@ -127,9 +130,9 @@ end)
 
 test("a recorded award can be marked as parked with its holder", function()
     forge.click(forge.findText("#2  ", true))           -- the tome, given to Alice
-    expect(forge.findText("PARK")).toBeTruthy()
-    forge.clickText("Bob")
-    forge.click("RaidLedgerPark")
+    expect(forge.text("RaidLedgerAwardPark")).toBe("PARK")
+    forge.type("RaidLedgerAwardRecipient", "Bob")
+    forge.click("RaidLedgerAwardPark")
     local record = db().history[2]
     expect(record.state).toBe("parked")
     expect(record.recipient).toBe("Bob")
@@ -139,6 +142,7 @@ test("a recorded award can be marked as parked with its holder", function()
 end)
 
 test("open corpse items are shared with their roll status", function()
+    forge.click("RaidLedgerTabButtonLoot")
     forge.openLoot({ { id = 20513 }, { id = 20514 } })
     forge.advance(3, 0.25)               -- the list queues behind award messages
     expect(lastOpenList()).toBe("20514:o:c:,20513:o:c:")

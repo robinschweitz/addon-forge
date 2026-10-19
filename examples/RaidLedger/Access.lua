@@ -73,23 +73,14 @@ end
 ---------------------------------------------------------------------------
 -- Settings panel
 ---------------------------------------------------------------------------
-local panel = CreateFrame("Frame", "RaidLedgerSettings", Ledger)
-panel:SetPoint("TOPLEFT", Ledger, "TOPLEFT", 16, -48)
-panel:SetWidth(568)
-panel:SetHeight(332)
+local panel = CreateFrame("Frame", "RaidLedgerSettings")
 ns.makeBackdrop(panel, 0.035, 0.070, 0.105, 0.97)
-panel:Hide()
-ns.addOverlay(panel)
-
-local settingsButton = ns.flatButton(Ledger, L["SETTINGS"], 96, "RaidLedgerSettingsButton")
-settingsButton:SetPoint("RIGHT", _G.RaidLedgerRaidButton or ns.headerButton, "LEFT", -8, 0)
+local settingsButton   -- the tab's button, once refresh exists
 
 local heading = ns.label(panel, "GameFontNormal", 11, {1.00, 0.80, 0.32})
 heading:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -11)
 heading:SetText(L["SETTINGS"])
 
-local backButton = ns.flatButton(panel, L["BACK"], 70)
-backButton:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -6)
 
 local editorHeading = ns.label(panel, "GameFontNormal", 10, {0.54, 0.88, 1.00})
 editorHeading:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -38)
@@ -142,7 +133,7 @@ usersHeading:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -166)
 
 local checkButton = ns.flatButton(panel, L["CHECK"], 70)
 checkButton:SetHeight(18)
-checkButton:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -162)
+checkButton:SetPoint("LEFT", usersHeading, "RIGHT", 12, 0)
 
 local cells = {}
 for column = 1, COLUMNS do
@@ -162,6 +153,77 @@ legend:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 12, 12)
 legend:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -12, 12)
 legend:SetJustifyH("LEFT")
 legend:SetText(L["Green: RaidLedger (version)  |  blue: RaidWishlist only  |  grey: no addon  |  gold: editor"])
+
+-- Options (everything that was a chat command only): roll lengths, the
+-- minimap button, the window position, a sync of the awards.
+local OPTIONS_X = 574
+local optionsHeading = ns.label(panel, "GameFontNormal", 10, {0.54, 0.88, 1.00})
+optionsHeading:SetPoint("TOPLEFT", panel, "TOPLEFT", OPTIONS_X, -38)
+optionsHeading:SetText(L["ROLLS"])
+
+local function secondsBox(name, caption, y)
+    local text = ns.label(panel, "GameFontNormalSmall", 10, {0.75, 0.85, 0.92})
+    text:SetPoint("TOPLEFT", panel, "TOPLEFT", OPTIONS_X, y - 5)
+    text:SetText(caption)
+    local box = CreateFrame("EditBox", name, panel, "InputBoxTemplate")
+    box:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, y)
+    box:SetWidth(40)
+    box:SetHeight(22)
+    box:SetAutoFocus(false)
+    box:SetNumeric(true)
+    box:SetMaxLetters(3)
+    return box
+end
+local rollBox = secondsBox("RaidLedgerRollSeconds", L["Roll (s)"], -56)
+local tieBox = secondsBox("RaidLedgerTieSeconds", L["Tie-break (s)"], -82)
+local timerButton = ns.flatButton(panel, L["APPLY"], 136, "RaidLedgerApplyTimers")
+timerButton:SetHeight(20)
+timerButton:SetPoint("TOPLEFT", panel, "TOPLEFT", OPTIONS_X, -108)
+
+local miscHeading = ns.label(panel, "GameFontNormal", 10, {0.54, 0.88, 1.00})
+miscHeading:SetPoint("TOPLEFT", panel, "TOPLEFT", OPTIONS_X, -166)
+miscHeading:SetText(L["WINDOW"])
+local minimapButton = ns.flatButton(panel, L["MINIMAP: ON"], 136, "RaidLedgerMinimapToggle")
+minimapButton:SetHeight(20)
+minimapButton:SetPoint("TOPLEFT", panel, "TOPLEFT", OPTIONS_X, -184)
+local centerButton = ns.flatButton(panel, L["CENTER WINDOW"], 136)
+centerButton:SetHeight(20)
+centerButton:SetPoint("TOPLEFT", panel, "TOPLEFT", OPTIONS_X, -208)
+local syncButton = ns.flatButton(panel, L["SYNC AWARDS"], 136, "RaidLedgerSync")
+syncButton:SetHeight(20)
+syncButton:SetPoint("TOPLEFT", panel, "TOPLEFT", OPTIONS_X, -232)
+
+function ns.refreshOptions()
+    if not rollBox:HasFocus() then rollBox:SetText(tostring(ns.core.rollSeconds())) end
+    if not tieBox:HasFocus() then tieBox:SetText(tostring(ns.core.tieSeconds())) end
+    minimapButton:SetText(ns.ensureDatabase().minimapHidden and L["MINIMAP: OFF"] or L["MINIMAP: ON"])
+end
+
+timerButton:SetScript("OnClick", function()
+    local roll, tie = tonumber(rollBox:GetText()), tonumber(tieBox:GetText())
+    rollBox:ClearFocus()
+    tieBox:ClearFocus()
+    if ns.core.roster.setTimers(roll, tie) then
+        ns.say(string.format(L["roll timer: %d seconds, tie-break: %d seconds."], ns.core.rollSeconds(), ns.core.tieSeconds()))
+    else
+        local limits, tieLimits = ns.core.ROLL_LIMITS, ns.core.TIE_LIMITS
+        ns.say(string.format(L["usage: /ledger timer [seconds] [tie-break seconds] (roll %d-%d, tie-break %d-%d), or /ledger timer reset"],
+            limits[1], limits[2], tieLimits[1], tieLimits[2]))
+    end
+    ns.refreshOptions()
+end)
+minimapButton:SetScript("OnClick", function()
+    ns.commands.minimap(ns.ensureDatabase().minimapHidden and "on" or "off")
+    ns.refreshOptions()
+end)
+centerButton:SetScript("OnClick", function() ns.ui.resetPosition() end)
+syncButton:SetScript("OnClick", function() ns.core.sync() end)
+ns.tip(rollBox, L["How long a roll runs; reminders come at half and a quarter of it"])
+ns.tip(tieBox, L["How long a tie-break runs"])
+ns.tip(timerButton, L["Use these lengths for the next rolls (a running roll keeps its time)"])
+ns.tip(minimapButton, L["Show or hide the minimap button"])
+ns.tip(centerButton, L["Move this window back to the middle of the screen"])
+ns.tip(syncButton, L["Ask the group's other ledgers for this raid's awards (e.g. after a crash)"])
 
 local function userOf(name)
     if ns.isPlayer(name) then return { name = name, ledger = VERSION, editor = ns.mayEdit() } end
@@ -222,11 +284,10 @@ local function refresh()
     usersHeading:SetText(string.format(L["ADDON IN THE GROUP (%d/%d)"], withAddon, table.getn(members)))
 end
 ns.refreshSettings = function() if panel:IsShown() then refresh() end end
+settingsButton = ns.addTab("settings", L["SETTINGS"], panel, function() refresh() ns.refreshOptions() end,
+    "RaidLedgerSettingsButton").button
 
-local function showSettings(show)
-    ns.showOverlay(show and panel or nil)
-    if show then refresh() end
-end
+local function showSettings() ns.ui.show("settings") end
 
 -- changeEditors adds or removes a name; only editors may change a list (an
 -- empty one: anybody, who then becomes an editor too).
@@ -254,7 +315,7 @@ local function changeEditors(name, add)
     shareEditors()
     ns.say(string.format(L["editors: %s"], editorText()))
     refresh()
-    ns.refreshLedger()
+    ns.ui.refresh()
     return true
 end
 
@@ -275,7 +336,7 @@ local function acceptEditors(f, sender)
     db.editors, db.editorsAt = names, at
     ns.say(string.format(L["%s shared the editors: %s"], sender, editorText()))
     refresh()
-    ns.refreshLedger()
+    ns.ui.refresh()
 end
 
 -- onMessage handles hellos and editor lists; true when the message is done.
@@ -351,14 +412,11 @@ end
 checkButton:SetScript("OnClick", function()
     if ns.groupChannel() then sayHello(true) else ns.say(L["not in a group."]) end
 end)
-settingsButton:SetScript("OnClick", function() showSettings(not panel:IsShown()) end)
-backButton:SetScript("OnClick", function() showSettings(false) end)
 
 ns.tip(settingsButton, L["Editors and who in the group runs RaidLedger or RaidWishlist"])
 ns.tip(addButton, L["Add the name in the box as an editor (the first one also adds you)"])
 ns.tip(targetButton, L["Add your target as an editor"])
 ns.tip(checkButton, L["Ask the group again which addons they run"])
-ns.tip(backButton, L["Back to the loot"])
 for _, button in ipairs(editorButtons) do ns.tip(button, L["Click: no longer an editor"]) end
 ns.tip(nameBox, L["Name of a new editor; Enter adds it"])
 

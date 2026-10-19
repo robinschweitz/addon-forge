@@ -112,7 +112,7 @@ test("attendance lists everyone seen in the raid, also those who left", function
     expect(forge.findText("Attendance selected: press Ctrl+C and paste it into the raid website's roster import.")).toBeTruthy()
 end)
 
-test("a list for another raid starts a new attendance; BACK returns to the panes", function()
+test("a list for another raid starts a new attendance; the loot tab is one click away", function()
     forge.type("RaidLedgerInviteText", "RS2;INV;43;Naxx;10\nTank;TANK;Krieger;0")
     forge.clickText("READ")
     forge.raid({ { name = "Tester", classToken = "PALADIN" } })
@@ -120,9 +120,9 @@ test("a list for another raid starts a new attendance; BACK returns to the panes
     local text = forge.text("RaidLedgerRosterText")
     expect(string.match(text, "^RS2;ROSTER;43;")).toBeTruthy()
     expect(string.find(text, "Latejoin", 1, true)).toBeNil()
-    forge.clickText("BACK")
+    forge.click("RaidLedgerTabButtonLoot")
     expect("RaidLedgerRaidPanel").toBeHidden()
-    expect(forge.findText("MASTER LOOT ITEMS")).toBeTruthy()
+    expect(forge.findText("LOOT (0)")).toBeTruthy()
 end)
 
 test("only the raid lead or an assistant can invite or sort", function()

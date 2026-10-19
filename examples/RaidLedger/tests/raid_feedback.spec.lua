@@ -35,7 +35,7 @@ end
 -- pick selects the loot row that shows `link`.
 local function pick(link)
     for i = 1, 10 do
-        local row = forge.frame("RaidLedgerRow" .. i)
+        local row = forge.frame("RaidLedgerItemRow" .. i)
         if row and row:IsShown() and forge.text(row) == link then return forge.click(row) end
     end
     error("no loot row shows " .. link)
@@ -71,7 +71,9 @@ test("a shared award of an item this client has not seen gets its link once the 
     forge.slash("/ledger")   -- show: the history refreshes
     if not RaidLedgerFrame:IsShown() then forge.slash("/ledger") end
     expect(record.item).toBe(BELT)
-    expect(forge.findText("|  " .. BELT .. "  ->  Cara", true)).toBeTruthy()
+    forge.click("RaidLedgerTabButtonAwards")
+    expect(forge.findText("#6  12:05  " .. BELT)).toBeTruthy()
+    forge.click("RaidLedgerTabButtonLoot")
 end)
 
 test("an item won but not handed out yet counts in the next roll's 'so far'", function()

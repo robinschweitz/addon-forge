@@ -146,7 +146,7 @@
     },
     {
       "type": "frame_text_contains",
-      "frame": "RaidLedgerMember1",
+      "frame": "RaidLedgerPickerCell1",
       "value": "Test"
     },
     {

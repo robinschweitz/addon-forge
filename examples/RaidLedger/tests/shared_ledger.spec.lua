@@ -102,7 +102,10 @@ test("an empty ledger follows the master looter's raid and shows its awards", fu
     expect(record.npc).toBe(15209)
     expect(record.rollLog[1].kind).toBe("os")
     expect(record.rollLog[2].note).toBe("1-1000")
-    expect(forge.findText("#5  12:01  |  " .. TOME .. "  ->  Bob  (2 rolls)")).toBeTruthy()
+    forge.click("RaidLedgerTabButtonAwards")
+    expect(forge.findText("#5  12:01  " .. TOME)).toBeTruthy()
+    expect(forge.text(forge.frame("RaidLedgerAwardLine1").columns[2])).toBe("Bob")
+    forge.click("RaidLedgerTabButtonLoot")
 end)
 
 test("older revisions are ignored, newer ones update", function()

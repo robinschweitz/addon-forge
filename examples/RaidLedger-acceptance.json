@@ -54,6 +54,10 @@
     },
     {
       "type": "click",
+      "value": "RaidLedgerTabawards"
+    },
+    {
+      "type": "click",
       "value": "RaidLedgerHistory1"
     },
     {
@@ -123,8 +127,8 @@
     },
     {
       "type": "frame_text_contains",
-      "frame": "RaidLedgerHistory1",
-      "value": "Test  (1 Würfe)"
+      "frame": "RaidLedgerHistory1Recipient",
+      "value": "Test"
     },
     {
       "type": "frame_text_contains",

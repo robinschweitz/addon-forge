@@ -1,6 +1,6 @@
 -- A real raid has 25 members with names up to 12 letters, not the two-player
--- test party. The four member buttons show the selected item's valid rollers
--- (winner first), then the roster; ALLE opens every member by raid group.
+-- test party. The roll list ranks the selected item's rollers (winner first,
+-- with what each has so far); ALLE opens every member by raid group.
 -- Saves drawings (.forge-runs/sketches) to review how the window looks.
 local NAMES = {
     "Test", "Schattenherz", "Morgenröte", "Eisenfaust", "Lichtbringer", "Donnerhuf", "Nachtfalke",
@@ -27,10 +27,9 @@ before_load(function()
     end
 end)
 
-local function memberButton(i) return forge.frame("RaidLedgerMember" .. i) end
-local function buttonName(i) return memberButton(i):GetText() end
+local function rollLine(i) return forge.frame("RaidLedgerRollLine" .. i) end
 
-test("before anyone rolls, the member buttons show the raid in roster order", function()
+test("before anyone rolls, ALLE counts the whole raid", function()
     local members = {}
     for i, name in ipairs(NAMES) do
         members[i] = { name = name, subgroup = math.ceil(i / 5), classToken = CLASSES[(i - 1) % 10 + 1] }
@@ -39,25 +38,24 @@ test("before anyone rolls, the member buttons show the raid in roster order", fu
     forge.masterLoot(NAMES)
     forge.openLoot({ { id = 45509 } })
     if not RaidLedgerFrame:IsShown() then forge.slash("/ledger") end
-    for i = 1, 4 do expect(buttonName(i)).toBe(NAMES[i]) end
     expect(forge.text("RaidLedgerAllMembers")).toBe("ALLE (25)")
+    expect(rollLine(1):IsShown()).toBe(false)
 end)
 
-test("valid rollers come first, ranked like the roll (winner first)", function()
+test("the rolls are ranked like the roll (winner first); invalid ones last, grey", function()
     forge.slash("/ledger start")
     forge.roll(NAMES[12], 88)
     forge.roll(NAMES[17], 61, 21, 120)                                  -- enhanced main spec
     forge.roll(NAMES[22], 99, 1, 99)                                    -- off spec ranks after main spec
-    forge.roll(NAMES[9], 300, 1, 1000)                                  -- invalid: not a roller
+    forge.roll(NAMES[9], 300, 1, 1000)                                  -- invalid: listed with the reason
     forge.advance(5, 0.25)
-    expect(buttonName(1)).toBe(NAMES[12])
-    expect(buttonName(2)).toBe(NAMES[17])
-    expect(buttonName(3)).toBe(NAMES[22])
-    expect(buttonName(4)).toBe(NAMES[1])                                -- then the roster
-    expect(forge.text(memberButton(1).roll)).toBe("88")
-    expect(forge.text(memberButton(3).roll)).toBe("99")
-    expect(forge.text(memberButton(4).roll)).toBe("")
-    forge.click(memberButton(2))
+    expect(forge.text(rollLine(1))).toBe(NAMES[12] .. "  MS")
+    expect(forge.text(rollLine(2))).toBe(NAMES[17] .. "  MS 21-120")
+    expect(forge.text(rollLine(3))).toBe(NAMES[22] .. "  OS")
+    expect(forge.text(rollLine(4))).toContain(NAMES[9] .. "  - ignoriert: 1-1000")
+    expect(forge.text(rollLine(1).columns[1])).toBe("88")
+    expect(forge.text(rollLine(3).columns[1])).toBe("99")
+    forge.click(rollLine(2))
     expect(forge.text(forge.frame("RaidLedgerRecipient"))).toBe(NAMES[17])
     forge.sketch("full-raid-roll", "RaidLedgerFrame")
     expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
@@ -74,9 +72,9 @@ test("ALLE shows every member in five raid-group columns; a click picks the reci
     expect(forge.rect(forge.findText(NAMES[11])).left).toBe(forge.rect(forge.findText(NAMES[15])).left)
     expect(forge.rect(forge.findText(NAMES[11])).left > forge.rect(forge.findText(NAMES[6])).left).toBe(true)
     expect(forge.layoutIssues("RaidLedgerMembers")).toEqual({})
-    -- It leaves ALLE (to close it) and the member buttons uncovered, inside the window.
+    -- It leaves ALLE (to close it) and the recipient box uncovered, inside the window.
     local pane, window = forge.rect("RaidLedgerMembers"), forge.rect("RaidLedgerFrame")
-    expect(pane.top <= forge.rect("RaidLedgerMember4").bottom).toBe(true)
+    expect(pane.bottom >= forge.rect("RaidLedgerAllMembers").top).toBe(true)
     expect(pane.bottom >= window.bottom + 2).toBe(true)
     expect(pane.left >= window.left + 2).toBe(true)
     forge.sketch("full-raid-members", "RaidLedgerFrame")
@@ -100,20 +98,21 @@ test("open items parked with raiders stay in the loot list, under the running ro
         forge.click("RaidLedgerPark")
         forge.advance(0.1)
     end
-    expect(forge.findText("BEUTE DES PLÜNDERMEISTERS  (3 OFFEN)")).toBeTruthy()
+    expect(forge.findText("BEUTE (2)  |  3 OFFEN")).toBeTruthy()
     -- The corpse's loot first (the running roll, then the last drop), then the open items.
+    expect(forge.text("RaidLedgerItemRow3")).toBe("OFFENE ITEMS (3)")
     local open = 0
-    for i = 1, 10 do
-        local row = forge.frame("RaidLedgerRow" .. i)
-        if row:IsShown() and forge.text(row.count) == "OFFEN" then open = open + 1 end
+    for i = 4, 6 do
+        local text = forge.text(forge.frame("RaidLedgerItemRow" .. i).columns[1])
+        if string.sub(text, 1, 4) == "bei " then open = open + 1 end
     end
     expect(open).toBe(3)
-    expect(forge.text("RaidLedgerRow3")).toContain("Schulterschutz")
-    expect(forge.text(forge.frame("RaidLedgerRow3").holder)).toBe("bei " .. NAMES[2])
-    -- With shared wishlists each row also counts its wishes: WL, holder and OFFEN share the row.
+    expect(forge.text("RaidLedgerItemRow4")).toContain("Schulterschutz")
+    expect(forge.text(forge.frame("RaidLedgerItemRow4").columns[1])).toBe("bei " .. NAMES[2])
+    -- With shared wishlists each row also counts its wishes.
     forge.fire("CHAT_MSG_ADDON", "FLLedger", "W;1792130000;1;1;45510:m:0:1,45512:o:0:2,45509:m:1:1", "RAID", NAMES[7])
-    expect(forge.text(forge.frame("RaidLedgerRow3").wish)).toBe("WL 1")
-    -- The running roll selected: its rolls show under the items.
+    expect(forge.text(forge.frame("RaidLedgerItemRow4").columns[2])).toBe("WL 1")
+    -- The running roll selected: its rolls show beside the items.
     forge.clickText("|cffa335ee|Hitem:45509:0:0:0:0:0:0:0:80|h[Armschienen des Unsagbaren]|h|r")
     expect(forge.findText(NAMES[12], true)).toBeTruthy()
     forge.sketch("full-raid-open", "RaidLedgerFrame")
