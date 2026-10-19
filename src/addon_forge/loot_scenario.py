@@ -233,7 +233,7 @@ def _stop(proc, release: Path) -> None:
 
 PLAN = {"fixture": "master_loot", "changes": [
     "Creates one temporary AzerothGhost bot and a temporary party with the graphical test character",
-    "Revives the graphical test character (and the member character) first if they are dead",
+    "Revives the graphical test character (and the member character) first if they are dead, and again after the kill (the creature can hit them before it dies)",
     "Spawns, kills and cleans up the fixed Crimson Templar loot fixture",
     "Designates the graphical character as master looter for Abyssal Crest (item 20513)",
     "Keeps the real master-loot window open while the plan's bridge suite runs",

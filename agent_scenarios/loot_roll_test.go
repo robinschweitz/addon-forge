@@ -26,10 +26,13 @@ func TestLootRollFixture(t *testing.T) {
 	// A dead test character cannot loot (run of 2026-10-20: it had died to a
 	// leftover fixture creature, and the plan failed at "loot did not open").
 	// .revive leaves a living character as it is.
-	bot.GM(t, ".revive "+target)
-	if member := os.Getenv("FORGE_MEMBER_CHARACTER"); member != "" && safeName.MatchString(member) {
-		bot.GM(t, ".revive "+member)
+	revive := func() {
+		bot.GM(t, ".revive "+target)
+		if member := os.Getenv("FORGE_MEMBER_CHARACTER"); member != "" && safeName.MatchString(member) {
+			bot.GM(t, ".revive "+member)
+		}
 	}
+	revive()
 	bot.GM(t, ".appear "+target)
 	if err := bot.World.GroupInvite(target); err != nil {
 		t.Fatalf("group invite: %v", err)
@@ -91,6 +94,9 @@ func TestLootRollFixture(t *testing.T) {
 	// Registered after SpawnKillLootable, so it runs before the harness's own
 	// cleanup (SQL delete, then an unconfirmed `.npc delete`).
 	t.Cleanup(func() { removeLiveCorpse(t, bot, corpse) })
+	// The creature spawns next to the level-10 test characters and can kill
+	// one before .damage lands (RaidWishlist run 905688594b78, 2026-10-20).
+	revive()
 	names := corpseNames(t, creature, os.Getenv("FORGE_CLIENT_LOCALE"))
 	if err := writeStateAtomic(ready, map[string]any{"status": "master_loot_ready", "item": item, "corpse": corpse, "names": names}); err != nil {
 		t.Fatalf("could not publish loot readiness: %v", err)

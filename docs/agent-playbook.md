@@ -166,7 +166,10 @@ Terminal tab; a run started in another window must be pasted.
 - Dead test characters cannot loot: on 2026-10-20 both characters stood at
   1 HP (dead) in Nordhaintal, killed by a leftover creature, and every plan
   failed at "loot did not open". The fixture now sends `.revive` for the
-  graphical and the member character first (a living one is left as is).
+  graphical and the member character first (a living one is left as is), and
+  again after the kill: the level-60 elite templar spawns next to the
+  level-10 characters and once killed one before `.damage` landed (run
+  `905688594b78`, the "Ihr seid gestorben" popup in `loot-open.png`).
 - Windows' foreground lock: `SetForegroundWindow` silently fails when the
   calling process does not own the foreground. In a batch of sessions the
   first client got focus, the second never did ("WoW is not the active
@@ -322,4 +325,11 @@ Terminal tab; a run started in another window must be pasted.
   passed every preview and only failed live: after a UI rework, grep the plans
   for every frame name the addon no longer registers. Tally corrections, the
   settings tab and the RAID tab are verified offline only.
+- RaidWishlist 2.0.0 (tabs WUNSCHLISTE / OFFEN / DIESER RAID, each a
+  17-row list scrolling with the mouse wheel, after the raid feedback "you
+  cannot scroll down the loot") passed four plans live on 2026-10-20: prompt
+  `08285cf4bb1a`, auto `ea94163bf914`, open `1562a0ed78df`, two-player
+  `3a5b72212252`. Scrolling itself is verified offline only
+  (`tests/scrolling.spec.lua`, 30 wishes / 25 open / 40 awards); plan `click`
+  steps cannot turn the mouse wheel. RaidLedger's tally tab is now SPIELER.
 - `projects/` is git-ignored: new addons there are local only until moved to `examples/` or their own repo.
