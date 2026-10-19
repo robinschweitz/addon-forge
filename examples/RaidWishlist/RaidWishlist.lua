@@ -3,7 +3,7 @@
 -- roll (or rolls automatically) when the raid lead's ledger starts a roll on a
 -- wishlisted item, and shows who got what this raid from the ledger's shared
 -- awards (addon messages, prefix FLLedger).
-local _, ns = ...
+local addonName, ns = ...
 local L = ns.L
 local Wishlist = CreateFrame("Frame", "RaidWishlistFrame", UIParent)
 local PREFIX = "FLLedger"
@@ -23,6 +23,7 @@ local pendingRoll           -- an automatic roll waiting for its delay
 local rolled = {}           -- rollKey:round -> true, so every roll happens once
 local syncAt
 local shareAt               -- when to send this wishlist to the group
+local helloAt               -- when to tell the ledgers this addon's version (HW)
 local WISHES_PER_MESSAGE = 15
 
 local function trim(value)
@@ -848,6 +849,9 @@ local function onAddonMessage(prefix, message, channel, sender)
         if applyOpenItems(f) then refresh() end
     elseif f[1] == "WQ" then
         shareAt = shareAt or (GetTime() + answerDelay())
+    elseif f[1] == "HQ" then
+        -- A ledger asks who runs which addon (its SETTINGS panel lists them).
+        helloAt = helloAt or (GetTime() + answerDelay())
     end
 end
 
@@ -1111,6 +1115,11 @@ ticker:SetScript("OnUpdate", function(_, elapsed)
     if shareAt and now >= shareAt then
         shareAt = nil
         shareWishlist()
+    end
+    if helloAt and now >= helloAt then
+        helloAt = nil
+        local channel = groupChannel()
+        if channel then SendAddonMessage(PREFIX, "HW;" .. (GetAddOnMetadata(addonName, "Version") or "?"), channel) end
     end
 end)
 
