@@ -159,8 +159,8 @@
     },
     {
       "type": "frame_text_contains",
-      "frame": "RaidWishlistRaid1",
-      "value": "->  Raidmember",
+      "frame": "RaidWishlistRaid1Recipient",
+      "value": "Raidmember",
       "client": "member"
     },
     {

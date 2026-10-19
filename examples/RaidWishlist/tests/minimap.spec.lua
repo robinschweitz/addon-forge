@@ -2,6 +2,15 @@
 -- a wished item opens it by itself.
 local CREST = "|cffa335ee|Hitem:20513:0:0:0:0:0:0:0:80|h[Abyssal Crest]|h|r"
 
+-- rowWith finds a shown list row (prefix RaidWishlistRaid/Open/Wish) whose
+-- item is `item` and whose `column` (e.g. "Recipient") reads `value`.
+local function rowWith(prefix, item, column, value)
+    for i = 1, 17 do
+        local row, cell = _G[prefix .. i], _G[prefix .. i .. column]
+        if row and row:IsVisible() and row:GetText() == item and cell and cell:GetText() == value then return row end
+    end
+end
+
 before_load(function()
     forge.item(20513, { name = "Abyssal Crest", link = CREST, quality = 4 })
 end)
@@ -66,7 +75,8 @@ test("a disenchanted wished item is shown as DE and is not 'received'", function
         1, "", "", "", "", "", 0, "", "21:01" }, ";"))
     forge.slash("/wish")
     if not RaidWishlistFrame:IsShown() then forge.slash("/wish") end
-    expect(forge.findText(CREST .. "  ->  Tester")).toBeTruthy()
+    forge.click("RaidWishlistTabraid")
+    expect(rowWith("RaidWishlistRaid", CREST, "Recipient", "Tester")).toBeTruthy()
     expect(forge.findText("DE")).toBeTruthy()
     local items = forge.saved("RaidWishlistDB").chars.Tester.items
     expect(items[1].received).toBeNil()

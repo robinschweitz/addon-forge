@@ -26,7 +26,7 @@ none is needed.
 | --- | --- |
 | **BEUTE** (loot) | The loot list (this corpse's drops, then the open items held until they are rolled), and the selected item: **ROLL** / **FREE BOE ROLL**, every roll with what the roller has **so far**, the recipient box, **GIVE + RECORD**, **PARK**, **DE**, **BANK** |
 | **VERGABEN** (awards) | Every award; the selected one: **COUNTS AS** main spec / off spec / nothing, change or restore its recipient, park / DE / BANK / **REMOVE**, its roll log; **EXPORT** and **NEW RAID** |
-| **ZÄHLUNG** (tally) | Every raid member with items and tokens per spec, the numbers the fewest-items rule ranks by; - / + corrections per player, and their awards |
+| **SPIELER** (players' tally) | Every raid member with items and tokens per spec, the numbers the fewest-items rule ranks by; - / + corrections per player, and their awards |
 | **RAID** | Invites, raid groups, attendance, calendar event |
 | **EINSTELLUNGEN** (settings) | Editors, who runs which addon, roll lengths, minimap button, window position, sync |
 
@@ -313,7 +313,7 @@ only drops the loot not handed out yet (`/ledger clear`).
 Select an award in VERGABEN: type (or click a roll for) the recipient and press
 **CHANGE RECIPIENT**; **COUNTS AS** moves it between the main-spec, off-spec
 and no tally; **REMOVE** asks, then marks it removed (a removed award is
-restored by setting a recipient again). In ZÄHLUNG, - / + correct a player's
+restored by setting a recipient again). In SPIELER, - / + correct a player's
 items or tokens per spec on top of the awards (e.g. loot from before the
 ledger ran): corrections count in the ranking, are shared with the group's
 ledgers, reset with a new raid and never go into the website export. The slash

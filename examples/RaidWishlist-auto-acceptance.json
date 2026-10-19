@@ -107,8 +107,8 @@
     },
     {
       "type": "frame_text_contains",
-      "frame": "RaidWishlistRaid1",
-      "value": "->  Test"
+      "frame": "RaidWishlistRaid1Recipient",
+      "value": "Test"
     },
     {
       "type": "no_lua_errors",

@@ -1,6 +1,6 @@
 -- RaidLedger window (UI feedback 2026-10-19: "cleaner, easier, everything in
 -- the UI"): one window with tabs - BEUTE (loot and rolls), VERGABEN (awards and
--- the export), ZÄHLUNG (tally and corrections), RAID (Raid.lua) and
+-- the export), SPIELER (tally and corrections), RAID (Raid.lua) and
 -- EINSTELLUNGEN (Access.lua). Each tab owns its whole height, so long lists
 -- stay readable. This file holds the window, the tabs and the shared widgets;
 -- the tabs live in their own files. The core (RaidLedger.lua) keeps all state

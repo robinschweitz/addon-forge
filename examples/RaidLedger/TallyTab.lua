@@ -1,4 +1,4 @@
--- ZÄHLUNG tab (UI feedback 2026-10-19: "see and edit the tally in the UI"):
+-- SPIELER tab (the tally) (UI feedback 2026-10-19: "see and edit the tally in the UI"):
 -- every raid member (and anyone with an award) with this raid's items and
 -- tokens per spec - what the "fewest items wins" rule ranks by. The selected
 -- player can be corrected with - / + per counter (shared with the group, not

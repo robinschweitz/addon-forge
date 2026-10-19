@@ -38,6 +38,15 @@ end
 
 local function db() return forge.saved("RaidWishlistDB") end
 
+-- rowWith finds a shown list row (prefix RaidWishlistRaid/Open/Wish) whose
+-- item is `item` and whose `column` (e.g. "Recipient") reads `value`.
+local function rowWith(prefix, item, column, value)
+    for i = 1, 17 do
+        local row, cell = _G[prefix .. i], _G[prefix .. i .. column]
+        if row and row:IsVisible() and row:GetText() == item and cell and cell:GetText() == value then return row end
+    end
+end
+
 test("the window starts hidden and /wish toggles it", function()
     expect("RaidWishlistFrame").toBeHidden()
     forge.slash("/wish")
@@ -139,11 +148,14 @@ end)
 test("the raid list shows who got what, with your tally", function()
     award(1, 1, 21281, "Alice", "given", "ms")
     award(2, 1, 20513, "Tester", "given", "ms")
+    forge.click("RaidWishlistTabraid")
     expect(forge.findText("THIS RAID (2)")).toBeTruthy()
-    expect(forge.findText(CREST .. "  ->  Tester")).toBeTruthy()
+    expect(rowWith("RaidWishlistRaid", CREST, "Recipient", "Tester")).toBeTruthy()
     expect(forge.findText("YOU: ITEMS 1 MS / 0 OS  |  TOKENS 0 MS / 0 OS")).toBeTruthy()
+    forge.click("RaidWishlistTabwish")
     expect(forge.findText("RECEIVED")).toBeTruthy()
     expect(forge.layoutIssues("RaidWishlistFrame")).toEqual({})
+    forge.click("RaidWishlistTabraid")
 end)
 
 test("received items are not rolled again", function()
@@ -162,7 +174,7 @@ end)
 
 test("corrections replace older revisions; removed awards no longer count", function()
     award(2, 1, 20513, "Bob", "manual", "ms")         -- old revision: ignored
-    expect(forge.findText(CREST .. "  ->  Tester")).toBeTruthy()
+    expect(rowWith("RaidWishlistRaid", CREST, "Recipient", "Tester")).toBeTruthy()
     award(2, 3, 20513, "Bob", "deleted", "ms")
     expect(forge.findText("YOU: ITEMS 1 MS / 0 OS  |  TOKENS 0 MS / 0 OS")).toBeTruthy()
     expect(forge.findText("REMOVED")).toBeTruthy()
@@ -210,6 +222,7 @@ end)
 
 test("hovering a wishlist row shows the item and your wishlist entry", function()
     forge.slash("/wish")
+    forge.click("RaidWishlistTabwish")      -- the window remembers the last tab
     forge.hover(forge.findText("1. " .. CREST))
     local lines = forge.tooltip()
     expect(lines[1]).toBe("item:20513:0:0:0:0:0:0:0:80")
@@ -227,6 +240,7 @@ end)
 test("tokens are tallied in their own list", function()
     forge.raid({ "Lead", "Alice" })                  -- /reload above reset the group
     receive("A;Lead-1792139999;Lead;30;1;1792140000;47242;;Tester;given;1;ms;50;1;100;Tester;1;1;22:00")
+    forge.click("RaidWishlistTabraid")
     expect(forge.findText("YOU: ITEMS 0 MS / 0 OS  |  TOKENS 1 MS / 0 OS")).toBeTruthy()
     expect(forge.findText("MS TOKEN")).toBeTruthy()
     expect(forge.layoutIssues("RaidWishlistFrame")).toEqual({})

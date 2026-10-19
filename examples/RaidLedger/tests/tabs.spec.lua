@@ -1,6 +1,6 @@
 -- The tabbed window (UI feedback 2026-10-19: "cleaner, and everything in the
 -- UI"): rolls start from BEUTE, awards are corrected in VERGABEN, the tally is
--- seen and corrected in ZÄHLUNG, and the old chat-only options live in
+-- seen and corrected in SPIELER, and the old chat-only options live in
 -- EINSTELLUNGEN.
 local CREST = "|cffa335ee|Hitem:20513:0:0:0:0:0:0:0:80|h[Abyssal Crest]|h|r"
 local TOME = "|cffa335ee|Hitem:21281:0:0:0:0:0:0:0:60|h[Grimoire of Shadow Bolt]|h|r"
@@ -99,7 +99,7 @@ test("VERGABEN: REMOVE asks first; CHANGE RECIPIENT restores the award", functio
     expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
 end)
 
-test("ZÄHLUNG lists the raid with items and tokens per spec", function()
+test("SPIELER lists the raid with items and tokens per spec", function()
     forge.click("RaidLedgerTabButtonTally")
     local cara = tallyRow("Cara")
     expect(cara).toBeTruthy()

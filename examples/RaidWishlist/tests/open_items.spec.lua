@@ -25,13 +25,23 @@ local function award(id, rev, itemID, recipient, state, spec, winner)
         spec or "", spec and 50 or "", spec and 1 or "", spec and 100 or "", winner or "", 1, "", "21:0" .. id }, ";"))
 end
 
+-- rowWith finds a shown list row (prefix RaidWishlistRaid/Open/Wish) whose
+-- item is `item` and whose `column` (e.g. "Recipient") reads `value`.
+local function rowWith(prefix, item, column, value)
+    for i = 1, 17 do
+        local row, cell = _G[prefix .. i], _G[prefix .. i .. column]
+        if row and row:IsVisible() and row:GetText() == item and cell and cell:GetText() == value then return row end
+    end
+end
+
 test("loot on the corpse is listed, wishlisted items are marked", function()
     forge.raid({ "Lead", "Bob", "Tester" })
     forge.slash("/wish")
+    forge.click("RaidWishlistTabopen")
     expect(forge.findText("No loot is waiting to be rolled.")).toBeTruthy()
     receive("O;" .. SESSION .. ";Lead;20513:o:c:,21281:r:c:")
     expect(forge.findText("OPEN ITEMS (2)")).toBeTruthy()
-    expect(forge.findText(CREST .. "  on the corpse")).toBeTruthy()
+    expect(rowWith("RaidWishlistOpen", CREST, "Where", "on the corpse")).toBeTruthy()
     expect(forge.findText("WISHLIST  OPEN")).toBeTruthy()
     expect(forge.findText("ROLLING NOW")).toBeTruthy()
     expect(forge.layoutIssues("RaidWishlistFrame")).toEqual({})
@@ -46,29 +56,33 @@ end)
 test("an item parked with a raider is open, not handed out", function()
     receive("O;" .. SESSION .. ";Lead;")
     award(5, 1, 20514, "Bob", "parked")
-    expect(forge.findText(BOOTS .. "  with Bob")).toBeTruthy()
+    expect(rowWith("RaidWishlistOpen", BOOTS, "Where", "with Bob")).toBeTruthy()
     expect(forge.findText("WISHLIST  OPEN")).toBeTruthy()
+    forge.click("RaidWishlistTabraid")
     expect(forge.findText("THIS RAID")).toBeTruthy()            -- not "THIS RAID (1)"
     expect(forge.findText("Nothing handed out yet.\nAwards appear here when the raid lead uses RaidLedger.")).toBeTruthy()
+    forge.click("RaidWishlistTabopen")
 end)
 
 test("rolling a parked item later shows it as rolling now", function()
     receive("O;" .. SESSION .. ";Lead;20514:r:a5:")
     expect(forge.findText("OPEN ITEMS (1)")).toBeTruthy()
-    expect(forge.findText(BOOTS .. "  with Bob")).toBeTruthy()
+    expect(rowWith("RaidWishlistOpen", BOOTS, "Where", "with Bob")).toBeTruthy()
     expect(forge.findText("WISHLIST  ROLLING NOW")).toBeTruthy()
 end)
 
 test("an item parked with you is not received: you still roll on it", function()
     award(6, 1, 20513, "Tester", "parked")
-    expect(forge.findText(CREST .. "  with Tester")).toBeTruthy()
+    expect(rowWith("RaidWishlistOpen", CREST, "Where", "with Tester")).toBeTruthy()
     expect(forge.saved("RaidWishlistDB").chars.Tester.items[1].received).toBeNil()
+    forge.click("RaidWishlistTabwish")
     expect(forge.findText("RECEIVED")).toBeNil()
+    forge.click("RaidWishlistTabopen")
 end)
 
 test("an item the master looter keeps without a roll is open too", function()
     award(7, 1, 21281, "Lead", "held")
-    expect(forge.findText(TOME .. "  with Lead")).toBeTruthy()
+    expect(rowWith("RaidWishlistOpen", TOME, "Where", "with Lead")).toBeTruthy()
     expect(forge.findText("OPEN ITEMS (3)")).toBeTruthy()
     expect(forge.layoutIssues("RaidWishlistFrame")).toEqual({})
 end)
@@ -77,12 +91,14 @@ test("once the roll decides it, the award leaves the open list", function()
     award(5, 2, 20514, "Cara", "manual", "ms", "Cara")
     receive("O;" .. SESSION .. ";Lead;")
     expect(forge.findText("OPEN ITEMS (2)")).toBeTruthy()
+    forge.click("RaidWishlistTabraid")
     expect(forge.findText("THIS RAID (1)")).toBeTruthy()
-    expect(forge.findText(BOOTS .. "  ->  Cara")).toBeTruthy()
+    expect(rowWith("RaidWishlistRaid", BOOTS, "Recipient", "Cara")).toBeTruthy()
 end)
 
 test("an older raid's open list is ignored", function()
     receive("O;Lead-1792120000;Lead;20513:o:c:")
+    forge.click("RaidWishlistTabopen")
     expect(forge.findText("OPEN ITEMS (2)")).toBeTruthy()
     expect(#forge.errors()).toBe(0)
 end)

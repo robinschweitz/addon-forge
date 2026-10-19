@@ -7,7 +7,7 @@ test("a ledger's hello query gets this wishlist's version", function()
     forge.advance(6, 0.25)
     local found = false
     for i = before + 1, #forge.addonMessages() do
-        if forge.addonMessages()[i].message == "HW;1.5.0" then found = true end
+        if forge.addonMessages()[i].message == "HW;2.0.0" then found = true end
     end
     expect(found).toBe(true)
 end)
