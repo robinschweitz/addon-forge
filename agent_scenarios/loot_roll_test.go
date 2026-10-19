@@ -23,6 +23,13 @@ func TestLootRollFixture(t *testing.T) {
 	}
 	bots := e2eharness.NewScenario(t, e2eharness.ScenarioOpts{Prefix: "FLoot", Race: e2eharness.RaceHuman, Class: e2eharness.ClassWarrior, Level: 20, Count: 1})
 	bot := bots[0]
+	// A dead test character cannot loot (run of 2026-10-20: it had died to a
+	// leftover fixture creature, and the plan failed at "loot did not open").
+	// .revive leaves a living character as it is.
+	bot.GM(t, ".revive "+target)
+	if member := os.Getenv("FORGE_MEMBER_CHARACTER"); member != "" && safeName.MatchString(member) {
+		bot.GM(t, ".revive "+member)
+	}
 	bot.GM(t, ".appear "+target)
 	if err := bot.World.GroupInvite(target); err != nil {
 		t.Fatalf("group invite: %v", err)

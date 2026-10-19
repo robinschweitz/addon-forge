@@ -130,8 +130,8 @@
     },
     {
       "type": "frame_text_contains",
-      "frame": "RaidLedgerRollHeading",
-      "value": "WÜRFE ZU VERGABE #"
+      "frame": "RaidLedgerAwardLogHeading",
+      "value": "WÜRFE ("
     },
     {
       "type": "frame_text_contains",

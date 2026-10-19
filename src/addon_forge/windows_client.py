@@ -99,6 +99,11 @@ class WindowsAPI:
         self.user.SetForegroundWindow.argtypes = [wintypes.HWND]
         self.user.SetForegroundWindow.restype = wintypes.BOOL
         self.user.GetForegroundWindow.restype = wintypes.HWND
+        self.user.BringWindowToTop.argtypes = [wintypes.HWND]
+        self.user.BringWindowToTop.restype = wintypes.BOOL
+        self.user.AttachThreadInput.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.BOOL]
+        self.user.AttachThreadInput.restype = wintypes.BOOL
+        self.kernel.GetCurrentThreadId.restype = wintypes.DWORD
         self.user.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
         self.user.GetWindowRect.restype = wintypes.BOOL
         self.user.VkKeyScanW.argtypes = [wintypes.WCHAR]
@@ -177,6 +182,21 @@ class WindowsAPI:
             self.user.ShowWindow(hwnd, 9)  # SW_RESTORE
         self.user.SetForegroundWindow(hwnd)
         time.sleep(0.15)
+        if self.user.GetForegroundWindow() != hwnd:
+            # Windows' foreground lock refuses SetForegroundWindow from a
+            # process that does not own the foreground (live batch 2026-10-20:
+            # the second client of a batch never got focus). Sharing the input
+            # state with the foreground thread lifts the lock; no keys are sent.
+            owner = self.user.GetWindowThreadProcessId(self.user.GetForegroundWindow(), None)
+            current = self.kernel.GetCurrentThreadId()
+            attached = owner and owner != current and self.user.AttachThreadInput(current, owner, True)
+            try:
+                self.user.BringWindowToTop(hwnd)
+                self.user.SetForegroundWindow(hwnd)
+            finally:
+                if attached:
+                    self.user.AttachThreadInput(current, owner, False)
+            time.sleep(0.15)
         if self.user.GetForegroundWindow() != hwnd:
             raise RuntimeError(
                 "WoW is not the active window. Focus it manually before retrying; "

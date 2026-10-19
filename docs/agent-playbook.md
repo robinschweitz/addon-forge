@@ -163,6 +163,15 @@ Terminal tab; a run started in another window must be pasted.
   the live corpse itself and waits until the bot sees it vanish
   (`loot-fixture.log`: "removed from the world"). A clean `creature` table
   plus a worldserver restart removes any leftover.
+- Dead test characters cannot loot: on 2026-10-20 both characters stood at
+  1 HP (dead) in Nordhaintal, killed by a leftover creature, and every plan
+  failed at "loot did not open". The fixture now sends `.revive` for the
+  graphical and the member character first (a living one is left as is).
+- Windows' foreground lock: `SetForegroundWindow` silently fails when the
+  calling process does not own the foreground. In a batch of sessions the
+  first client got focus, the second never did ("WoW is not the active
+  window", twice on 2026-10-20). `focus` now retries with
+  `AttachThreadInput` to the foreground thread; the next batch of five passed.
 - A session's final screenshot (`RUN_ID.png`) shows the end state; use
   `screenshot` steps for anything in between.
 
@@ -305,4 +314,12 @@ Terminal tab; a run started in another window must be pasted.
   `RaidLedger.lua` is at Lua's 200-local limit, so new code goes into
   `Access.lua` or `roster.*` functions; never `string.lower` a name you store
   (the emulator mangled "ä"), only compare lowered names.
+- RaidLedger 2.5.0 (tabbed window: loot, awards, tally with -/+ corrections,
+  raid, settings) passed six plans live on 2026-10-20: main `30f4ce5b302d`,
+  open-in-loot `764e88ae7836`, park-self `384e30965603`, reassign
+  `6a4c1279ef62`, tally `891eb87e3104`, peer `465b90c2022c`. A plan check on
+  a renamed frame (`RaidLedgerRollHeading` -> `RaidLedgerAwardLogHeading`)
+  passed every preview and only failed live: after a UI rework, grep the plans
+  for every frame name the addon no longer registers. Tally corrections, the
+  settings tab and the RAID tab are verified offline only.
 - `projects/` is git-ignored: new addons there are local only until moved to `examples/` or their own repo.
