@@ -293,8 +293,11 @@ Terminal tab; a run started in another window must be pasted.
   ("X won: ...") recorded without a spec by one ledger; identical tokens from
   one corpse are one "3x" roll; editor list (SETTINGS, `/ledger allow|deny`,
   shared as `E`) and addon users (`HQ`/`H`/`HW`); tooltips on every control
-  (`tests/tooltips.spec.lua` walks all panels). Offline only so far: the live
-  plans were not re-run (realm down). Lessons: the main chunk of
+  (`tests/tooltips.spec.lua` walks all panels). The main, peer and trade plans
+  passed live on 2.4.0 (runs `e53b59b2ca15`, `f01bd8b9796f`, `a0b4a748e3b0`; the
+  new "bisher 0 MS / 0 OS Items" text, one announcement per award). Still
+  offline only: editors, addon users, group loot, token bundles (the fixture
+  drops one item, no second ledger client). Lessons: the main chunk of
   `RaidLedger.lua` is at Lua's 200-local limit, so new code goes into
   `Access.lua` or `roster.*` functions; never `string.lower` a name you store
   (the emulator mangled "ä"), only compare lowered names.
