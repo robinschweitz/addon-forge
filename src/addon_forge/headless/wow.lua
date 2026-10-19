@@ -211,7 +211,26 @@ function Region:GetName() return state[self].name end
 function Region:GetObjectType() return state[self].type end
 function Region:IsObjectType(t) local m = Methods[state[self].type]; while m do if m == Methods[t] then return true end; m = getmetatable(m) and getmetatable(m).__index end return false end
 function Region:GetParent() return state[self].parent end
-function Region:SetParent(p) state[self].parent = p end
+-- SetParent moves the object between its parents' lists, like the client:
+-- otherwise a re-parented frame is missing from GetChildren, layoutIssues
+-- and sketches of its new parent.
+function Region:SetParent(p)
+    local s = state[self]
+    local old = s.parent and state[s.parent]
+    local list = "children"
+    if old then
+        for _, key in ipairs({ "children", "regions" }) do
+            for i = #old[key], 1, -1 do
+                if old[key][i] == self then
+                    tremove(old[key], i)
+                    list = key
+                end
+            end
+        end
+    end
+    s.parent = p
+    if p and state[p] then tinsert(state[p][list], self) end
+end
 function Region:Show() local s = state[self]; if not s.shown then s.shown = true; runScript(self, "OnShow") end end
 function Region:Hide() local s = state[self]; if s.shown then s.shown = false; runScript(self, "OnHide") end end
 function Region:IsShown() return state[self].shown and true or false end
@@ -456,6 +475,8 @@ function Button:SetText(t) buttonText(self):SetText(t) end
 function Button:GetText() return state[self].fontString and state[self].fontString:GetText() end
 function Button:SetFormattedText(fmt, ...) self:SetText(sformat(fmt, ...)) end
 function Button:GetFontString() return state[self].fontString end
+-- The width of the button's text, estimated like FontString:GetStringWidth.
+function Button:GetTextWidth() return state[self].fontString and state[self].fontString:GetStringWidth() or 0 end
 function Button:SetFontString(fs) state[self].fontString = fs end
 function Button:SetNormalFontObject(o) state[self].normalFont = o end
 function Button:SetHighlightFontObject(o) state[self].highlightFont = o end
