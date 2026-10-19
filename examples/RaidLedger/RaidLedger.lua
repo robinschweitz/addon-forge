@@ -160,6 +160,13 @@ local function itemCount(n, token)
     return n == 1 and L["1 item"] or string.format(L["%d items"], n)
 end
 
+-- specCounts: a player's main- and off-spec tally in one text ("1 MS / 0 OS
+-- items"); a single number confused the raid when an off-spec win said 0.
+local function specCounts(counts, name, token)
+    local entry = counts[lower(name)] or {}
+    return string.format(token and L["%d MS / %d OS tokens"] or L["%d MS / %d OS items"], entry.ms or 0, entry.os or 0)
+end
+
 -- ranksAbove orders counted rolls: main spec first, then the fewest items, then
 -- the highest roll.
 local function ranksAbove(a, b)
@@ -206,15 +213,28 @@ end
 -- keyed by lower-case name. Items and tokens (Weiheabzeichen) are separate
 -- lists: tallies() counts items, tallies(true) tokens. Removed awards and
 -- awards without a spec (handed out without a roll) do not count; a held item
--- counts for its winner.
-local function tallies(tokens)
+-- counts for its winner. Items already won in the roll list but not handed
+-- out yet count for their winners too (raid of 2026-10-19: loot stayed on the
+-- corpse while it was rolled, and the next roll said "0 items so far"), except
+-- the entry `except` that is being decided.
+local function tallies(tokens, except)
     local counts = {}
+    local function add(name, spec)
+        local key = lower(name)
+        counts[key] = counts[key] or { ms = 0, os = 0 }
+        counts[key][spec] = counts[key][spec] + 1
+    end
     for _, r in ipairs(ensureDatabase().history) do
         if (r.spec == "ms" or r.spec == "os") and r.state ~= "deleted" and not NO_TALLY[r.state]
             and (r.token and true or false) == (tokens and true or false) then
-            local key = lower((r.state == "held" and r.winner) or r.recipient)
-            counts[key] = counts[key] or { ms = 0, os = 0 }
-            counts[key][r.spec] = counts[key][r.spec] + 1
+            add((r.state == "held" and r.winner) or r.recipient, r.spec)
+        end
+    end
+    for _, entry in ipairs(active) do
+        if entry ~= except and not entry.free and (isToken(entry.item) and true or false) == (tokens and true or false) then
+            for _, w in ipairs(entry.winners or { entry.winner }) do
+                if w.kind == "ms" or w.kind == "os" then add(w.name, w.kind) end
+            end
         end
     end
     return counts
@@ -310,7 +330,7 @@ end
 -- items, highest roll), then ignored rolls in the order they came in.
 local function sortedRollLog(entry)
     if not entry.rollLog then return {} end
-    local counts = tallies(isToken(entry.item))
+    local counts = tallies(isToken(entry.item), entry)
     local log = {}
     for index, r in ipairs(entry.rollLog) do
         local copy = { name = r.name, value = r.value, round = r.round, note = r.note, order = index,
@@ -1039,6 +1059,9 @@ local function updateHistory()
     local total, held = table.getn(history), 0
     for _, record in ipairs(history) do
         if record.state == "held" then held = held + 1 end
+        if string.sub(record.item or "", 1, 5) == "item:" then
+            record.item = select(2, GetItemInfo(record.itemID or 0)) or record.item   -- now cached?
+        end
     end
     historyOffset = math.max(0, math.min(historyOffset, total - HISTORY_LINES))
     historyHeading:SetText(total > 0 and string.format(L["AWARDS (%d)"], total) or L["RECENT AWARDS"])
@@ -1056,9 +1079,6 @@ local function updateHistory()
             local stateText = stateLabels[record.state] or string.upper(record.state or "")
             if record.state == "held" and not isPlayer(record.recipient) then stateText = L["HELD"] end
             if isOpenAward(record) then stateText = L["OPEN"] end
-            if string.sub(record.item or "", 1, 5) == "item:" then
-                record.item = select(2, GetItemInfo(record.itemID or 0)) or record.item   -- now cached?
-            end
             if not record.confirmed and record.state ~= "deleted" then stateText = stateText .. "?" end
             local color = isOpenAward(record) and stateColors.parked or stateColors[record.state] or stateColors.manual
             line.state:SetText(stateText)
@@ -1257,8 +1277,8 @@ local function updateRows()
             row.item = entry
             row.logName = nil
             row:SetText(string.format("%s", entry.item))
-            row.count:SetText(string.format(L["%d ROLLS"], activeRollCount(entry)))
-            row.count:SetTextColor(1.00, 0.79, 0.31)
+            row.count:SetText(entry.nobody and L["NOBODY"] or string.format(L["%d ROLLS"], activeRollCount(entry)))
+            if entry.nobody then row.count:SetTextColor(0.55, 0.55, 0.55) else row.count:SetTextColor(1.00, 0.79, 0.31) end
             -- How many wishlists name this item; "WL 0" flags loot nobody listed.
             local wished = table.getn(wishersOf(itemIDFromLink(entry.item)))
             row.wish:SetText(knowsWishlists() and string.format(L["WL %d"], wished) or "")
@@ -1530,8 +1550,11 @@ local function onLootMessage(message)
     local itemID = itemIDFromLink(link)
     if not itemID then return end
     for _, record in ipairs(ensureDatabase().history) do
+        -- Only the recorder confirms and announces an award: another ledger in
+        -- the group gets the confirmation with the shared record (two ledgers
+        -- announced every item twice in the raid of 2026-10-19).
         if not record.confirmed and record.state ~= "deleted" and record.itemID == itemID
-            and lower(record.recipient) == lower(name) then
+            and lower(record.recipient) == lower(name) and lower(record.origin or playerName()) == lower(playerName()) then
             record.confirmed = true
             publish(record)
             status:SetText(string.format(L["Award #%d confirmed: %s received the item."], record.id, record.recipient))
@@ -1749,6 +1772,13 @@ local function applyRecord(f, sender)
     local itemID = tonumber(f[7])
     record.rev, record.at, record.itemID, record.npc = rev, at, itemID, tonumber(f[8])
     record.item = (itemID and select(2, GetItemInfo(itemID))) or record.item or ("item:" .. (itemID or 0))
+    -- Not cached yet (item 50667 in the raid of 2026-10-19): ask the server;
+    -- the history shows the link once it has arrived.
+    if itemID and string.sub(record.item, 1, 5) == "item:" then
+        scanTip:SetOwner(WorldFrame, "ANCHOR_NONE")
+        scanTip:SetHyperlink("item:" .. itemID)
+        scanTip:Hide()
+    end
     record.recipient, record.state, record.confirmed = f[9], STATES[f[10]] and f[10] or "manual", f[11] == "1"
     record.spec = (f[12] == "ms" or f[12] == "os" or f[12] == "boe") and f[12] or nil
     record.roll, record.low, record.high = tonumber(f[13]), tonumber(f[14]), tonumber(f[15])
@@ -1978,7 +2008,7 @@ local function recordRoll(message)
         kind = kind, low = lo, high = hi })
     if note then return end
     table.insert(entry.rolls, { name = name, value = value, kind = kind, low = lo, high = hi,
-        tally = tallyOf(tallies(isToken(entry.item)), name, kind) })
+        tally = tallyOf(tallies(isToken(entry.item), entry), name, kind) })
     table.sort(entry.rolls, ranksAbove)
     updateRows()
 end
@@ -1992,6 +2022,7 @@ local function startSelectedRoll(free)
         return
     end
     entry.free = free and true or nil
+    entry.nobody = nil
     entry.rolls = {}
     entry.rollLog = {}
     entry.round = 1
@@ -2051,7 +2082,8 @@ end
 local function finishRoll(entry)
     entry.endsAt = nil
     if activeRollCount(entry) == 0 then
-        announce(string.format(L["[Loot] %s - no valid rolls."], entry.item))
+        entry.nobody = true
+        announce(string.format(L["[Loot] %s - nobody wanted it."], entry.item))
         -- Nobody needs a BoE item for this character: offer it to everyone.
         if not entry.free and isBindOnEquip(entry.item) then
             local dialog = StaticPopup_Show("RAIDLEDGER_FREE_ROLL", entry.item, nil, entry)
@@ -2064,7 +2096,7 @@ local function finishRoll(entry)
         return
     end
     -- Tallies may have changed during the roll (other awards): rank again.
-    local counts = tallies(isToken(entry.item))   -- tokens rank by the token tally
+    local counts = tallies(isToken(entry.item), entry)   -- tokens rank by the token tally
     for _, roll in ipairs(entry.rolls) do roll.tally = tallyOf(counts, roll.name, roll.kind) end
     table.sort(entry.rolls, ranksAbove)
     local best = entry.rolls[1]
@@ -2099,7 +2131,7 @@ local function finishRoll(entry)
     end
     announce(string.format(L["[Loot] %s won by %s (%d) - %s%s, %s so far."], entry.item, best.name, best.value,
         SPEC_NAMES[best.kind], best.low and best.low > 1 and (" " .. best.low .. "-" .. best.high) or "",
-        itemCount(best.tally or 0, isToken(entry.item))))
+        specCounts(counts, best.name, isToken(entry.item))))
 end
 
 -- Passes and recounts work on the roll log: a struck roll gets a note, a
@@ -2116,7 +2148,7 @@ function roster.counted(entry, name)
 end
 
 function roster.rank(entry, round)
-    local counts = tallies(isToken(entry.item))
+    local counts = tallies(isToken(entry.item), entry)
     local rolls = {}
     for _, r in ipairs(entry.rollLog or {}) do
         if r.kind and not r.note and (r.round or 1) == round then
@@ -2887,4 +2919,7 @@ SlashCmdList["RAIDLEDGER"] = function(message)
     end
 end
 
+-- Opening the window redraws it: shared awards of items that were not cached
+-- yet show their links by now.
+Ledger:HookScript("OnShow", function() updateRows() end)
 Ledger:Show()

@@ -42,7 +42,7 @@ test("an item that does not bind on equip ends without takers as before", functi
     forge.openLoot({ { id = 20513 } })
     forge.slash("/ledger start")
     forge.advance(31, 0.25)
-    expect(raidSaid("[Loot] " .. CREST .. " - no valid rolls.")).toBe(1)
+    expect(raidSaid("[Loot] " .. CREST .. " - nobody wanted it.")).toBe(1)
     expect(#forge.popups()).toBe(0)
     forge.closeLoot()
     forge.slash("/ledger clear")
@@ -53,7 +53,7 @@ test("a BoE roll without takers asks whether to start a free roll now", function
     forge.slash("/ledger start")
     forge.roll("Alice", 300, 1, 1000)          -- not a valid roll
     forge.advance(31, 0.25)
-    expect(raidSaid("[Loot] " .. BRACERS .. " - no valid rolls.")).toBe(1)
+    expect(raidSaid("[Loot] " .. BRACERS .. " - nobody wanted it.")).toBe(1)
     expect(lastPopup().which).toBe("RAIDLEDGER_FREE_ROLL")
     expect(lastPopup().text1).toBe(BRACERS)
     expect(raidSaid("free BoE roll")).toBe(0)  -- nothing starts until the master looter decides

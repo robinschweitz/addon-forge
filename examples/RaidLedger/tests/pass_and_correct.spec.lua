@@ -77,7 +77,7 @@ test("a pass after the winner was announced gives the item to the next-best roll
     forge.slash("/ledger pass Bob")
     expect(won("Cara (95)")).toBe(1)
     forge.slash("/ledger pass Cara")
-    expect(said("no valid rolls.")).toBe(1)
+    expect(said("nobody wanted it.")).toBe(1)
 end)
 
 test("after a tie-break, the other tied player and then the earlier rolls are next", function()

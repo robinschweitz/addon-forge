@@ -16,7 +16,7 @@ test("German /rnd results are recorded and the highest wins", function()
     forge.roll("Anna", 12)
     forge.roll("Bernd", 88)
     forge.advance(31, 0.25)
-    expect(forge.chat()).toContain("gewonnen von Bernd (88) - Main-Spec, bisher 0 Items.")
+    expect(forge.chat()).toContain("gewonnen von Bernd (88) - Main-Spec, bisher 0 MS / 0 OS Items.")
 end)
 
 test("the ledger window is German and the longer texts still fit", function()

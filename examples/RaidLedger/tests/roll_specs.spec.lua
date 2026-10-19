@@ -46,7 +46,7 @@ test("main spec beats off spec whatever the roll", function()
     expect(award.recipient).toBe("Bob")
     expect(award.spec).toBe("ms")
     expect(award.roll).toBe(3)
-    expect(sentTo("won by Bob (3) - main spec, 0 items so far.")).toBe(true)
+    expect(sentTo("won by Bob (3) - main spec, 0 MS / 0 OS items so far.")).toBe(true)
 end)
 
 test("EP enhance main spec by any X from 1 to 50 (1+X..100+X up to 51-150)", function()
@@ -63,14 +63,14 @@ test("EP enhance main spec by any X from 1 to 50 (1+X..100+X up to 51-150)", fun
     local notes = {}
     for _, r in ipairs(award.rollLog) do notes[r.name] = r.note or "counted" end
     expect(notes).toEqual({ Alice = "counted", Bob = "counted", Eve = "counted", Cara = "61-160", Dora = "10-108" })
-    expect(sentTo("won by Alice (140) - main spec 41-140, 0 items so far.")).toBe(true)
+    expect(sentTo("won by Alice (140) - main spec 41-140, 0 MS / 0 OS items so far.")).toBe(true)
 end)
 
 test("within main spec the player with fewer items wins over a higher roll", function()
     -- Bob already has one main-spec item (the crest), Alice one too (the tome).
     local award = rollFor(20513, { { "Bob", 98 }, { "Cara", 4 } })
     expect(award.recipient).toBe("Cara")
-    expect(sentTo("won by Cara (4) - main spec, 0 items so far.")).toBe(true)
+    expect(sentTo("won by Cara (4) - main spec, 0 MS / 0 OS items so far.")).toBe(true)
     local log = award.rollLog
     expect(log[1].name).toBe("Cara")
     expect(log[2].name).toBe("Bob")
@@ -85,7 +85,7 @@ test("off spec has its own tally", function()
     -- Now Bob has an off-spec item: Dora wins the next off-spec roll.
     award = rollFor(21281, { { "Bob", 90, 1, 99 }, { "Dora", 2, 1, 99 } })
     expect(award.recipient).toBe("Dora")
-    expect(sentTo("won by Dora (2) - off spec, 0 items so far.")).toBe(true)
+    expect(sentTo("won by Dora (2) - off spec, 0 MS / 0 OS items so far.")).toBe(true)
 end)
 
 test("tokens do not count in the tally", function()
@@ -102,7 +102,7 @@ test("tokens have their own tally: fewest tokens first", function()
     local award = rollFor(47242, { { "Eve", 99 }, { "Bob", 5 } })
     expect(award.recipient).toBe("Bob")
     expect(award.token).toBe(true)
-    expect(sentTo("won by Bob (5) - main spec, 0 tokens so far.")).toBe(true)
+    expect(sentTo("won by Bob (5) - main spec, 0 MS / 0 OS tokens so far.")).toBe(true)
     local log = award.rollLog
     expect(log[1].name).toBe("Bob")
     expect(log[2].name).toBe("Eve")
@@ -117,7 +117,7 @@ test("a tie needs the same spec, tally and roll", function()
     forge.roll("Alice", 97)
     forge.roll("Bob", 97, 1, 99)          -- same number, but off spec
     forge.advance(31, 0.25)
-    expect(sentTo("won by Alice (97) - main spec, 0 items so far.")).toBe(true)
+    expect(sentTo("won by Alice (97) - main spec, 0 MS / 0 OS items so far.")).toBe(true)
     forge.closeLoot()
 end)
 
