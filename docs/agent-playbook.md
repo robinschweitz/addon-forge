@@ -286,4 +286,16 @@ Terminal tab; a run started in another window must be pasted.
 - Offline text widths are estimates (0.6 em per character); confirm UI with a
   live screenshot.
 - `flake.nix` gained `python.pkgs.lupa`; not yet built with Nix.
+- RaidLedger 2.4.0 / RaidWishlist 1.5.0 (first real raid, 2026-10-19): only an
+  award's recorder announces it (a second ledger announced every item again,
+  as `item:50667` when uncached); pending wins count in the tally and the
+  "so far" text names both specs; "nobody wanted it"; group-loot wins
+  ("X won: ...") recorded without a spec by one ledger; identical tokens from
+  one corpse are one "3x" roll; editor list (SETTINGS, `/ledger allow|deny`,
+  shared as `E`) and addon users (`HQ`/`H`/`HW`); tooltips on every control
+  (`tests/tooltips.spec.lua` walks all panels). Offline only so far: the live
+  plans were not re-run (realm down). Lessons: the main chunk of
+  `RaidLedger.lua` is at Lua's 200-local limit, so new code goes into
+  `Access.lua` or `roster.*` functions; never `string.lower` a name you store
+  (the emulator mangled "ä"), only compare lowered names.
 - `projects/` is git-ignored: new addons there are local only until moved to `examples/` or their own repo.
