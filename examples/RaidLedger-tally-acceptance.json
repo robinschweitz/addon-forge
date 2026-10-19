@@ -82,12 +82,16 @@
       "value": "/ledger tally"
     },
     {
-      "type": "wait",
-      "value": 1
+      "type": "screenshot",
+      "value": "second_roll_tally"
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerTabtally"
     },
     {
       "type": "screenshot",
-      "value": "second_roll_tally"
+      "value": "tally_tab"
     }
   ],
   "checks": [
