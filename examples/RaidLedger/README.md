@@ -157,13 +157,49 @@ off spec, from the ledger itself: CLEAR / NEW RAID starts everyone at 0.
 Items and tokens (Weiheabzeichen) are two separate lists: item rolls rank by
 the item tally, token rolls by the token tally. Removed awards and awards
 without a roll do not count; an item you hold for the winner counts for the
-winner. `/ledger tally` lists everyone (items, then tokens), and
+winner. Items already won in the loot list but not handed out yet count for
+their winners too, so a second roll on the same corpse ranks correctly. The
+win announcement names both counts ("1 MS / 0 OS items so far").
+`/ledger tally` lists everyone (items, then tokens), and
 `/ledger spec <#> ms|os|none` moves an award to the other spec or out of
-the tally.
+the tally. A roll nobody takes is announced as "nobody wanted it" and the row
+shows NOBODY.
+
+### Token bundles
+
+Identical tokens from one corpse are one row ("3x [Weiheabzeichen ...]") and
+one roll: the best rolls win one copy each, announced together. A tie only
+matters where it decides the last copy (the players above keep theirs, the
+tied ones roll again). GIVE + RECORD hands out one copy at a time and puts the
+next winner in the box; copies nobody rolled for are announced as unwanted.
+
+### Group loot
+
+If the group loots with need/greed instead of master loot, the items won
+("X won: [item]") are recorded too, without a spec, so they count for nobody
+until an editor sets one with `/ledger spec <#> ms|os`. Only one ledger in
+the group records them (the first editor by name; without editors the first
+leader or assistant running the addon).
 
 Hover a group member for their items this raid, hover an award or a loot row
 for the item tooltip (plus the award and the recipient's tally), and hover a
 roll-log line for that roller's items.
+
+## Editors and addon users (SETTINGS)
+
+The SETTINGS button opens the editor list: the names that may start rolls,
+award, park and correct. Type a name and ADD (or + TARGET); adding the first
+one adds you too. Click a name to remove it. The list is saved for the
+account and shared with the group, so everybody else's ledger only watches:
+its buttons explain why they do nothing, and it ignores awards from players
+who are not editors. An empty list keeps the old rules. In chat:
+`/ledger allow <name>`, `/ledger deny <name>`, `/ledger editors`.
+
+Below the list, every raid member shows which addon they run: green with the
+RaidLedger version, blue for RaidWishlist only, grey for no addon, gold for
+editors. CHECK asks the group again.
+
+Every control has a tooltip.
 
 ## Shared ledger
 
@@ -173,6 +209,8 @@ messages, with the award's roll log. Officers therefore see the same list,
 and their corrections travel back. A ledger without awards of its own follows
 the master looter's raid automatically, also after a NEW RAID; one with its
 own awards keeps them and warns instead of merging another raid's ledger.
+Only the ledger that recorded an award confirms and announces it when the
+loot line arrives, so two ledgers in a raid never announce an item twice.
 
 Every roll start (and tie-break) is shared too, so raid members running
 [RaidWishlist](../RaidWishlist) get a roll prompt, or an automatic

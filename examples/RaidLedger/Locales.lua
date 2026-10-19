@@ -303,3 +303,87 @@ L["%d characters not invited: the calendar takes 100 per event."] =
     "%d Charaktere nicht eingeladen: der Kalender nimmt 100 pro Termin."
 L["/ledger calendar - calendar raid event from the invite list, everyone on it invited"] =
     "/ledger calendar - Kalender-Raidtermin aus der Einladungsliste, alle darauf eingeladen"
+
+-- Raid feedback 2026-10-19: token bundles, group loot, tooltips
+L["WINNERS: %s"] = "GEWINNER: %s"
+L["[Loot] %dx %s won by %s."] = "[Loot] %dx %s gewonnen von %s."
+L["[Loot] %s - %d left: nobody wanted it."] = "[Loot] %s - %d übrig: wollte niemand."
+L["Group loot: #%d %s won by %s (no spec; /ledger spec %d ms|os)."] =
+    "Gruppenplündern: #%d %s gewonnen von %s (ohne Spec; /ledger spec %d ms|os)."
+L["This raid's awards appear here: click one for its rolls or to change it."] =
+    "Hier stehen die Vergaben dieses Raids: anklicken zeigt die Würfe oder ändert die Vergabe."
+L["Close the ledger (/ledger opens it again)"] = "Schließen (/ledger öffnet es wieder)"
+L["The website export of this raid's awards (RS2 LOOT)"] = "Export der Vergaben dieses Raids für die Webseite (RS2 LOOT)"
+L["Who gets the item: click a name or a roll, or type one"] = "Wer das Item bekommt: Namen oder Wurf anklicken oder eintippen"
+L["Give this award to the name in the box"] = "Diese Vergabe an den Namen im Feld geben"
+L["Give the selected item to the name in the box and record it"] = "Das ausgewählte Item an den Namen im Feld geben und erfassen"
+L["Record the selected item for the name in the box (the loot window is closed)"] =
+    "Das ausgewählte Item für den Namen im Feld erfassen (das Beutefenster ist zu)"
+L["Start the roll for this open item"] = "Das Würfeln für dieses offene Item starten"
+L["Hand the item to the name in the box (or keep it) until it is rolled later"] =
+    "Das Item dem Namen im Feld geben (oder selbst behalten), bis später darauf gewürfelt wird"
+L["The whole raid by group: click a name to pick them"] = "Der ganze Raid nach Gruppen: Namen anklicken wählt ihn aus"
+L["Click: recipient. Right-click: pass or count the roll differently."] =
+    "Klick: Empfänger. Rechtsklick: passen oder den Wurf anders werten."
+L["Click: recipient"] = "Klick: Empfänger"
+L["New raid: empties the award list (export it first)"] = "Neuer Raid: leert die Vergaben (vorher exportieren)"
+L["The raid's ID on the website (in its address)"] = "Die Raid-ID auf der Webseite (steht in der Adresse)"
+L["Back to the loot"] = "Zurück zur Beute"
+L["Ctrl+C copies the export; paste it into the website's loot import"] =
+    "Strg+C kopiert den Export; auf der Webseite beim Beute-Import einfügen"
+L["The player passes: the next-best roll wins"] = "Der Spieler passt: der nächstbeste Wurf gewinnt"
+L["Count it as main spec (1-100)"] = "Als Main-Spec werten (1-100)"
+L["Count it as enhanced main spec: asks for the points"] = "Als Enhanced Main-Spec werten: fragt nach den Punkten"
+L["Count it as off spec (1-99)"] = "Als Second-Spec werten (1-99)"
+L["The roll does not count"] = "Der Wurf zählt nicht"
+L["Rolls on the selected item. Click: recipient. Right-click: pass or count differently."] =
+    "Würfe auf das ausgewählte Item. Klick: Empfänger. Rechtsklick: passen oder anders werten."
+L["Open: %s holds it until it is rolled. Click it, then ROLL."] =
+    "Offen: %s verwahrt es bis zum Auswürfeln. Anklicken, dann WÜRFELN."
+L["Raid setup: the website's invite list, invites, raid groups and attendance"] =
+    "Raid-Aufbau: Einladungsliste der Webseite, Einladungen, Raidgruppen und Anwesenheit"
+L["Paste the website's invite list here (Ctrl+V), then READ"] =
+    "Die Einladungsliste der Webseite hier einfügen (Strg+V), dann EINLESEN"
+L["Read the pasted invite list"] = "Die eingefügte Einladungsliste einlesen"
+L["Invite everyone on the list who is not in the raid yet"] = "Alle von der Liste einladen, die noch nicht im Raid sind"
+L["Invite again whoever was offline, declined or did not answer"] =
+    "Alle nochmal einladen, die offline waren, abgelehnt oder nicht geantwortet haben"
+L["Also invite the players the website put on the bench"] = "Auch die Spieler einladen, die die Webseite auf die Bank gesetzt hat"
+L["Create a calendar raid event for the list's date and time, everyone on it invited"] =
+    "Einen Kalender-Raidtermin zu Datum und Uhrzeit der Liste anlegen, alle darauf eingeladen"
+L["Who was in the raid, for the website's roster import"] = "Wer im Raid war, für den Roster-Import der Webseite"
+L["Ctrl+C copies the attendance; paste it into the website"] = "Strg+C kopiert die Anwesenheit; auf der Webseite einfügen"
+L["Sort the raid groups: tanks, healers, then the rest"] = "Raidgruppen sortieren: Tanks, Heiler, dann der Rest"
+
+-- Editors and addon users (SETTINGS)
+L["SETTINGS"] = "EINSTELLUNGEN"
+L["EDITORS: MAY START ROLLS, AWARD AND CORRECT"] = "FREIGEGEBEN: DÜRFEN WÜRFELN LASSEN, VERGEBEN, KORRIGIEREN"
+L["Empty: everyone may, as before. Click a name to remove it. Shared with the group."] =
+    "Leer: alle dürfen, wie bisher. Klick auf einen Namen entfernt ihn. Wird mit der Gruppe geteilt."
+L["ADD"] = "HINZUFÜGEN"
+L["+ TARGET"] = "+ ZIEL"
+L["CHECK"] = "PRÜFEN"
+L["Green: RaidLedger (version)  |  blue: RaidWishlist only  |  grey: no addon  |  gold: editor"] =
+    "Grün: RaidLedger (Version)  |  blau: nur RaidWishlist  |  grau: kein Addon  |  gold: freigegeben"
+L["No editors: everyone may change the ledger."] = "Keine Freigabeliste: alle dürfen ändern."
+L["You are an editor."] = "Du bist freigegeben."
+L["You only watch: not an editor."] = "Du schaust nur zu: nicht freigegeben."
+L["ADDON IN THE GROUP (%d/%d)"] = "ADDON IN DER GRUPPE (%d/%d)"
+L["nobody (everyone may change the ledger)"] = "niemand (alle dürfen ändern)"
+L["Only the editors may change the ledger: %s."] = "Nur Freigegebene dürfen ändern: %s."
+L["usage: /ledger allow|deny <name>"] = "Aufruf: /ledger allow|deny <Name>"
+L["editors: %s"] = "freigegeben: %s"
+L["%s shared the editors: %s"] = "%s hat die Freigaben geteilt: %s"
+L["target a player to add them."] = "einen Spieler ins Ziel nehmen, um ihn hinzuzufügen."
+L["not in a group."] = "nicht in einer Gruppe."
+L["Editors and who in the group runs RaidLedger or RaidWishlist"] =
+    "Freigaben und wer in der Gruppe RaidLedger oder RaidWishlist nutzt"
+L["Add the name in the box as an editor (the first one also adds you)"] =
+    "Den Namen im Feld freigeben (beim ersten wirst du mit freigegeben)"
+L["Add your target as an editor"] = "Dein Ziel freigeben"
+L["Ask the group again which addons they run"] = "Die Gruppe nochmal fragen, wer welches Addon nutzt"
+L["Click: no longer an editor"] = "Klick: Freigabe entfernen"
+L["Name of a new editor; Enter adds it"] = "Name einer neuen Freigabe; Enter fügt ihn hinzu"
+L["/ledger allow|deny <name> - add or remove an editor;  /ledger editors - list them"] =
+    "/ledger allow|deny <Name> - Freigabe geben oder entfernen;  /ledger editors - Freigaben zeigen"
+L["/ledger settings - editors and who runs the addons"] = "/ledger settings - Freigaben und wer die Addons nutzt"

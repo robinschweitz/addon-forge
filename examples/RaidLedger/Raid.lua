@@ -775,6 +775,19 @@ events:SetScript("OnUpdate", function(_, elapsed)
     if inviteDelay <= 0 then inviteStep() end
 end)
 
+-- Tooltips on every control (raid feedback 2026-10-19).
+ns.tip(raidButton, L["Raid setup: the website's invite list, invites, raid groups and attendance"])
+ns.tip(backButton, L["Back to the loot"])
+ns.tip(inviteText, L["Paste the website's invite list here (Ctrl+V), then READ"])
+ns.tip(readButton, L["Read the pasted invite list"])
+ns.tip(inviteButton, L["Invite everyone on the list who is not in the raid yet"])
+ns.tip(retryButton, L["Invite again whoever was offline, declined or did not answer"])
+ns.tip(benchButton, L["Also invite the players the website put on the bench"])
+ns.tip(calendarButton, L["Create a calendar raid event for the list's date and time, everyone on it invited"])
+ns.tip(attendanceButton, L["Who was in the raid, for the website's roster import"])
+ns.tip(rosterText, L["Ctrl+C copies the attendance; paste it into the website"])
+ns.tip(sortButton, L["Sort the raid groups: tanks, healers, then the rest"])
+
 ns.commands.setup = function() showPanel(true) end
 ns.commands.invite = function(rest) startInvites(ns.lower(rest) == "missing") end
 ns.commands.groups = sortGroups

@@ -18,7 +18,9 @@ local function sentSince(n, withStarts)
     local all = forge.addonMessages()
     for i = n + 1, #all do
         local kind = string.sub(all[i].message, 1, 2)
-        if withStarts or (kind ~= "S;" and kind ~= "O;") then table.insert(out, all[i]) end
+        -- Hellos and editor lists (H, HQ, HW, E) are not about awards.
+        local hello = kind == "H;" or kind == "HQ" or kind == "HW" or kind == "E;"
+        if not hello and (withStarts or (kind ~= "S;" and kind ~= "O;")) then table.insert(out, all[i]) end
     end
     return out
 end
