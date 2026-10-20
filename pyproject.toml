@@ -13,6 +13,7 @@ dependencies = ["lupa>=2.2"]  # embedded Lua 5.1 for checks and offline specs
 
 [project.optional-dependencies]
 windows = ["Pillow>=10", "keyring>=25", "pywin32>=306"]
+linux = ["keyring>=25"]  # Secret Service / KWallet for stored local test-account credentials
 
 [project.scripts]
 forge = "addon_forge.cli:main"

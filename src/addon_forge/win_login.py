@@ -44,20 +44,28 @@ def _vault_service(wow_dir: Path, slot: str = "main") -> str:
     return service if slot == "main" else service + "-" + slot
 
 
+# Encrypted OS vaults only: Windows Credential Manager, and on Linux the desktop's
+# Secret Service (GNOME Keyring, KWallet via ksecretd) or KWallet directly.
+VAULT_BACKENDS = {"win32": ("keyring.backends.Windows",),
+                  "linux": ("keyring.backends.SecretService", "keyring.backends.kwallet")}
+
+
 def _vault():
-    if sys.platform != "win32":
-        raise RuntimeError("Automatic login is only available on native Windows.")
+    allowed = VAULT_BACKENDS.get(sys.platform)
+    if not allowed:
+        raise RuntimeError("Stored test-account credentials need Windows or a Linux desktop vault.")
     try:
         import keyring
     except ImportError as exc:
         raise RuntimeError(
-            "Windows Credential Manager support missing; run "
-            r'.\.venv\Scripts\python.exe -m pip install -e ".[windows]"'
+            "Credential vault support missing; run "
+            r'.\.venv\Scripts\python.exe -m pip install -e ".[windows]"' if sys.platform == "win32"
+            else "Credential vault support missing; run '.venv/bin/pip install -e \".[linux]\"'"
         ) from exc
     backend = keyring.get_keyring()
-    if not type(backend).__module__.startswith("keyring.backends.Windows"):
+    if not type(backend).__module__.startswith(allowed):
         raise RuntimeError(
-            "Expected Windows Credential Manager keyring backend; "
+            "Expected an encrypted OS keyring backend (" + ", ".join(allowed) + "); "
             "refusing to store credentials in a fallback/plaintext backend."
         )
     return keyring
@@ -77,7 +85,7 @@ def save_credentials(wow_dir: Path, account: str, *, read_password=None, slot: s
         keyring.set_password(service, "password", password)
     finally:
         password = ""
-    print("Saved test-account credentials in Windows Credential Manager. "
+    print("Saved test-account credentials in the OS credential vault. "
           "Nothing was written to forge.local.toml or PowerShell history.")
 
 

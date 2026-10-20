@@ -572,6 +572,7 @@ These are **user-observed local results**, not a guarantee on other machines:
 | Plan `steps` + RaidLedger roll flow | **Verified live** | Real `/rnd` 61, re-roll 3 and 1-1000 roll 600: only 61 counted, `won by Test (61)` in party chat, award saved (run `cce23000b73e`) |
 | SDK idle-logout loop fix | **Verified live** | One unbound key press after login: `PLAYER_CAMPING` dropped from ~13 to 1 per session |
 | `forge api dump` | **Verified live** | 33,826 globals and 2,261 widget methods; found real `Button:SetTextColor` bug offline |
+| Linux headless (Xvfb, typed steps, rootless Docker realm) | **Verified live** | RaidLedger calendar plan passed on NixOS; 3 invites confirmed in the realm DB ([linux-headless.md](linux-headless.md)) |
 | Combat, quests, buffs, items and full autonomous QA | **Not implemented** | Future capability work |
 
 Even verified smoke tests cover only their stated conditions. Preserve

@@ -88,3 +88,18 @@ def test_failed_member_fixture_saves_nothing_and_redacts(tmp_path, monkeypatch):
     assert "<redacted>" in str(failure.value)
     with pytest.raises(ValueError):
         local_account.create_member_account(cfg, "FORGEMEMBER", "raid member", run=run, save=save)
+
+
+def test_vault_refuses_plaintext_backends_on_linux(monkeypatch):
+    import sys
+    import types
+    fake = types.ModuleType("keyring")
+    plain = type("PlaintextKeyring", (), {"__module__": "keyrings.alt.file"})
+    fake.get_keyring = lambda: plain()
+    monkeypatch.setitem(sys.modules, "keyring", fake)
+    monkeypatch.setattr(win_login.sys, "platform", "linux")
+    with pytest.raises(RuntimeError, match="plaintext"):
+        win_login._vault()
+    secret = type("Keyring", (), {"__module__": "keyring.backends.SecretService"})
+    fake.get_keyring = lambda: secret()
+    assert win_login._vault() is fake

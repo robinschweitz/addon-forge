@@ -17,6 +17,13 @@ Agents use the same loop as typed tools through `forge mcp` (configured in `open
 
 **[Step-by-step QA workflow, OpenCode integration, test evidence, troubleshooting and live verification status](docs/qa-workflow.md)** is the canonical guide. **[Agent playbook](docs/agent-playbook.md)** collects the verified 3.3.5a and SDK lessons. The setup details remain in [local realm setup](docs/local-realm.md) and [native Windows guide](docs/windows-testing.md). Agents follow [AGENTS.md](AGENTS.md).
 
+## Linux headless live runs (verified on NixOS)
+
+The test client runs on a private, invisible Xvfb display with typed input, against a local
+AzerothCore realm in rootless Docker. `forge client headless`, `forge client login enter` and
+`forge agent run-plan` (single-client plans with steps) were verified live; see
+[Linux: headless live runs](docs/linux-headless.md).
+
 ## Local AzerothCore realm — automated setup (experimental)
 
 For Windows/Linux development without paying for a cloud server, see

@@ -64,6 +64,58 @@ def _member_suite(cfg: Config, plan: dict, evidence_dir: Path) -> dict:
     return result
 
 
+def _run_typed(cfg: Config, plan: dict, preview: dict, offline: dict, addon: Path,
+               owners: tuple[str, ...], stale: list[str]) -> dict:
+    """Linux/Wine "xdotool" backend: steps are typed as /run lines into the test
+    client, then the bridge suite runs through the SavedVariables round trip.
+
+    Every typed step stores its result in the client; the plan's checks are
+    extended so that each one must have returned "ok" (typed_step_checks).
+    """
+    from .client import LinuxClientController
+    from .plan_steps import StepFailed, run_steps, typed_lua, typed_step_checks
+    unsupported = [name for name, used in (("member", plan.get("member")), ("peers", plan["peers"]),
+                                           ("fixtures", plan.get("fixtures"))) if used]
+    if unsupported:
+        return {"status": "infrastructure_error", "stage": "plan", **preview, "offline": offline,
+                "error": "The xdotool backend runs single-client plans without fixtures or peers; "
+                         f"this plan uses: {', '.join(unsupported)}"}
+    client = LinuxClientController(cfg)
+    evidence_dir = addon.parent / ".forge-runs"
+    if stale:
+        # A typed /reload loads changed Lua files (not new TOC entries) into the running client.
+        client.command("/reload")
+        client._sleep(20)
+    steps = plan.get("steps", [])
+    checked = {**plan, "checks": [*plan["checks"], *typed_step_checks(steps)]}
+    step_log = []
+    if steps:
+        def screenshot(name, role="main"):
+            evidence_dir.mkdir(parents=True, exist_ok=True)
+            return client.screenshot(evidence_dir / f"step-{name}.png")
+        try:
+            step_log = run_steps(steps, 0, typed=typed_lua(client.run_lua), screenshot=screenshot)
+        except StepFailed as exc:
+            return {"status": "failed", "stage": "steps", **preview, "offline": offline,
+                    "steps": getattr(exc, "log", []), "error": str(exc)}
+    result = run_smoke(cfg, suite="smoke", required_tests=("bridge_loaded",), out_dir=evidence_dir,
+                       paths=watch_paths(checked), owner=owners)
+    test = asdict(result)
+    if test.get("status") != "passed":
+        return {"status": test.get("status", "infrastructure_error"), **preview, "offline": offline,
+                "steps": step_log, "test": test, "error": "Client or fixture assertions did not pass"}
+    report = test.get("details", {}).get("report")
+    if not isinstance(report, dict):
+        return {"status": "infrastructure_error", **preview, "error": "Missing correlated test report"}
+    if report.get("bridgeVersion") != BRIDGE_VERSION or report.get("schemaVersion") != BRIDGE_VERSION:
+        return {"status": "infrastructure_error", **preview, "test": test,
+                "error": f"Old ForgeTestBridge loaded; plans need bridge v{BRIDGE_VERSION}. "
+                         "Close and restart the test WoW client after deploying the bridge."}
+    independent = evaluate(checked, report)
+    return {"status": independent["status"], **preview, "offline": offline, "steps": step_log,
+            "test": test, "independent": independent, "evidence_dir": str(evidence_dir)}
+
+
 def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
              deployed_before_start: bool = False) -> dict:
     plan = load_plan(plan_file)
@@ -126,6 +178,8 @@ def run_plan(cfg: Config, plan_file: Path, *, approve: bool = False,
         deploy(deployed, cfg.wow_dir)
     if observer != "sdk":
         deploy(BRIDGE_SRC, cfg.wow_dir)
+    if cfg.automation_backend == "xdotool":
+        return _run_typed(cfg, plan, preview, offline, addon, owners, stale)
     if stale and not deployed_before_start:
         return {"status": "infrastructure_error", "stage": "deploy", **preview, "offline": offline,
                 "deployed": stale,
