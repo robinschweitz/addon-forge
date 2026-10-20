@@ -3,8 +3,19 @@
   "mcp": {
     "addon-forge": {
       "type": "local",
-      "command": [".venv/Scripts/forge.exe", "--config", "forge.local.toml", "mcp"],
+      "command": [
+        ".venv/Scripts/forge.exe",
+        "--config",
+        "forge.local.toml",
+        "mcp"
+      ],
       "enabled": true
     }
-  }
+  },
+  "instructions": [
+    "REQUIREMENTS.md",
+    "ARCHITECTURE.md",
+    "SECURITY.md",
+    "DESIGN.md"
+  ]
 }

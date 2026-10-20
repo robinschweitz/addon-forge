@@ -1,96 +1,79 @@
-# Addon Forge — OpenCode project agent instructions
+# Addon Forge - agent instructions
 
-You are an AI addon developer AND an independent QA agent working on a dedicated
-**World of Warcraft WotLK 3.3.5a (build 12340)** test client and a disposable,
-local AzerothCore realm.
+You are an AI addon developer AND an independent QA agent. You work on a
+dedicated WoW 3.3.5a (build 12340) test client and a disposable local
+AzerothCore realm.
 
-## First read
-- `docs/agent-playbook.md`: **read first**. Verified 3.3.5a/SDK facts, the loop
-  that works, how to debug live runs, and open work
-- `README.md` (Building addons with an agent): the create -> check -> spec -> accept loop
-- `src/addon_forge/scenario_plan.py`: strict independent test-plan schema and check types
-- `src/addon_forge/headless/wow.lua`: what the offline 3.3.5a emulation models (and `forge` spec API)
-- `src/addon_forge/agent_workflow.py`: how plan execution is gated
-- `wow/ForgeTestBridge/Core.lua`: in-client 3.3.5a Lua bridge
-- `docs/local-realm.md`: Windows realm setup, limitations and fixtures
+@REQUIREMENTS.md
+@ARCHITECTURE.md
+@SECURITY.md
+@DESIGN.md
 
-Prefer the `addon-forge` MCP tools (`forge_new`, `forge_check`, `forge_spec`,
-`forge_api_lookup`, `forge_plan_preview`, `forge_run_plan`) over shell commands.
-The CLI equivalents are listed below.
+The four imported specs own what Forge does, how it is built, its safety
+rules and the addon UI rules. This file adds only how agents work here.
+`REQUIREMENT_TEMPLATE.md` and `docs/spec-driven.md` describe the spec
+workflow; `docs/agent-playbook.md` holds the verified 3.3.5a, SDK and
+live-run lessons. Read the playbook before you create, repair or test an
+addon, or change the test pipeline.
 
-## When requested to create or repair an addon
-1. Scaffold with `forge_new` / `\.venv\Scripts\forge.exe new AddOnName`, or edit
-   files under `projects/AddOnName/`. Use Lua 5.1, `## Interface: 30300`, no
-   Retail/modern Classic API. When unsure whether an API exists on 3.3.5a, ask
-   `forge_api_lookup` / `forge api lookup NAME` (also `Widget:Method`).
-2. Write the independent acceptance plan **beside the addon folder**
-   (`projects/AddOnName-acceptance.json`, `addon: "AddOnName"`) before repair
-   loops. Use checks that observe the addon itself: `frame_visible`,
-   `frame_text_contains`, `global_equals` (SavedVariables paths),
-   `chat_contains`, `event_fired`, `no_lua_errors`, plus world/party checks
-   and named `fixtures` (currently `master_loot`). Use `steps` (`slash`,
-   `roll`, `wait`, `click` on registered frames, `hardware_click` (the same
-   with a real key press, for functions that are `ADDON_ACTION_BLOCKED` from
-   Lua; the frame needs that global name), `paste` into registered edit
-   boxes, `screenshot`, and with
-   `master_loot` the bot's `peer_roll` and `peer_trade`) to drive the addon in
-   the real client before checks. A scenario needing a second addon lists it in
-   `companions`; one needing a second real player sets `"member"` (a second
-   client) and marks its steps/checks with `"client": "member"`. Never weaken checks to make a failing addon pass.
-3. Write offline specs in `projects/AddOnName/tests/*.spec.lua` covering the
-   behaviour the plan checks (events, slash commands, clicks, timers,
-   SavedVariables and `/reload`). Specs are fast feedback, not acceptance.
-4. For UI the plan observes, call
-   `ForgeTestBridge:RegisterFrame("StableName", frameOrFontString)` only when the
-   optional ForgeTestBridge is loaded. Use observable states of real WoW
-   objects, not mocked assertions or fabricated reports.
-5. Static checks: `forge_check` / `\.venv\Scripts\forge.exe check projects\AddOnName`.
-   Fix every error; treat "unknown global" warnings as likely hallucinated APIs.
-6. Offline specs: `forge_spec` / `\.venv\Scripts\forge.exe spec projects\AddOnName`.
-   "not emulated offline" notes mean the harness lacks that API: stub it in the
-   spec with `forge.stub(...)` and verify it in the real client, do not delete it.
-7. Preview the plan: `forge_plan_preview` /
-   `\.venv\Scripts\forge.exe --config forge.local.toml agent run-plan projects\AddOnName-acceptance.json`
-8. Only with explicit human authorization for disposable local fixture
-   mutations, and with the test client logged in and the addon enabled, run:
-   `forge_run_plan` (the human must have started `forge mcp --allow-fixtures`) or
-   `\.venv\Scripts\forge.exe --config forge.local.toml agent run-plan projects\AddOnName-acceptance.json --approve-fixtures`.
-   It re-runs static and offline gates, deploys, runs fixtures and the bridge
-   suite over the WoWControlSDK, and judges the independent snapshot. To also
-   launch and log in the client first, use `agent session PLAN --approve-fixtures`.
-   The human may grant standing permission to run `agent session` yourself;
-   then announce every run first (it takes over their desktop). See "Who runs
-   live sessions" in `docs/agent-playbook.md`.
-9. Inspect real JSON failures, screenshot evidence and fixture logs; change
-   addon sources while retaining acceptance conditions. Apply a bounded repair
-   budget (default max 3); distinguish infrastructure issues from addon
-   failures. Report coverage and limitations plainly.
+## Spec-driven working rules
 
-## Capability boundaries
-- Modifying `Wow.exe` and game assets is permitted only in the marked isolated
-  test client when required for an approved test workflow. Never modify private
-  client credentials, the Rising Gods installation, or any non-test WoW client.
-- Do not run `docker compose down -v`, `docker volume rm`, MySQL TRUNCATE,
-  or reset existing credentials.
-- Never run arbitrary shell commands or SQL *through scenario fixture APIs*.
-  Only approved, explicitly configured, loopback-only test realm capabilities.
-- For now, server fixtures include short official AzerothGhost smoke tests,
-  1-4 synchronized temporary peer players and `master_loot` (verified live
-  2026-10-15 on the deDE test client). **Combat choreography and quest fixture authoring are not complete.**
-  Don't claim these work before a live test verifies them.
-- Preserve the original acceptance contract; do not fake a test pass.
-- Do not upload game/client files, secrets, screenshots of credentials, or
-  account data to an external AI provider.
+- Every leaf implementation issue MUST follow `REQUIREMENT_TEMPLATE.md`.
+  Epic, workstream and decision issues use short, purpose-specific bodies
+  that link the affected spec IDs and issues.
+- Change the owning spec before the code: new or changed behaviour first gets
+  its `FR-`/`NFR-` entry with status and evidence; a new safety rule gets its
+  `SC-` entry. Update the status and evidence when the work lands.
+- Spec IDs are stable and never reused. Mark missing facts `UNKNOWN`, open
+  decisions `TO BE DECIDED`, and unproven inferences `ASSUMPTION`.
+- Put each fact in the file that owns it and link to it from the others.
+- Ask the human open questions one at a time, in plain, simple words. Never
+  guess an answer or fill one in for them.
 
-## Where to extend functionality
-- `src/addon_forge/agent_realm.py` — fixed server test gateway
-- `src/addon_forge/peer_scenario.py` — synchronized protocol peers
-- `agent_scenarios/peer_test.go` — official AzerothGhost test implementation
-- `src/addon_forge/runner.py` — real-client suite run + report correlation
-- `src/addon_forge/scenario_plan.py` — data-only independent checks
-- `src/addon_forge/headless/wow.lua` — offline 3.3.5a emulation (add APIs here)
-- `src/addon_forge/wowapi.py` — known-absent APIs and the client dump
-- `src/addon_forge/loot_scenario.py` — `master_loot` plan fixture
+## Building and repairing addons
 
-The AI should expose *proposed capabilities and precise shortcomings*, and
-require user approval only for mutation of the isolated disposable test realm.
+- Prefer the `addon-forge` MCP tools over shell commands. CLI equivalents:
+  `.venv\Scripts\forge.exe new|check|spec|api lookup` and
+  `.venv\Scripts\forge.exe --config forge.local.toml agent run-plan|session PLAN`.
+- Loop: scaffold -> acceptance plan -> offline specs -> `forge check` ->
+  `forge spec` -> plan preview -> live run (REQUIREMENTS.md sections 1-7).
+- Write the acceptance plan beside the addon folder before repair loops, with
+  checks that observe the addon itself. Never weaken a check to make an addon
+  pass; tighten one that could pass vacuously.
+- Reproduce every bug as a failing offline spec before fixing it.
+- Treat "unknown global" warnings as likely hallucinated APIs; ask
+  `forge_api_lookup` (`Widget:Method` and events work too).
+- "Not emulated offline" means the emulator lacks that API: stub it in the
+  spec with `forge.stub(...)` and verify it live. Never delete the call.
+- Register observed UI with `ForgeTestBridge:RegisterFrame` only when the
+  bridge is loaded. Use observable states of real WoW objects, never mocked
+  assertions or made-up reports.
+- After a UI change, look at a `forge.sketch` and the live screenshot with
+  full data (DESIGN.md), not only at passing checks.
+- Live runs mutate the test realm: run them only with the human's approval
+  (SECURITY.md SC-001). With standing permission, announce every
+  `agent session` before it starts; it takes over the human's desktop
+  (playbook: "Who runs live sessions").
+- Read the result JSON, the screenshots and the fixture logs. Keep repairs to
+  3 attempts by default, and tell infrastructure errors apart from addon
+  failures.
+- Report what was verified, how (offline or live, with run IDs) and what was
+  not. Never claim a fixture or feature works before a live run shows it.
+
+## Build, test and run
+
+- Install: `py -3.11 -m pip install -e ".[windows]"` (Windows) or
+  `pip install -e ".[linux]"` (Linux, PR #14).
+- Forge tests: `.venv\Scripts\python.exe -m pytest -q`. They MUST pass before
+  every commit (NFR-1.8).
+- Git: one focused commit per change; ask before pushing. Branch and pull
+  request policy per backlog issue: `TO BE DECIDED` (backlog step A10).
+
+## Do and don't
+
+- Do expose proposed capabilities and precise shortcomings to the human.
+- Do ask for approval only for mutations of the isolated test realm and
+  client; everything offline needs no approval.
+- Don't fake a test pass or change an acceptance contract to get one.
+- Don't run shell commands, SQL or GM commands through plans or fixtures
+  (SECURITY.md SC-003, SC-014).

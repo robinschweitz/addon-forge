@@ -132,7 +132,9 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
 - **Rule:** Forge MUST act only on a WoW folder with a valid
   `.addon-forge-test-copy.json` marker, and only on processes and windows
   whose executable is that copy's. It MUST NOT read, copy or change another
-  installation's credentials or `WTF` data (Rising Gods). Setup MUST NOT
+  installation's credentials or `WTF` data (Rising Gods). `Wow.exe` and game
+  assets MAY be changed (for example SDK injection) only in the marked test
+  copy, and only for an approved test workflow. Setup MUST NOT
   overwrite an existing non-Forge folder, and MUST refuse symlinks and
   overlapping source and target paths.
 - **Enforcement:** `local_realm.verify_test_copy`, `make_test_copy`;
