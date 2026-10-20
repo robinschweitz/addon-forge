@@ -142,7 +142,7 @@ def test_emulation_matches_the_audited_client_behaviour():
     # 3.3.5a client (docs/agent-playbook.md, "Offline emulation vs. the client").
     result = run_specs(ROOT / "tests" / "emulation" / "ClientFidelity")
     assert result["status"] == "passed", result
-    assert result["tests"] >= 28
+    assert result["tests"] >= 30
 
 
 def test_events_the_client_lacks_are_ignored_and_reported(tmp_path):
@@ -161,6 +161,26 @@ end)
     assert run["tests"][0]["status"] == "passed", run
     assert any(d["severity"] == "warning" and "GROUP_ROSTER_UPDATE" in d["message"]
                and "PARTY_MEMBERS_CHANGED" in d["message"] for d in run["diagnostics"])
+
+
+def test_decompiled_event_table_blocks_unlisted_events_in_offline_addon_specs(tmp_path):
+    if not wowapi.DECOMP_DIR.is_dir():
+        pytest.skip("local wowdecomp checkout is optional")
+    root = addon(tmp_path, """
+ProbeHeard = 0
+local f = CreateFrame("Frame")
+f:RegisterEvent("UNIT_SPELLCAST_EMPOWER_START")
+f:SetScript("OnEvent", function() ProbeHeard = ProbeHeard + 1 end)
+""", spec="""
+test("an event absent from the 12340 table is never delivered", function()
+    forge.fire("UNIT_SPELLCAST_EMPOWER_START")
+    expect(ProbeHeard).toBe(0)
+end)
+""")
+    run = run_specs(root)["runs"][1]
+    assert run["tests"][0]["status"] == "passed", run
+    assert any(d["severity"] == "warning" and "UNIT_SPELLCAST_EMPOWER_START" in d["message"]
+               and "does not exist on 3.3.5a" in d["message"] for d in run["diagnostics"])
 
 
 def test_sandbox_blocks_host_access_and_infinite_loops(tmp_path):

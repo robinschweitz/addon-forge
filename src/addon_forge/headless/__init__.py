@@ -200,8 +200,11 @@ def run_addon(addon_dir: Path, spec: Path | None = None, *, budget: int = 20_000
     harness = loader()
     harness.budget = budget
     config = {"addonName": addon_dir.name, "metadata": _metadata(toc.path),
-              "savedVariables": toc.saved_variables,
-              "modernEvents": {name: True for name in wowapi.MODERN_EVENTS}}
+               "savedVariables": toc.saved_variables,
+               "modernEvents": {name: True for name in wowapi.MODERN_EVENTS}}
+    events = wowapi.known_events()
+    if events:
+        config["events"] = {name: True for name in events}
     methods = wowapi.known_methods()
     if methods:
         config["methods"] = {kind: {name: True for name in names} for kind, names in methods.items()}

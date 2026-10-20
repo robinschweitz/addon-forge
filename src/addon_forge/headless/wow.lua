@@ -475,7 +475,7 @@ function Frame:RegisterEvent(event)
     event = tostring(event)
     -- The client ignores names it has no event for (e.g. GROUP_ROSTER_UPDATE,
     -- added in 5.0): the frame never hears of them.
-    if W.modernEvents[event] then
+    if W.modernEvents[event] or (W.knownEvents and not W.knownEvents[event]) then
         if not report.modern_events[event] then report.modern_events[event] = where(3) end
         return
     end
@@ -655,13 +655,23 @@ function StatusBar:SetOrientation(v) state[self].orientation = v end
 
 -- ScrollFrame
 local ScrollFrame = class("ScrollFrame", "Frame")
-function ScrollFrame:SetScrollChild(c) state[self].scrollChild = c end
+function ScrollFrame:SetScrollChild(c)
+    local s = state[self]
+    s.scrollChild, s.scrollRangeDirty = c, true
+end
 function ScrollFrame:GetScrollChild() return state[self].scrollChild end
-function ScrollFrame:SetVerticalScroll(v) state[self].vscroll = v; runScript(self, "OnVerticalScroll", v) end
+function ScrollFrame:SetVerticalScroll(v)
+    local s = state[self]
+    v = tonumber(v) or 0
+    if s.vscroll ~= v then
+        s.vscroll = v
+        runScript(self, "OnVerticalScroll", v)
+    end
+end
 function ScrollFrame:GetVerticalScroll() return state[self].vscroll or 0 end
 function ScrollFrame:SetHorizontalScroll(v) state[self].hscroll = v end
-function ScrollFrame:GetVerticalScrollRange() return 0 end
-function ScrollFrame:UpdateScrollChildRect() end
+function ScrollFrame:GetVerticalScrollRange() return state[self].vscrollRange or 0 end
+function ScrollFrame:UpdateScrollChildRect() state[self].scrollRangeDirty = true end
 
 -- MessageFrame / ScrollingMessageFrame / GameTooltip / misc
 local MessageFrame = class("MessageFrame", "Frame")
@@ -1225,6 +1235,7 @@ local function newWorld(config, saved)
     end })
     W.knownMethods = config.methods
     W.modernEvents = config.modernEvents or {}
+    W.knownEvents = config.events
     W.savedNames = config.savedVariables or {}
     W.saved = saved or {}
     return E
@@ -1266,6 +1277,20 @@ function forge.advance(seconds, step)
         local pending = W.pending
         W.pending = {}
         for _, fn in ipairs(pending) do fn() end
+        -- CSimpleScrollFrame calculates a new range during its next layer
+        -- update. SetVerticalScroll deliberately does not clamp to that range.
+        for _, obj in ipairs(W.objects) do
+            local s = state[obj]
+            if s.type == "ScrollFrame" and s.scrollRangeDirty and obj:IsVisible() then
+                s.scrollRangeDirty = nil
+                local child = s.scrollChild
+                local range = math.max(0, (child and child:GetHeight() or 0) - obj:GetHeight())
+                if s.vscrollRange ~= range then
+                    s.vscrollRange = range
+                    runScript(obj, "OnScrollRangeChanged", 0, range)
+                end
+            end
+        end
         -- One pass over the frames visible when the frame starts (client
         -- CFrameStrataNode::OnLayerUpdate): a frame shown by another's
         -- OnUpdate waits for the next frame, a hidden one is skipped.
@@ -1502,6 +1527,9 @@ function forge.party(names)
     fire("PARTY_MEMBERS_CHANGED")
 end
 function forge.raid(names)
+    -- raidN resolves through the current roster count in the client. Clear old
+    -- tokens before installing a smaller or reordered roster.
+    for i = 1, 40 do W.units["raid" .. i] = nil end
     W.raid = {}
     for i, name in ipairs(names) do
         local d = type(name) == "table" and name or { name = name }

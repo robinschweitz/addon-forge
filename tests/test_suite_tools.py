@@ -212,7 +212,7 @@ def test_lookup_attaches_codex_signatures_and_payloads(tmp_path):
                                  "parameters": [{"name": "itemID", "type": "number"}],
                                  "returns": [{"name": "name", "type": "string"}, {"name": "link", "type": "string"}]}
     loot = wowapi.lookup("CHAT_MSG_LOOT", codex=codex)
-    assert loot["exists"] is True and loot["source"] == "milkyway-codex"
+    assert loot["exists"] is True and loot["source"] == "wowdecomp-12340"
     assert loot["reference"]["payload"] == [{"name": "message", "type": "string"}]
     point = wowapi.lookup("Frame:SetPoint", codex=codex)  # inherited from Region
     assert point["reference"]["signature"] == 'Region:SetPoint("point")'
@@ -231,3 +231,63 @@ def test_lookup_without_codex_data_is_unchanged(tmp_path):
     broken.mkdir()
     (broken / "events.json").write_text("{broken")
     assert wowapi.reference("CHAT_MSG_LOOT", broken) is None
+
+
+def _decomp(tmp_path):
+    scripts = tmp_path / "WoW" / "Source" / "Ui"
+    scripts.mkdir(parents=True)
+    (scripts / "Probe_Scripts.cpp").write_text('''
+static FrameScript_Method s_ScriptFunctions[] = {
+    { "DecompFunction", &Script_DecompFunction },
+};
+void Register() { FrameScript_RegisterFunction(s_ScriptFunctions[0].m_name, s_ScriptFunctions[0].m_method); }
+static FrameScript_Method s_ScriptMethods[] = {
+    { "DecompMethod", &Script_DecompMethod },
+};
+void CSimpleButton::RegisterScriptMethods(lua_State* L) { CSimpleFrame::RegisterScriptMethods(L); }
+static FrameScript_Method s_FrameMethods[] = {
+    { "DecompInherited", &Script_DecompInherited },
+};
+void CSimpleFrame::RegisterScriptMethods(lua_State* L) {}
+''')
+    (scripts / "Direct.cpp").write_text('''
+void Register() { FrameScript_RegisterFunction("DirectFunction", &Script_DirectFunction); }
+''')
+    (scripts / "Types.h").write_text('''
+#define SCRIPT_EVENTS(EVENT, EVENT_ALIAS) EVENT(DECOMP_EVENT, 1) EVENT_ALIAS(DECOMP_ALIAS, "DECOMP_EVENT", 2)
+''')
+    frame_xml = tmp_path / "Engine" / "Source" / "FrameXML"
+    frame_xml.mkdir(parents=True)
+    (frame_xml / "FrameXML.cpp").write_text('''
+CSimpleFrame* Create_SimpleButton(CSimpleFrame* parent) { return new CSimpleButton(parent); }
+void init() { FrameXML_RegisterFactory("Button", Create_SimpleButton, false); }
+''')
+    return tmp_path
+
+
+def test_lookup_uses_local_decompiled_client_registrations(tmp_path):
+    decomp = _decomp(tmp_path)
+    function = wowapi.lookup("DecompFunction", decomp=decomp)
+    assert function["exists"] is True and function["source"] == "wowdecomp-12340"
+    assert function["implementation"]["symbol"] == "Script_DecompFunction"
+    assert wowapi.lookup("DirectFunction", decomp=decomp)["exists"] is True
+    method = wowapi.lookup("Button:DecompMethod", decomp=decomp)
+    assert method["exists"] is True and method["implementation"]["symbol"] == "Script_DecompMethod"
+    assert wowapi.lookup("Button:DecompInherited", decomp=decomp)["exists"] is True
+    event = wowapi.lookup("DECOMP_EVENT", decomp=decomp)
+    assert event == {"name": "DECOMP_EVENT", "kind": "event", "exists": True,
+                     "source": "wowdecomp-12340",
+                     "implementation": {"source": "wowdecomp-12340", "path": "WoW/Source/Ui/Types.h"}}
+    assert wowapi.known_events(decomp) == frozenset({"DECOMP_EVENT"})
+
+
+def test_local_12340_decompilation_answers_native_apis_without_a_client_dump():
+    if not wowapi.DECOMP_DIR.is_dir():
+        pytest.skip("local wowdecomp checkout is optional")
+    result = wowapi.lookup("CalendarAddEvent")
+    assert result["exists"] is True and result["source"] == "wowdecomp-12340"
+    assert result["implementation"] == {"source": "wowdecomp-12340",
+                                        "path": "WoW/Source/Ui/Calendar_Scripts.cpp",
+                                        "line": 2113,
+                                        "symbol": "Script_CalendarAddEvent"}
+    assert wowapi.lookup("CALENDAR_UPDATE_EVENT_LIST")["source"] == "wowdecomp-12340"

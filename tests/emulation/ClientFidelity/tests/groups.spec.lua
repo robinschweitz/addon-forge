@@ -1,0 +1,13 @@
+-- raidN resolves through the current roster only, never a departed member.
+test("shrinking or clearing a raid removes departed raid unit tokens", function()
+    forge.raid({ "Tester", "Partner" })
+    expect(GetNumRaidMembers()).toBe(2)
+    expect(UnitName("raid2")).toBe("Partner")
+    forge.raid({ "Tester" })
+    expect(GetNumRaidMembers()).toBe(1)
+    expect(UnitExists("raid2")).toBeNil()
+    expect(UnitName("raid2")).toBeNil()
+    forge.raid({})
+    expect(GetNumRaidMembers()).toBe(0)
+    expect(UnitExists("raid1")).toBeNil()
+end)

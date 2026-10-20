@@ -1,12 +1,16 @@
 """What exists in the WoW 3.3.5a (build 12340) Lua environment.
 
-Two sources, in order of authority:
+Sources, in order of authority:
 
 1. ``wow/api/globals-30300.txt`` -- the real ``_G`` key list dumped from the
    isolated test client with ``forge api dump``. When present, any global an
    addon reads that is neither in this list nor defined by the addon itself is
    reported, which catches hallucinated APIs directly.
-2. The built-in lists below, used whether or not a dump exists. They name only
+2. ``.forge-tools/wowdecomp`` -- an optional local C++ decompilation of build
+   12340. Its script registration tables give the native Lua globals, widget
+   methods and complete event list. The index stores only names and source
+   locations; it never copies decompiled code or is committed.
+3. The built-in lists below, used whether or not a dump exists. They name only
    APIs that are known to be absent from 3.3.5a (added in later expansions, or
    Lua 5.2+), so an error from them is high-confidence.
 
@@ -25,6 +29,7 @@ import re
 
 DUMP_PATH = Path(__file__).resolve().parents[2] / "wow" / "api" / "globals-30300.txt"
 CODEX_DIR = Path(__file__).resolve().parents[2] / ".forge-tools" / "milkyway-codex"
+DECOMP_DIR = Path(__file__).resolve().parents[2] / ".forge-tools" / "wowdecomp"
 
 # Lua 5.1 base library plus the extra globals WoW 3.3.5a adds to every
 # environment. Used so a missing dump never flags these as unknown.
@@ -156,6 +161,127 @@ def known_methods(path: Path | None = None) -> dict[str, frozenset[str]]:
     return dump[1] if dump else {}
 
 
+_METHOD_ARRAY = re.compile(r"(?:static\s+)?FrameScript_Method\s+(\w+)\s*\[\]\s*=\s*\{(.*?)\};", re.S)
+_METHOD_ENTRY = re.compile(r'\{\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*,\s*&([A-Za-z_][A-Za-z0-9_]*)')
+_GLOBAL_REGISTRATION = re.compile(r"FrameScript_RegisterFunction\(\s*(\w+)\s*\[")
+_DIRECT_GLOBAL_REGISTRATION = re.compile(r'FrameScript_RegisterFunction\(\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*,\s*&([A-Za-z_][A-Za-z0-9_]*)')
+_METHOD_OWNER = re.compile(r"void\s+([A-Za-z_][A-Za-z0-9_]*)::RegisterScriptMethods\s*\(")
+_FACTORY = re.compile(r'FrameXML_RegisterFactory\("([A-Za-z][A-Za-z0-9]*)",\s*(Create_[A-Za-z0-9_]+),')
+_FACTORY_IMPL = re.compile(r"CSimpleFrame\*\s+(Create_[A-Za-z0-9_]+)\s*\([^)]*\)\s*\{.*?new(?:\s*\([^)]*\))?\s*([A-Za-z_][A-Za-z0-9_]*)\(", re.S)
+_EVENT = re.compile(r"\bEVENT\(([A-Z][A-Z0-9_]*),")
+_EVENT_ALIAS = re.compile(r'\bEVENT_ALIAS\([A-Z][A-Z0-9_]*,\s*"([A-Z][A-Z0-9_]*)"')
+
+# Regions are not created through FrameXML_RegisterFactory, and a few common
+# XML types use a more specialised class. The native metatable still supplies
+# their methods.
+_WIDGET_CLASSES = {
+    "Font": "CSimpleFont",
+    "FontString": "CSimpleFontString",
+    "Texture": "CSimpleTexture",
+    "GameTooltip": "CGTooltip",
+    "PlayerModel": "CSimpleModel",
+}
+
+
+def _source_location(root: Path, path: Path, text: str, offset: int) -> dict:
+    return {"source": "wowdecomp-12340", "path": path.relative_to(root).as_posix(),
+            "line": text.count("\n", 0, offset) + 1}
+
+
+@lru_cache(maxsize=2)
+def _load_decomp(root: Path) -> dict:
+    """Index native Lua registrations in a local 12340 decompilation.
+
+    The index contains API names and source locations only. Runtime dumps stay
+    authoritative because FrameXML can also create Lua globals and because
+    some registrations depend on the client's current screen.
+    """
+    if not root.is_dir():
+        return {"functions": {}, "methods": {}, "events": frozenset()}
+    functions, class_methods, parents, factories = {}, {}, {}, {}
+    for path in root.rglob("*.cpp"):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        arrays = {match.group(1): (match.group(2), match.start()) for match in _METHOD_ARRAY.finditer(text)}
+        for array, (body, offset) in arrays.items():
+            entries = _METHOD_ENTRY.findall(body)
+            if not entries:
+                continue
+            tail = text[offset:]
+            if _GLOBAL_REGISTRATION.search(tail) and _GLOBAL_REGISTRATION.search(tail).group(1) == array:
+                for name, symbol in entries:
+                    functions[name] = {**_source_location(root, path, text, offset), "symbol": symbol}
+            else:
+                owner = _METHOD_OWNER.search(tail)
+                if owner:
+                    class_methods.setdefault(owner.group(1), {}).update({name: symbol for name, symbol in entries})
+        owners = list(_METHOD_OWNER.finditer(text))
+        for i, owner in enumerate(owners):
+            end = owners[i + 1].start() if i + 1 < len(owners) else len(text)
+            parent = re.search(r"\b([A-Za-z_][A-Za-z0-9_]*)::RegisterScriptMethods\s*\(\s*L\s*\)",
+                               text[owner.end():end])
+            if parent and parent.group(1) != owner.group(1):
+                parents[owner.group(1)] = parent.group(1)
+        for match in _DIRECT_GLOBAL_REGISTRATION.finditer(text):
+            functions[match.group(1)] = {**_source_location(root, path, text, match.start()), "symbol": match.group(2)}
+    frame_xml = root / "Engine" / "Source" / "FrameXML" / "FrameXML.cpp"
+    try:
+        text = frame_xml.read_text(encoding="utf-8")
+    except OSError:
+        text = ""
+    implementations = {match.group(1): match.group(2) for match in _FACTORY_IMPL.finditer(text)}
+    for match in _FACTORY.finditer(text):
+        implementation = implementations.get(match.group(2))
+        if implementation:
+            factories[match.group(1)] = implementation
+    factories.update(_WIDGET_CLASSES)
+    def inherited_methods(implementation: str, seen=None) -> dict:
+        seen = seen or set()
+        if implementation in seen:
+            return {}
+        seen.add(implementation)
+        inherited = inherited_methods(parents[implementation], seen) if implementation in parents else {}
+        inherited.update(class_methods.get(implementation, {}))
+        return inherited
+
+    methods = {}
+    for widget, implementation in factories.items():
+        available = inherited_methods(implementation)
+        if available:
+            methods[widget] = {name: {"symbol": symbol} for name, symbol in available.items()}
+    event_path = root / "WoW" / "Source" / "Ui" / "Types.h"
+    try:
+        event_text = event_path.read_text(encoding="utf-8")
+    except OSError:
+        event_text = ""
+    events = frozenset(_EVENT.findall(event_text)) | frozenset(_EVENT_ALIAS.findall(event_text))
+    return {"functions": functions, "methods": methods, "events": events}
+
+
+def known_events(root: Path | None = None) -> frozenset[str] | None:
+    """The complete 12340 event table from the local decompilation, if available."""
+    index = _load_decomp(root or DECOMP_DIR)
+    return index["events"] or None
+
+
+def _decomp_reference(name: str, root: Path | None = None) -> dict | None:
+    index = _load_decomp(root or DECOMP_DIR)
+    if ":" in name:
+        widget, method = name.split(":", 1)
+        entry = index["methods"].get(widget, {}).get(method)
+        if entry:
+            return {"source": "wowdecomp-12340", "symbol": entry["symbol"]}
+        return None
+    entry = index["functions"].get(name)
+    if entry:
+        return entry
+    if name in index["events"]:
+        return {"source": "wowdecomp-12340", "path": "WoW/Source/Ui/Types.h"}
+    return None
+
+
 def modern_global(name: str) -> str | None:
     if name in MODERN_GLOBALS:
         return MODERN_GLOBALS[name]
@@ -223,28 +349,38 @@ def reference(name: str, root: Path | None = None) -> dict | None:
     return _load_codex(root or CODEX_DIR).get(name)
 
 
-def lookup(name: str, path: Path | None = None, codex: Path | None = None) -> dict:
+def lookup(name: str, path: Path | None = None, codex: Path | None = None,
+           decomp: Path | None = None) -> dict:
     """Answer 'does this global (or Widget:Method, or event) exist on 3.3.5a?' for agents and humans."""
-    result = _exists(name, path, codex)
+    result = _exists(name, path, codex, decomp)
     ref = reference(name, codex) if result["exists"] is not False else None
     if ref:
         result["reference"] = {k: v for k, v in ref.items() if k != "kind"}
+    implementation = _decomp_reference(name, decomp)
+    if implementation:
+        result["implementation"] = implementation
     return result
 
 
-def _exists(name: str, path: Path | None, codex: Path | None) -> dict:
+def _exists(name: str, path: Path | None, codex: Path | None, decomp: Path | None) -> dict:
+    index = _load_decomp(decomp or DECOMP_DIR)
     if ":" in name:
         widget, method = name.split(":", 1)
         methods = known_methods(path).get(widget)
         if method in MODERN_METHODS:
             return {"name": name, "exists": False, "source": "builtin", "hint": MODERN_METHODS[method]}
-        if methods is None:
-            return {"name": name, "exists": None, "source": "unknown",
-                    "hint": "No method dump for this widget type; run 'forge api dump'"}
-        return {"name": name, "exists": method in methods, "source": "client-dump"}
+        if methods is not None:
+            return {"name": name, "exists": method in methods, "source": "client-dump"}
+        decomp_methods = index["methods"].get(widget)
+        if decomp_methods is not None:
+            return {"name": name, "exists": method in decomp_methods, "source": "wowdecomp-12340"}
+        return {"name": name, "exists": None, "source": "unknown",
+                "hint": "No method dump or decompiled type for this widget; run 'forge api dump'"}
     if name in MODERN_EVENTS:
         return {"name": name, "kind": "event", "exists": False, "source": "builtin",
                 "hint": MODERN_EVENTS[name]}
+    if name in index["events"]:
+        return {"name": name, "kind": "event", "exists": True, "source": "wowdecomp-12340"}
     ref = reference(name, codex)
     if ref and ref["kind"] == "event":  # the dump holds globals, not the event table
         return {"name": name, "kind": "event", "exists": True, "source": "milkyway-codex",
@@ -256,10 +392,12 @@ def _exists(name: str, path: Path | None, codex: Path | None) -> dict:
     if dump is not None:
         return {"name": name, "exists": name in dump or name in LUA51_GLOBALS,
                 "source": "client-dump"}
+    if name in index["functions"]:
+        return {"name": name, "exists": True, "source": "wowdecomp-12340"}
     if name in LUA51_GLOBALS:
         return {"name": name, "exists": True, "source": "builtin"}
     return {"name": name, "exists": None, "source": "unknown",
-            "hint": "No client dump yet; run 'forge api dump' with the test client in world"}
+            "hint": "Not a native API in the local decompilation; run 'forge api dump' for FrameXML and runtime globals"}
 
 
 ENTRY = re.compile(r"(?:[A-Za-z]{2,32}:)?[A-Za-z_][A-Za-z0-9_]{0,99}")

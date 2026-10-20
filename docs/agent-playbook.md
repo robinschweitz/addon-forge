@@ -193,6 +193,12 @@ its code here). Function names below are the client's. The probe addon
 `tests/emulation/ClientFidelity` holds a spec for every fixed point; 23 of its
 28 tests failed on the old emulator.
 
+`forge api lookup` uses that optional local checkout too: it indexes the
+client's native Lua registrations, widget method tables and event list, and
+returns only the API name plus its source location/symbol. The real-client dump
+remains authoritative for FrameXML and runtime globals that the native source
+does not register.
+
 Fixed in the emulator:
 - **SavedVariables** (`LoadAddOn`, `FrameScript_LoadVariables`): the saved file
   runs after the addon's files, in a scratch table, and only the values it set
@@ -232,6 +238,9 @@ Fixed in the emulator:
 - **OnUpdate** (`CSimpleTop::OnLayerUpdate`, `CFrameStrataNode::OnLayerUpdate`):
   one elapsed value per frame for every visible frame (matched). A frame shown
   during the pass waits for the next frame; one hidden during it is skipped.
+- **ScrollFrame** (`CSimpleScrollFrame`): its vertical range is recalculated on
+  the next visible layer update; `SetVerticalScroll` keeps out-of-range offsets
+  rather than clamping them.
 - **SendAddonMessage** (`Script_SendAddonMessage`): type defaults to PARTY;
   only PARTY, RAID, GUILD, BATTLEGROUND, WHISPER (any case), anything else
   errors "Unknown addon chat type"; RAID outside a raid goes to PARTY; PARTY
