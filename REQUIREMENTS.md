@@ -48,8 +48,9 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   Nix (dev shell and package only); GitHub (source hosting only).
 - Authentication / roles: The human operator grants real-client and realm
   mutation (`--approve-fixtures`, `forge mcp --allow-fixtures`,
-  `--approve-local-setup`, `--approve-build`). An agent cannot grant itself
-  approval. Test realm accounts: `main` and `member` credential slots, kept in
+  `--approve-local-setup`, `--approve-build`). Over MCP an agent cannot
+  grant itself approval; an agent with a shell can pass CLI flags (THREAT_MODEL.md
+  T-001, SECURITY.md OD-008). Test realm accounts: `main` and `member` credential slots, kept in
   Windows Credential Manager or the Linux Secret Service.
 - Regulatory or privacy constraints: Use only an authorized private test realm
   and a legitimately owned client. Rules: `SECURITY.md` SC-006, SC-018.
@@ -107,6 +108,15 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **FR-2.8** `forge check` MUST exit 0 when there are no errors and 1
   otherwise, and MUST say that passing does not prove in-client correctness.
   *IMPLEMENTED: `cli.py`; `test_offline.py::test_static_check_accepts_real_addons`*
+- **FR-2.9** `forge check` MUST report a Lua file that holds precompiled Lua
+  bytecode instead of source as an error, so deploy refuses it too.
+  *NOT IMPLEMENTED: THREAT_MODEL.md T-004 (a bytecode `Core.lua` passed on
+  2026-10-21)*
+- **FR-2.10** `forge check` MUST report an error when addon code changes the
+  test bridge other than by calling `RegisterFrame` or `RegisterTest`, or
+  replaces the Lua error handler (`seterrorhandler`).
+  *NOT IMPLEMENTED: decided 2026-10-21 (SECURITY.md OD-009, THREAT_MODEL.md
+  T-013)*
 
 ### 3. 3.3.5a API knowledge (`forge api`, `forge_api_lookup`)
 
@@ -184,6 +194,10 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **FR-4.10** `forge spec` MUST exit 0 only when every run passed, print a
   per-test summary, and print the full result with `--json`.
   *IMPLEMENTED: `cli.py`; no dedicated test*
+- **FR-4.11** The offline emulator MUST refuse to load addon or spec files
+  that hold precompiled Lua bytecode, and report a load error.
+  *NOT IMPLEMENTED: THREAT_MODEL.md T-004 (such a file loaded and ran on
+  2026-10-21)*
 
 ### 5. Acceptance plans (schema)
 
@@ -291,6 +305,17 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **FR-6.11** The system MUST store evidence (result JSON, end screenshot,
   `screenshot` step images, fixture logs) in `.forge-runs/` beside the plan.
   *IMPLEMENTED (live): `test_agent_workflow.py::test_screenshot_step_saves_under_its_name`*
+- **FR-6.12** Every approved live run (`run-plan`, `session`, `forge_run_plan`,
+  `forge_session`, `release`) MUST append one entry to a run log: time, entry
+  point (CLI or MCP), plan, content hash of the plan's addons, run IDs and
+  outcome.
+  *NOT IMPLEMENTED: decided 2026-10-21 (SECURITY.md OD-008, THREAT_MODEL.md
+  T-001)*
+- **FR-6.13** The judge MUST attribute captured Lua errors to an addon by
+  where they were raised (the bridge records the error's source location), not
+  by file names in the message text.
+  *NOT IMPLEMENTED: decided 2026-10-21 (SECURITY.md OD-009, THREAT_MODEL.md
+  T-013); needs a bridge report change (ARCHITECTURE.md DR-7)*
 
 ### 7. Live sessions (`agent session`, `agent prepare`)
 
@@ -403,8 +428,6 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   that changes phase at fixed health marks and casts spells, so that an addon
   can observe the casts and phase changes. It is not tied to one addon.
   *NOT IMPLEMENTED: decided 2026-10-20*
-- **FR-10.12** The system SHOULD provide a quest fixture.
-  *DEFERRED: decided 2026-10-20 (combat comes first)*
 - **FR-10.9** New server-side fixtures MUST be prototyped as server Lua
   (mod-ale) and then promoted to named, typed plan fixtures. Plans MUST NOT
   carry raw server Lua.
@@ -419,6 +442,14 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   tested.
   *NOT IMPLEMENTED: decided 2026-10-20. Today the peers form their own party
   (`docs/qa-workflow.md`, Verification status)*
+- **FR-10.12** The system SHOULD provide a quest fixture.
+  *DEFERRED: decided 2026-10-20 (combat comes first)*
+- **FR-10.13** Server Lua scripts of named fixtures MUST live in this
+  repository and be reviewed there. Forge MUST copy them into the realm's
+  `lua_scripts` folder; that folder holds only these, plus scratch files while
+  a new fixture is being written.
+  *NOT IMPLEMENTED: decided 2026-10-21 (SECURITY.md OD-010, THREAT_MODEL.md
+  T-018)*
 
 ### 11. Local realm and test client setup
 
@@ -557,10 +588,12 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **FR-15.1** `forge release <Addon>` MUST copy the addon into the configured
   `wow-addons` checkout and commit it there, and MUST NOT push.
   *NOT IMPLEMENTED: decided 2026-10-21 (ARCHITECTURE.md AQ-4)*
-- **FR-15.2** `forge release` MUST refuse unless every acceptance plan of the
-  addon has a recorded `passed` run on exactly the files being released, and
-  MUST name the plans that are missing or failed.
-  *NOT IMPLEMENTED: decided 2026-10-21*
+- **FR-15.2** `forge release` MUST run every acceptance plan of the addon
+  itself, as live sessions on exactly the files being released (it needs
+  `--approve-fixtures`), and MUST refuse unless all pass. It MUST NOT rely on
+  earlier result files, and MUST name the plans that failed.
+  *NOT IMPLEMENTED: decided 2026-10-21 (SECURITY.md OD-011, THREAT_MODEL.md
+  T-024)*
 - **FR-15.3** A released copy MUST NOT contain `tests/`, `.forge-runs/` or the
   test bridge.
   *NOT IMPLEMENTED: decided 2026-10-21; `README.md` (Security notes) already

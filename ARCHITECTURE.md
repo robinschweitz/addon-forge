@@ -31,8 +31,8 @@ UI rules are in [DESIGN.md](DESIGN.md), and security controls are in
   command files between Forge and a running Go fixture; bridge reports as
   JSON (SDK) or SavedVariables (Linux).
 - Authentication and session model: no Forge accounts. The human approves
-  every realm or client mutation with a command-line flag; an agent cannot
-  set one. Realm accounts log in with credentials from the OS vault (Windows
+  every realm or client mutation with a command-line flag. Over MCP an agent
+  cannot set one; an agent with a shell can (THREAT_MODEL.md T-001). Realm accounts log in with credentials from the OS vault (Windows
   Credential Manager, Linux Secret Service). Details: `SECURITY.md`.
 - Data model and scale expectations: files only, no Forge database (addon
   folders, plans, results, `wow/api/` dump, `.forge-tools/` data). The realm's
@@ -76,9 +76,9 @@ UI rules are in [DESIGN.md](DESIGN.md), and security controls are in
   mod-ale build; updating them is a deliberate change (AQ-2, NFR-1.12).
 - **Release gate.** `forge release` copies an addon into the owner's
   `wow-addons` checkout and commits it only when every live plan of that
-  addon passed on exactly the files being released (AQ-4, FR-15.1). PROPOSED:
-  the gate compares a content hash of the addon folder, which each passing
-  run records in its result.
+  addon passed on exactly the files being released (AQ-4, FR-15.1). The
+  release runs those plans itself as live sessions; it does not trust earlier
+  result files (FR-15.2, THREAT_MODEL.md T-024).
 
 ## Components and flows
 
@@ -102,7 +102,7 @@ UI rules are in [DESIGN.md](DESIGN.md), and security controls are in
 | Realm fixtures (`loot_scenario.py`, `peer_scenario.py`, `agent_realm.py`, `agent_scenarios/*.go`) | Start Go fixtures; command-file handshake with the bot; cleanup | fixture logs | FR-10.x | PARTIAL (combat, full party) |
 | Realm setup (`local_realm.py`, `db_guard.py`, `local_account.py`) | Clone and configure AzerothCore; loopback-only compose; test copy; accounts | `.env`, `forge.local.toml`, test WoW copy | FR-11.1, FR-11.2, FR-10.7 | SUPPORTED |
 | SDK build (`wowcontrol_build.py`, `tools/wowcontrol-sdk/`) | Build the pinned external SDK with the Forge patch | `.forge-tools/wowcontrol-sdk` | FR-11.5 | SUPPORTED |
-| Release (`forge release`, new) | Check recorded passing runs against the addon's content hash; copy and commit into `wow-addons` | release commit | FR-15.x | PARTIALLY DEFINED (not built; hash check PROPOSED) |
+| Release (`forge release`, new) | Run every plan of the addon as a live session; copy and commit into `wow-addons` | release commit | FR-15.x | PARTIALLY DEFINED (not built) |
 | Removal set (`realm_connect.py` CLI commands, `cloud/`, `scripts/cloud/`, `nix/hosts`, `nix/disko`, `nix/modules`, `agent capabilities`) | — | — | FR-11.7, FR-13.1, FR-13.2, FR-10.10 | TO BE REMOVED |
 
 ### Main data flow: an approved live run
@@ -135,11 +135,16 @@ UI rules are in [DESIGN.md](DESIGN.md), and security controls are in
 - **TB-4 External SDK -> Forge.** The SDK and its injector are third-party
   native code, built from a pinned commit; its replies are parsed as data.
 - **TB-5 Client report -> Forge.** Bridge reports are data: JSON, or a strict
-  SavedVariables subset parser that never executes Lua.
+  SavedVariables subset parser that never executes Lua. The bridge shares the
+  client's Lua state with the addon under test, so its snapshot is
+  independent of honest mistakes, not of an addon that tampers with it
+  (THREAT_MODEL.md T-013).
 - **TB-6 Forge -> realm.** Docker services bound to loopback; fixtures reach
   MySQL and GM commands only through fixed Go tests.
 - **TB-7 Human approval.** `--approve-fixtures`, `--allow-fixtures`,
-  `--approve-local-setup`, `--approve-build` are set by the human only.
+  `--approve-local-setup`, `--approve-build` are meant for the human. MCP
+  enforces it; on the CLI it is an agreement with shell-capable agents
+  (THREAT_MODEL.md T-001).
 - **TB-8 Other addons in the client.** Their errors are foreign evidence and
   do not judge the addon under test.
 

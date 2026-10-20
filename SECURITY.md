@@ -4,10 +4,10 @@ This file owns the secure-coding rules for Addon Forge and for addons built
 with it, and the open security decisions. Behaviour is in
 [REQUIREMENTS.md](REQUIREMENTS.md), components and trust boundaries (`TB-`)
 are in [ARCHITECTURE.md](ARCHITECTURE.md), and UI rendering rules are in
-[DESIGN.md](DESIGN.md). Threats get `T-` IDs in `THREAT_MODEL.md` (step A8).
+[DESIGN.md](DESIGN.md). Threats (`T-`) are in [THREAT_MODEL.md](THREAT_MODEL.md).
 
 Rule status: `ACTIVE` (enforced today), `PLANNED` (decided, enforcement point
-named, not built yet), `BLOCKED` (waits for an `OD-` decision; none today).
+named, not built yet), `BLOCKED` (waits for an `OD-` decision).
 
 ## Secure-Coding Inputs
 
@@ -61,8 +61,11 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
 - **Rule:** Code that deploys to the client, starts fixtures or peers, changes
   the realm, builds the SDK or sets up the realm MUST run only with a human
   flag (`--approve-fixtures`, `--approve-local-setup`, `--approve-build`, or
-  `forge mcp --allow-fixtures`). Without it, it MUST only preview. No agent
-  input may set a flag.
+  `forge mcp --allow-fixtures`). Without it, it MUST only preview. Over MCP
+  no agent input may set a flag. A shell-capable agent can pass the CLI flags
+  itself; it MUST do so only with the human's standing permission and an
+  announcement, and every approved live run is logged (T-001, OD-008,
+  FR-6.12; log not built).
 - **Enforcement:** CLI adapter; MCP `Forge.forge_run_plan`;
   `agent_workflow.run_plan`; `local_realm.setup`; `wowcontrol_build.setup`.
 - **Evidence:** REQUIREMENTS.md FR-6.1, FR-11.1, FR-11.5, FR-12.3; TB-7.
@@ -166,8 +169,8 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
 - **Rule:** Offline addon and spec code MUST run without `os`, `io`,
   `package`, `require`, `dofile`, `loadfile`, `debug` or Python access, with
   an instruction budget (20,000,000 by default) and a 256 MB memory cap.
-  Static checks MUST only
-  compile Lua, never run it.
+  Static checks MUST only compile Lua, never run it. Precompiled bytecode
+  files bypass this rule today (T-004); SC-025 closes that gap.
 - **Enforcement:** `headless/wow.lua` (sandbox), `headless.run_addon`;
   `lua51.syntax_error`.
 - **Evidence:** NFR-1.4; TB-2.
@@ -255,7 +258,9 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
   Fixture logs MUST redact passwords; soft passes MUST be disabled.
   Fixtures use the MySQL `root` account of the loopback realm (accepted risk,
   OD-003). Plans MUST
-  NOT carry server Lua: mod-ale scripts become named fixtures (FR-10.9).
+  NOT carry server Lua: mod-ale scripts become named fixtures (FR-10.9), kept
+  and reviewed in this repository and copied into the realm (FR-10.13,
+  OD-010; not built).
 - **Enforcement:** `agent_realm.SCENARIOS`; `loot_scenario.FixturePeer`;
   `peer_scenario._fixture_env`; plan schema (`FIXTURES`).
 - **Evidence:** FR-10.x; ARCHITECTURE.md AQ-3.
@@ -334,14 +339,16 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
 
 **SC-020 - Release only what passed**
 - **Status:** PLANNED
-- **Rule:** `forge release` MUST copy only an addon whose every acceptance
-  plan passed on exactly the released files, MUST leave out `tests/`,
+- **Rule:** `forge release` MUST run every acceptance plan of the addon live
+  on exactly the files it releases, and copy the addon only when all pass. It
+  MUST NOT trust earlier result files (OD-011). It MUST leave out `tests/`,
   `.forge-runs/` and the test bridge, and MUST NOT push. Passing runs are
   the whole gate; no human review step is required (OD-002).
 - **Enforcement:** `forge release` (not built).
-- **Evidence:** FR-15.1-FR-15.3; ARCHITECTURE.md AQ-4.
-- **Verification:** unit tests for the release command; a release with a
-  changed file or a missing passing run must be refused.
+- **Evidence:** FR-15.1-FR-15.3; ARCHITECTURE.md AQ-4; T-023, T-024.
+- **Verification:** unit tests for the release command: a failing plan, or a
+  file changed after the run, must stop the release; old result files must be
+  ignored.
 
 **SC-021 - Close only the marked client; bound the session**
 - **Status:** PLANNED
@@ -380,6 +387,30 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
 - **Verification:** `check_compose` rejects a published SOAP port; a test like
   `test_local_realm.py::test_compose_rejects_exposed_public_bindings`.
 
+**SC-025 - Source code only**
+- **Status:** PLANNED
+- **Rule:** Forge MUST refuse addon and spec files that hold precompiled Lua
+  bytecode: `forge check` reports them as errors (so deploy refuses them), and
+  the offline emulator does not load them.
+- **Enforcement:** `validate.check_addon`; `headless/wow.lua` file and spec
+  loaders (not built).
+- **Evidence:** T-004; FR-2.9, FR-4.11.
+- **Verification:** a test addon whose `Core.lua` is a `string.dump` chunk
+  fails `forge check` and does not run in `forge spec`.
+
+**SC-026 - Addons leave the test bridge alone**
+- **Status:** PLANNED
+- **Rule:** Addon code MUST NOT change the test bridge beyond calling
+  `RegisterFrame` and `RegisterTest`, and MUST NOT replace the Lua error
+  handler; `forge check` reports both as errors. The judge MUST attribute Lua
+  errors by their source location, not by message text.
+- **Enforcement:** `validate.check_addon`; the bridge's error capture and
+  `scenario_plan.split_errors` (not built).
+- **Evidence:** T-013; OD-009; FR-2.10, FR-6.13.
+- **Verification:** test addons that overwrite a bridge function, call
+  `seterrorhandler`, or raise an error naming another addon's file are
+  rejected or judged as owned.
+
 ## Open Security Decisions
 
 None. Answered on 2026-10-21:
@@ -396,3 +427,12 @@ None. Answered on 2026-10-21:
 - **OD-006** Accepted: the AI upload rule stays an instruction (SC-018).
 - **OD-007** Answered: every message kind and import format needs malformed
   and unauthorized specs, enforced by `forge check` (SC-019, FR-14.6).
+- **OD-008** Answered: keep the standing-permission model, and log every
+  approved live run (SC-001, FR-6.12).
+- **OD-009** Answered: `forge check` rejects addon code that tampers with the
+  bridge or the error handler, and errors are attributed by source location
+  (SC-026, FR-2.10, FR-6.13).
+- **OD-010** Answered: fixture server Lua lives in this repository and is
+  copied into the realm (SC-014, FR-10.13).
+- **OD-011** Answered: `forge release` re-runs every plan live instead of
+  trusting result files (SC-020, FR-15.2).
