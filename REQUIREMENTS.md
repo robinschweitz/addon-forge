@@ -479,6 +479,11 @@ limits, loopback-only binding, input validation) belong in `SECURITY.md`
   fixtures.
   *NOT IMPLEMENTED: decided 2026-10-20. PR #14 refuses these on the Linux
   backend*
+- **FR-11.13** On Linux, the WoWControlSDK MUST run inside the Wine test
+  client, so Linux runs use the same SDK channel as Windows (per-process pipe,
+  JSON reports, fixed Lua).
+  *NOT IMPLEMENTED: decided 2026-10-21 (ARCHITECTURE.md AQ-1); unknown whether
+  the SDK works under Wine*
 
 ### 12. MCP server (`forge mcp`)
 
@@ -538,6 +543,20 @@ limits, loopback-only binding, input validation) belong in `SECURITY.md`
   requirement.
   *NOT IMPLEMENTED: `docs/spec-driven.md`*
 
+### 15. Release gate
+
+- **FR-15.1** `forge release <Addon>` MUST copy the addon into the configured
+  `wow-addons` checkout and commit it there, and MUST NOT push.
+  *NOT IMPLEMENTED: decided 2026-10-21 (ARCHITECTURE.md AQ-4)*
+- **FR-15.2** `forge release` MUST refuse unless every acceptance plan of the
+  addon has a recorded `passed` run on exactly the files being released, and
+  MUST name the plans that are missing or failed.
+  *NOT IMPLEMENTED: decided 2026-10-21*
+- **FR-15.3** A released copy MUST NOT contain `tests/`, `.forge-runs/` or the
+  test bridge.
+  *NOT IMPLEMENTED: decided 2026-10-21; `README.md` (Security notes) already
+  asks to keep the bridge out of releases*
+
 ## Non-Functional Requirements
 
 - **NFR-1.1** Addons MUST target WoW 3.3.5a build 12340: Lua 5.1 and
@@ -577,6 +596,11 @@ limits, loopback-only binding, input validation) belong in `SECURITY.md`
   fresh checkout.
   *PARTIAL: decided 2026-10-20. `docs/agent-playbook.md` names the owner's
   test-client path (`F:\Wow\wow_second`)*
+- **NFR-1.12** The local realm MUST be built from pinned AzerothCore image
+  versions and a pinned mod-ale build, so every user gets the same server.
+  Updating a pin MUST be an explicit change.
+  *NOT IMPLEMENTED: decided 2026-10-21 (ARCHITECTURE.md AQ-2). Setup uses
+  mutable upstream tags today*
 
 ## Open Questions
 
