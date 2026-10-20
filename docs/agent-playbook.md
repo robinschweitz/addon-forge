@@ -273,7 +273,80 @@ Fixed in the emulator:
   passed only because the stub bypassed the rule. It now uses a hardware click
   (as its live plan's `hardware_click` does) and a typed `/ledger calendar`.
 
+Second pass (2026-10-20, the APIs the project addons use; probe specs
+`chat`, `group`, `world`, `calendar`):
+- **Chat event payload** (`SendChatEvent`): every CHAT_MSG_* has 13 arguments:
+  text, sender, language, channel string, target, flags, zone channel ID,
+  channel number, channel name, (unused), line ID, sender GUID ("0x" + 16 hex
+  digits, "" for system lines), presence ID. The emulator used to pass only the
+  text. `forge.chatEvent(event, text, sender, opts)` sends a full one.
+- **RandomRoll** (`Script_RandomRoll`): both bounds required (strings or
+  numbers; `RandomRoll(100)` is a usage error), nothing is sent for an empty
+  or reversed range or a maximum above 1000000, and the result line comes
+  back from the server, so it arrives **on the next frame**, never inside the
+  call. Deathroll's and FortuneCookie's specs (projects/, local) call
+  `RandomRoll` or press ROLL and read the result at once: they passed only
+  because the emulator answered synchronously. Each such step needs a
+  `forge.advance(0.05)` before the check; the addons themselves are fine.
+- **SendChatMessage** (`Script_SendChatMessage`, `ChatParserParseText`,
+  `TruncateNewLines`): SAY by default; unknown types error; `%t`/`%n` become
+  the target's name (else "<no target>") and `%f` the focus's, so "50%target"
+  sends the target's name; text is cut at 255 bytes and at the first line
+  break (`\n`, `\r`, or a literal `\n`/`|n`); a `|` must start `||` or
+  `|c...|r` (anything else, e.g. `|T` textures, is a Lua error; an unclosed
+  `|c` cuts the text). PARTY outside a group and RAID outside a raid send
+  nothing and print ERR_NOT_IN_GROUP / ERR_NOT_IN_RAID as a system line.
+- **Groups**: `GetRaidRosterInfo` returns 14 values, `nil, 0, 1, 1, nil...` for
+  an index outside the raid, PLAYER_OFFLINE as an offline member's zone.
+  `IsRaidLeader` is true for the party leader too (it compares with the group
+  leader); `IsRaidOfficer` means raid rank 1+. `ConvertToRaid` is refused by
+  the client itself unless the player leads a party with members and is level
+  10+ (the live "below level 10" finding); the server converts on the next
+  frame. `InviteUnit` errors on names over 48 bytes.
+- **Loot**: an item that leaves the loot window (`GiveMasterLoot`,
+  `LootSlot`) fires LOOT_SLOT_CLEARED(slot). `GetItemInfo` returns nothing for
+  items not in the cache and errors on a non-string/number.
+- **Bags** (`Script_GetContainerNumSlots`/`ItemLink`): backpack 16 slots, bank
+  28, keyring 32, missing bags 0; `forge.bag` fills one. **Guild**
+  (`Script_GetNumGuildMembers`, `Script_GetGuildRosterInfo`): online members
+  unless `GetNumGuildMembers(true)` or show-offline; 11 values per member,
+  `nil, nil, 0, 0, ..., "", nil` past the end; `GuildRoster()` answers with
+  GUILD_ROSTER_UPDATE on the next frame. `forge.guild{...}` sets it up.
+- **Calendar** (`CGCalendar::Invite`, `CGCalendar::AddEvent`,
+  `CGCalendarEvent::Invite`, `CreatePlayerEvent`): a new event has the creator
+  as invite 1. While an invite or new event waits for the server,
+  CALENDAR_ACTION_PENDING(true) and further invites/adds are ignored. The
+  client allows **one invite per 2 seconds** and one new event per 5 seconds;
+  faster calls fire CALENDAR_UPDATE_ERROR (`CALENDAR_ERROR_INVITE_THROTTLED`,
+  `..._EVENT_THROTTLED`). 100 invites max; names are case-fixed; an existing
+  invite errors. `CalendarSetAbsMonth` fires CALENDAR_UPDATE_EVENT_LIST
+  synchronously (matches the live finding). **RaidLedger** invites every
+  0.25 s (`CALENDAR_INVITE_DELAY`), so with two or more names all but the
+  first are throttled in the real client; only a one-invite event has been
+  verified live. Its calendar spec stubs the calendar, so it does not see this.
+  The throttle-bypass CVar's registration is not ported in the decompilation,
+  so its name and default are unconfirmed; a live run with three names would
+  settle it.
+- **ColorSelect** (`CSimpleColorSelect`): `SetColorRGB` runs OnColorSelect at
+  once; `ColorPickerFrame` exists (hidden).
+- **Event payloads**: TRADE_PLAYER_ITEM_CHANGED(slot), TRADE_ACCEPT_UPDATE
+  (player, target), LOOT_OPENED(autoLoot 0/1), RAID_ROSTER_UPDATE (no
+  arguments), UI_INFO_MESSAGE / UI_ERROR_MESSAGE (the message text),
+  PARTY_INVITE_REQUEST(name), BAG_UPDATE(bag). Third-party event lists get
+  several of these wrong for 3.3.5a (an item link on
+  TRADE_PLAYER_ITEM_CHANGED, a reason on RAID_ROSTER_UPDATE, a number on
+  UI_INFO_MESSAGE); trust the client.
+
 Not changed (checked, or unclear):
+- GameTooltip's TextLeft/TextRight lines come from the FrameXML template
+  (not in the decompilation; the client only adds lines beyond the template's).
+  The emulator creates lines on demand, and `AddDoubleLine` still joins both
+  sides into the left line.
+- `UnitName` for a group member's *name* (not unit token) and ColorSelect's
+  colour rounding (the client stores HSV and returns 8-bit RGB) are not
+  modelled exactly.
+- The server's replies to `InviteUnit` (system lines, roster events) are left
+  to specs (`forge.party`/`forge.raid`).
 - RandomRoll and SendChatMessage are not protected (`CanPerformAction(10)` is
   allowed), matching the live finding above.
 - Frame-level protection (Show/Hide/SetPoint of secure frames in combat,

@@ -727,7 +727,13 @@ function GameTooltip:IsOwned(f) return state[self].owner == f end
 class("Cooldown", "Frame").SetCooldown = function(self, start, dur) state[self].cooldown = { start, dur } end
 class("Model", "Frame")
 class("PlayerModel", "Model")
-class("ColorSelect", "Frame")
+-- ColorSelect (client CSimpleColorSelect): SetColorRGB runs OnColorSelect at once.
+local ColorSelect = class("ColorSelect", "Frame")
+function ColorSelect:SetColorRGB(r, g, b)
+    state[self].rgb = { tonumber(r) or 0, tonumber(g) or 0, tonumber(b) or 0 }
+    runScript(self, "OnColorSelect")
+end
+function ColorSelect:GetColorRGB() local c = state[self].rgb or { 1, 1, 1 }; return c[1], c[2], c[3] end
 class("SimpleHTML", "Frame")
 class("Minimap", "Frame")
 
@@ -800,10 +806,24 @@ end
 
 local function emit(text) tinsert(W.chat, tostring(text)) end
 
+-- CHAT_MSG_* carry 13 arguments in the client (SendChatEvent): text, sender,
+-- language, channel string, target, flags, zone channel ID, channel number,
+-- channel name, unused, line ID, sender GUID, presence ID. System lines have an
+-- empty sender and GUID; the line ID counts up per chat line.
+local function chatArgs(text, sender, opts)
+    opts = opts or {}
+    W.chatLine = (W.chatLine or 0) + 1
+    return tostring(text), sender or "", opts.language or "", opts.channelString or "", opts.target or "",
+        opts.flags or "", opts.zoneChannel or 0, opts.channelNumber or 0, opts.channelName or "", 0,
+        W.chatLine, opts.guid or "", 0
+end
+
 -- Client FrameScript_SignalEvent: listeners in registration order; a frame
 -- registered during the dispatch waits for the next signal, a frame
 -- unregistered during it is skipped for the rest of this one.
-local function fire(event, ...)
+local fire
+local function chatEvent(event, text, sender, opts) fire(event, chatArgs(text, sender, opts)) end
+function fire(event, ...)
     local seen, list = {}, {}
     for i, frame in ipairs(W.events[event] or {}) do list[i] = frame end
     for _, frame in ipairs(list) do
@@ -899,8 +919,64 @@ local function api(env)
         for i = 1, select("#", ...) do parts[i] = tostring((select(i, ...))) end
         emit(tconcat(parts, " "))
     end
+    -- Client Script_SendChatMessage: SAY by default; %t/%n become the
+    -- target's name and %f the focus's (ChatParserParseText); the text is cut
+    -- at the first line break and at 255 bytes; "|" must start "||" or a
+    -- "|c...|r" colour/link; PARTY/RAID outside a group are refused with a
+    -- system line.
+    local CHAT_TYPES = { SAY = 1, PARTY = 1, RAID = 1, GUILD = 1, OFFICER = 1, YELL = 1, WHISPER = 1, EMOTE = 1,
+        CHANNEL = 1, AFK = 1, DND = 1, RAID_WARNING = 1, BATTLEGROUND = 1, BN = 1, BN_WHISPER = 1,
+        BN_WHISPER_INFORM = 1, BN_CONVERSATION = 1 }
+    local function refuse(token) chatEvent("CHAT_MSG_SYSTEM", E[token] or token) end
     E.SendChatMessage = function(msg, chatType, lang, target)
-        tinsert(W.sent, { message = tostring(msg), chatType = chatType or "SAY", target = target })
+        if type(msg) ~= "string" and type(msg) ~= "number" then
+            error("Usage: SendChatMessage(text [,type] [,language] [,targetPlayer])", 2)
+        end
+        local kind = "SAY"
+        if type(chatType) == "string" or type(chatType) == "number" then
+            kind = supper(tostring(chatType))
+            if not CHAT_TYPES[kind] then error("SendChatMessage(): Unknown chat type", 2) end
+        end
+        local text = tostring(msg)
+        if text == "" and kind ~= "AFK" and kind ~= "DND" then return end
+        if type(target) ~= "string" and type(target) ~= "number" then target = nil end
+        if kind == "WHISPER" and (not target or target == "") then
+            error("SendChatMessage(): Whisper message missing target player!", 2)
+        end
+        local inGroup = W.partyCount > 0 or #W.raid > 0
+        if kind == "PARTY" and not inGroup then return refuse("ERR_NOT_IN_GROUP") end
+        if (kind == "RAID" or kind == "BATTLEGROUND") and #W.raid == 0 then
+            return refuse(kind == "RAID" and "ERR_NOT_IN_RAID" or "ERR_NOT_IN_BATTLEGROUND")
+        end
+        if kind == "RAID_WARNING" and not inGroup then return refuse("ERR_NOT_IN_GROUP") end
+        text = sgsub(text, "%%(.)", function(code)
+            if code == "t" or code == "T" or code == "n" or code == "N" then
+                local t = W.units.target
+                return t and t.name or (E.TARGET_TOKEN_NOT_FOUND or "<no target>")
+            elseif code == "f" or code == "F" then
+                local f = W.units.focus
+                return f and f.name or (E.FOCUS_TOKEN_NOT_FOUND or "<no focus>")
+            end
+        end)
+        text = ssub(text, 1, 255)
+        local cut = sfind(text, "[\r\n]") or sfind(text, "[\\|]n")
+        if cut then text = ssub(text, 1, cut - 1) end
+        local pos = 1
+        while true do
+            local bar = sfind(text, "|", pos, true)
+            if not bar then break end
+            local nextChar = ssub(text, bar + 1, bar + 1)
+            if nextChar == "|" then
+                pos = bar + 2
+            elseif nextChar ~= "c" then
+                error("SendChatMessage(): Invalid escape code in chat message", 2)
+            else
+                local close = sfind(text, "|r", bar, true)
+                if not close then text = ssub(text, 1, bar - 1); break end
+                pos = close + 2
+            end
+        end
+        tinsert(W.sent, { message = text, chatType = kind, target = target })
     end
     -- Client Script_SendAddonMessage: PARTY by default; RAID outside a raid
     -- goes to the party; PARTY without a party is dropped silently; other chat
@@ -929,10 +1005,23 @@ local function api(env)
     end
     E.ChatFrame_AddMessageEventFilter = function(event, fn) W.chatFilters[event] = W.chatFilters[event] or {}; tinsert(W.chatFilters[event], fn) end
     E.ChatFrame_RemoveMessageEventFilter = function() end
+    -- Client Script_RandomRoll: both bounds are required (strings or numbers,
+    -- read as integers); an empty or reversed range, or a maximum above
+    -- 1000000, sends nothing. The server answers with the result line, which
+    -- arrives on the next frame here.
+    local function toInt(v) return floor(tonumber(smatch(tostring(v), "^%s*([+-]?%d+)")) or 0) end
     E.RandomRoll = function(lo, hi)
-        lo, hi = tonumber(lo) or 1, tonumber(hi) or 100
+        local function isText(v) return type(v) == "string" or type(v) == "number" end
+        if not isText(lo) or not isText(hi) then
+            error('Usage: RandomRoll("max") or RandomRoll("min", "max")', 2)
+        end
+        lo, hi = toInt(lo), toInt(hi)
+        if (lo <= 0 and hi <= 0) or hi < lo or hi > 1000000 then return end
         local value = W.nextRolls[1] and tremove(W.nextRolls, 1) or lo
-        fire("CHAT_MSG_SYSTEM", wowFormat(E.RANDOM_ROLL_RESULT, E.UnitName("player"), value, lo, hi))
+        local name = E.UnitName("player")
+        tinsert(W.pending, function()
+            chatEvent("CHAT_MSG_SYSTEM", wowFormat(E.RANDOM_ROLL_RESULT, name, value, lo, hi))
+        end)
     end
     -- Units
     E.UnitExists = function(u) return unitData(u) and 1 or nil end
@@ -964,15 +1053,29 @@ local function api(env)
     -- Groups
     E.GetNumPartyMembers = function() return W.partyCount end
     E.GetNumRaidMembers = function() return #W.raid end
+    -- Client Script_GetRaidRosterInfo: 14 values; an index outside the raid
+    -- gives nil, 0, 1, 1 and nils; an offline member's zone is PLAYER_OFFLINE.
     E.GetRaidRosterInfo = function(i)
-        local m = W.raid[i]
-        if m then return m.name, m.rank or 0, m.subgroup or 1, m.level or 80, m.class or "Warrior",
-            m.classToken or "WARRIOR", m.zone or "Dalaran", m.online ~= false and 1 or nil, m.dead and 1 or nil,
-            m.role, m.isML and 1 or nil end
+        if not tonumber(i) then error("Usage: GetRaidRosterInfo(index)", 2) end
+        local m = W.raid[floor(tonumber(i))]
+        if not m then return nil, 0, 1, 1, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil end
+        local online = m.online ~= false
+        return m.name, m.rank or 0, m.subgroup or 1, m.level or 80, m.class or "Warrior",
+            m.classToken or "WARRIOR", online and (m.zone or "Dalaran") or (E.PLAYER_OFFLINE or "Offline"),
+            online and 1 or nil, m.dead and 1 or nil, m.role, m.isML and 1 or nil, nil, nil, nil
+    end
+    -- IsRaidLeader is true for the group leader, raid or party (the client
+    -- compares with the party leader); IsRaidOfficer needs raid rank 1+.
+    local function playerRaidRank()
+        local me = E.UnitName("player")
+        for _, m in ipairs(W.raid) do
+            if m.name == me then return m.rank or (W.leader and 2 or 0) end
+        end
+        return W.leader and 2 or 0
     end
     E.IsPartyLeader = function() return W.leader and 1 or nil end
-    E.IsRaidLeader = function() return W.leader and #W.raid > 0 and 1 or nil end
-    E.IsRaidOfficer = function() return W.leader and #W.raid > 0 and 1 or nil end
+    E.IsRaidLeader = function() return W.leader and 1 or nil end
+    E.IsRaidOfficer = function() return #W.raid > 0 and playerRaidRank() > 0 and 1 or nil end
     E.GetPartyLeaderIndex = function() return 0 end
     -- The raid index of the master looter is nil outside a raid, as in the client.
     E.GetLootMethod = function()
@@ -989,11 +1092,14 @@ local function api(env)
         if not candidate or not l or not l.link then return end
         local link = l.link
         tinsert(W.pending, function()
-            if W.loot[slot] == l then W.loot[slot] = {} end
+            if W.loot[slot] == l then
+                W.loot[slot] = {}
+                if W.lootOpen then fire("LOOT_SLOT_CLEARED", slot) end
+            end
             if candidate == E.UnitName("player") then
-                fire("CHAT_MSG_LOOT", wowFormat(E.LOOT_ITEM_SELF, link))
+                chatEvent("CHAT_MSG_LOOT", wowFormat(E.LOOT_ITEM_SELF, link))
             else
-                fire("CHAT_MSG_LOOT", wowFormat(E.LOOT_ITEM, candidate, link))
+                chatEvent("CHAT_MSG_LOOT", wowFormat(E.LOOT_ITEM, candidate, link))
             end
         end)
     end
@@ -1002,7 +1108,127 @@ local function api(env)
     E.CancelTrade = function() end
     -- Hardware-event functions; when allowed they are recorded for specs
     -- (forge.protectedCalls()) unless a spec stubs them.
-    for _, name in ipairs({ "CalendarAddEvent", "CalendarUpdateEvent", "CancelTradeAccept", "PlaceAuctionBid",
+    -- Calendar (client Calendar_Scripts, CGCalendar, CGCalendarEvent). The
+    -- client allows one invite per 2 seconds and one new event per 5 seconds,
+    -- and neither while a server action is pending (CALENDAR_ACTION_PENDING);
+    -- refusals fire CALENDAR_UPDATE_ERROR. The server resolves invited names
+    -- (forge.calendarPlayers{...}) and lists them on the next frame.
+    local C = W.calendar
+    local function calendarError(token, arg)
+        local text = E[token] or token
+        fire("CALENDAR_UPDATE_ERROR", arg and wowFormat(text, arg) or text)
+        C.pending = false
+        fire("CALENDAR_ACTION_PENDING", false)
+    end
+    local function setPending(on) C.pending = on; fire("CALENDAR_ACTION_PENDING", on) end
+    local function today()
+        local t = os_date("*t", W.epoch + floor(W.time))
+        return t.wday, t.month, t.day, t.year
+    end
+    E.CalendarGetDate = function() return today() end
+    E.OpenCalendar = function()
+        if C.opened then return end
+        C.opened = true
+        tinsert(W.pending, function() fire("CALENDAR_UPDATE_EVENT_LIST") end)
+    end
+    E.CalendarSetAbsMonth = function(month, year)
+        if not tonumber(month) then error("Usage: CalendarSetAbsMonth(month[, year])", 2) end
+        local _, _, _, y = today()
+        C.month, C.year = floor(tonumber(month)), tonumber(year) and floor(tonumber(year)) or C.year or y
+        fire("CALENDAR_UPDATE_EVENT_LIST")
+    end
+    local function viewed(offset)
+        local _, m, _, y = today()
+        local month, year = (C.month or m) + offset, C.year or y
+        while month < 1 do month, year = month + 12, year - 1 end
+        while month > 12 do month, year = month - 12, year + 1 end
+        return month, year
+    end
+    local function dayEvents(offset, day)
+        local month, year = viewed(offset)
+        local out = {}
+        for _, e in ipairs(C.events) do
+            if e.month == month and e.day == day and e.year == year then tinsert(out, e) end
+        end
+        return out
+    end
+    E.CalendarGetNumDayEvents = function(offset, day)
+        if not tonumber(offset) or not tonumber(day) then error("Usage: CalendarGetNumDayEvents([-1,0,1], monthDay)", 2) end
+        return #dayEvents(floor(tonumber(offset)), floor(tonumber(day)))
+    end
+    E.CalendarGetDayEvent = function(offset, day, index)
+        if not tonumber(offset) or not tonumber(day) or not tonumber(index) then
+            error("Usage: CalendarGetDayEvent([-1.0.1], monthDay, index)", 2)
+        end
+        local e = dayEvents(floor(tonumber(offset)), floor(tonumber(day)))[floor(tonumber(index))]
+        if not e then return nil, 0, 0, "", "", 0, "", "", 0, "", 0, 0, 0, 0, "" end
+        return e.title, e.hour, e.minute, "PLAYER", "", e.eventType, "", "", 1, e.creator, 0, 1, 1, 0, ""
+    end
+    E.CalendarNewEvent = function()
+        local _, m, d, y = today()
+        C.cur = { title = "", eventType = 5, month = m, day = d, year = y, hour = 0, minute = 0, description = "",
+                  invites = { E.UnitName("player") } }
+        fire("CALENDAR_UPDATE_INVITE_LIST", true)
+    end
+    E.CalendarCloseEvent = function() C.selected = nil end
+    E.CalendarEventGetNumInvites = function() return C.cur and #C.cur.invites or 0 end
+    E.CalendarEventSetTitle = function(title)
+        if C.cur then C.cur.title = (type(title) == "string" or type(title) == "number") and tostring(title) or "" end
+    end
+    E.CalendarEventSetDescription = function(text)
+        if C.cur then C.cur.description = (type(text) == "string" or type(text) == "number") and tostring(text) or "" end
+    end
+    E.CalendarEventSetType = function(kind) if C.cur and tonumber(kind) then C.cur.eventType = floor(tonumber(kind)) end end
+    E.CalendarEventSetDate = function(month, day, year)
+        if not tonumber(month) or not tonumber(day) or not tonumber(year) then
+            error("Usage: CalendarEventSetDate(month, day, year)", 2)
+        end
+        if C.cur then C.cur.month, C.cur.day, C.cur.year = floor(month), floor(day), floor(year) end
+    end
+    E.CalendarEventSetTime = function(hour, minute)
+        if not tonumber(hour) or not tonumber(minute) then error("Usage: CalendarEventSetTime(hour, minute)", 2) end
+        if C.cur then C.cur.hour, C.cur.minute = floor(hour), floor(minute) end
+    end
+    local function fixCase(name) return supper(ssub(name, 1, 1)) .. slower(ssub(name, 2)) end
+    E.CalendarEventInvite = function(name)
+        if type(name) ~= "string" and type(name) ~= "number" then return end
+        if C.pending or not C.cur then return end
+        if C.lastInvite and W.time - C.lastInvite < 2 then return calendarError("CALENDAR_ERROR_INVITE_THROTTLED") end
+        local cur = C.cur
+        if #cur.invites >= 100 then return calendarError("CALENDAR_ERROR_INVITES_EXCEEDED", 100) end
+        local fixed = fixCase(tostring(name))
+        for _, n in ipairs(cur.invites) do
+            if n == fixed then return calendarError("CALENDAR_ERROR_ALREADY_INVITED_TO_EVENT_S", fixed) end
+        end
+        C.lastInvite = W.time
+        setPending(true)
+        tinsert(W.pending, function()
+            if C.players[fixed] then
+                tinsert(cur.invites, fixed)
+                setPending(false)
+                fire("CALENDAR_UPDATE_INVITE_LIST")
+            else
+                calendarError("CALENDAR_ERROR_PLAYER_NOT_FOUND")
+            end
+        end)
+    end
+    E.CalendarAddEvent = protected("CalendarAddEvent", "hardware", function()
+        if C.pending then return end
+        if not C.cur then return calendarError("CALENDAR_ERROR_INTERNAL") end
+        if C.lastAdd and W.time - C.lastAdd < 5 then return calendarError("CALENDAR_ERROR_EVENT_THROTTLED") end
+        C.lastAdd = W.time
+        tinsert(W.protectedCalls, { name = "CalendarAddEvent", args = {} })
+        local e = C.cur
+        setPending(true)
+        tinsert(W.pending, function()
+            tinsert(C.events, { title = e.title, eventType = e.eventType, month = e.month, day = e.day, year = e.year,
+                                hour = e.hour, minute = e.minute, creator = E.UnitName("player"), invites = e.invites })
+            setPending(false)
+            fire("CALENDAR_NEW_EVENT", false)
+            fire("CALENDAR_UPDATE_EVENT_LIST")
+        end)
+    end)
+    for _, name in ipairs({ "CalendarUpdateEvent", "CancelTradeAccept", "PlaceAuctionBid",
         "CancelAuction", "AcceptProposal", "AcceptBattlefieldPort" }) do
         E[name] = protected(name, "hardware", recorder(name))
     end
@@ -1028,9 +1254,23 @@ local function api(env)
     end
     E.LootSlotIsItem = function(slot) local l = W.lootOpen and W.loot[slot]; return l and l.link and 1 or nil end
     E.LootSlotIsCoin = function(slot) local l = W.lootOpen and W.loot[slot]; return l and l.coin and 1 or nil end
-    E.LootSlot = function(slot) tinsert(W.looted, slot) end
+    E.LootSlot = function(slot)
+        tinsert(W.looted, slot)
+        local l = W.lootOpen and W.loot[slot]
+        if l and (l.link or l.coin) then
+            tinsert(W.pending, function()
+                if W.loot[slot] == l then
+                    W.loot[slot] = {}
+                    if W.lootOpen then fire("LOOT_SLOT_CLEARED", slot) end
+                end
+            end)
+        end
+    end
     E.CloseLoot = function() if W.lootOpen then W.lootOpen = false; E.LootFrame:Hide(); fire("LOOT_CLOSED") end end
     E.GetItemInfo = function(item)
+        if type(item) ~= "string" and type(item) ~= "number" then
+            error('Usage: GetItemInfo(itemID|"name"|"itemlink")', 2)
+        end
         local key = item
         if type(item) == "string" then key = tonumber(smatch(item, "item:(%d+)")) or item end
         local i = W.items[key]
@@ -1062,8 +1302,74 @@ local function api(env)
     E.GetSubZoneText = function() return "" end
     E.GetMinimapZoneText = function() return W.zone end
     E.IsInInstance = function() return nil, "none" end
-    E.IsInGuild = function() return nil end
-    E.GetGuildInfo = function() return nil end
+    -- Guild (client Script_GetNumGuildMembers, Script_GetGuildRosterInfo):
+    -- forge.guild{...} fills the roster; GuildRoster() asks the server, which
+    -- answers with GUILD_ROSTER_UPDATE on the next frame.
+    E.IsInGuild = function() return W.guild and 1 or nil end
+    E.GetGuildInfo = function(unit)
+        local g = W.guild
+        if g and slower(tostring(unit or "")) == "player" then return g.name, g.rankName, g.rankIndex or 0 end
+    end
+    E.GetNumGuildMembers = function(all)
+        local g = W.guild
+        if not g then return 0 end
+        local n = 0
+        for _, m in ipairs(g.members) do if m.online ~= false then n = n + 1 end end
+        return (all or g.showOffline) and #g.members or n
+    end
+    E.GetGuildRosterInfo = function(i)
+        if not tonumber(i) then error("Usage: GetGuildRosterInfo(index)", 2) end
+        local m = W.guild and W.guild.members[floor(tonumber(i))]
+        if not m then return nil, nil, 0, 0, nil, nil, nil, nil, nil, "", nil end
+        return m.name, m.rankName or "Member", m.rankIndex or 0, m.level or 80, m.class or "Warrior",
+            m.zone or "Dalaran", m.note or "", m.officerNote or "", m.online ~= false and 1 or nil, m.status or "",
+            m.classToken or "WARRIOR"
+    end
+    E.GuildRoster = function() if W.guild then tinsert(W.pending, function() fire("GUILD_ROSTER_UPDATE") end) end end
+    E.SetGuildRosterShowOffline = function(v) if W.guild then W.guild.showOffline = v and true or false end end
+    E.GetGuildRosterShowOffline = function() return W.guild and W.guild.showOffline and 1 or nil end
+    -- Bags (client Script_GetContainerNumSlots, Script_GetContainerItemLink):
+    -- the backpack (0) has 16 slots, the bank (-1) 28, the keyring (-2) 32;
+    -- forge.bag(bag, slots, links) fills one.
+    E.NUM_BAG_SLOTS, E.NUM_BANKBAGSLOTS = 4, 7
+    E.GetContainerNumSlots = function(bag)
+        if not tonumber(bag) then error("Usage: GetContainerNumSlots(index)", 2) end
+        bag = floor(tonumber(bag))
+        local b = W.bags[bag]
+        if b then return b.slots end
+        if bag == 0 then return 16 elseif bag == -1 then return 28 elseif bag == -2 or bag == -4 then return 32 end
+        return 0
+    end
+    E.GetContainerItemLink = function(bag, slot)
+        if not tonumber(bag) or not tonumber(slot) then error("Usage: GetContainerItemLink(index, slot)", 2) end
+        local b = W.bags[floor(tonumber(bag))]
+        return b and b.items[floor(tonumber(slot))] or nil
+    end
+    E.ContainerFrameItemButton_OnModifiedClick = function() end
+    -- Group invites (client Script_InviteUnit): the server's answer (system
+    -- lines, PARTY_MEMBERS_CHANGED) is up to the spec (forge.party/raid).
+    E.InviteUnit = function(name)
+        if type(name) ~= "string" and type(name) ~= "number" then return end
+        name = tostring(name)
+        if #name > 48 then error("Name too long", 2) end
+        tinsert(W.invites, name)
+    end
+    -- ConvertToRaid: the client sends it only for a party leader with a party
+    -- of 1+ members at level 10+ (Script_ConvertToRaid); otherwise nothing
+    -- happens. The server turns the party into a raid on the next frame.
+    E.ConvertToRaid = function()
+        local me = W.units.player
+        if W.partyCount == 0 or not W.leader or (me.level or 0) < 10 then return end
+        tinsert(W.pending, function()
+            if #W.raid > 0 then return end
+            local members = { { name = me.name, rank = 2, class = me.class, classToken = me.classToken, level = me.level } }
+            for i = 1, W.partyCount do
+                local d = W.units["party" .. i]
+                if d then tinsert(members, { name = d.name, class = d.class, classToken = d.classToken, level = d.level }) end
+            end
+            H.forge.raid(members)
+        end)
+    end
     -- Secure/hooks/misc FrameXML helpers
     E.hooksecurefunc = function(a, b, c)
         local tbl, name, hook = a, b, c
@@ -1169,6 +1475,8 @@ local function api(env)
         E.ITEM_QUALITY_COLORS[q] = { r = rgb[1], g = rgb[2], b = rgb[3], hex = "|c" .. rgb[4] }
     end
     E.MAX_PARTY_MEMBERS, E.MAX_RAID_MEMBERS, E.NUM_CHAT_WINDOWS = 4, 40, 10
+    E.CALENDAR_EVENTTYPE_RAID, E.CALENDAR_EVENTTYPE_DUNGEON, E.CALENDAR_EVENTTYPE_PVP = 1, 2, 3
+    E.CALENDAR_EVENTTYPE_MEETING, E.CALENDAR_EVENTTYPE_OTHER = 4, 5
     E.SlashCmdList = {}
     E.StaticPopupDialogs = {}
     E.UISpecialFrames = {}
@@ -1185,13 +1493,27 @@ local function newWorld(config, saved)
           items = {}, nextRolls = {}, pending = {}, time = 0, epoch = 1281052800, combat = false, keys = {},
           money = 0, zone = "Dalaran", realm = "AzerothCore", locale = config.locale or "enUS",
           gameMinutes = 12 * 60, mapX = 0.5, mapY = 0.5, hardware = false, blocked = {}, protectedCalls = {},
+          bags = {}, invites = {}, calendar = { events = {}, players = {} },
           cvars = {}, units = defaultUnits(), addonName = config.addonName, metadata = config.metadata or {},
           strings = { RANDOM_ROLL_RESULT = "%s rolls %d (%d-%d)", OKAY = "Okay", CANCEL = "Cancel", YES = "Yes",
                       NO = "No", ACCEPT = "Accept", DECLINE = "Decline", CLOSE = "Close", NONE = "None",
                       LOOT_ITEM = "%s receives loot: %s.", LOOT_ITEM_SELF = "You receive loot: %s.",
                       ERR_TRADE_COMPLETE = "Trade complete.", ERR_TRADE_CANCELLED = "Trade cancelled.",
                       ITEM_BIND_ON_EQUIP = "Binds when equipped", ITEM_BIND_ON_PICKUP = "Binds when picked up",
-                      ITEM_SOULBOUND = "Soulbound" } }
+                      ITEM_SOULBOUND = "Soulbound", PLAYER_OFFLINE = "Offline",
+                      ERR_NOT_IN_GROUP = "You aren't in a party.", ERR_NOT_IN_RAID = "You are not in a raid group",
+                      ERR_INVITE_PLAYER_S = "You have invited %s to join your group.",
+                      ERR_JOINED_GROUP_S = "%s joins the party.", ERR_RAID_MEMBER_ADDED_S = "%s has joined the raid group.",
+                      ERR_DECLINE_GROUP_S = "%s declines your group invitation.",
+                      ERR_ALREADY_IN_GROUP_S = "%s is already in a group.",
+                      LOOT_ROLL_WON = "%s won: %s", LOOT_ROLL_YOU_WON = "You won: %s",
+                      TARGET_TOKEN_NOT_FOUND = "<no target>", FOCUS_TOKEN_NOT_FOUND = "<no focus>",
+                      CALENDAR_ERROR_INVITE_THROTTLED = "You are inviting too many players too quickly.",
+                      CALENDAR_ERROR_EVENT_THROTTLED = "You are creating events too quickly.",
+                      CALENDAR_ERROR_INVITES_EXCEEDED = "You can't invite more than %d players to an event.",
+                      CALENDAR_ERROR_ALREADY_INVITED_TO_EVENT_S = "%s has already been invited.",
+                      CALENDAR_ERROR_PLAYER_NOT_FOUND = "Player not found.",
+                      CALENDAR_ERROR_INTERNAL = "Internal calendar error." } }
     local E = {}
     W.env = E
     E._G = E
@@ -1221,6 +1543,8 @@ local function newWorld(config, saved)
     E.LootFrame = newObject("Frame", "LootFrame", E.UIParent)
     state[E.LootFrame].shown = false
     E.InterfaceOptionsFramePanelContainer = newObject("Frame", "InterfaceOptionsFramePanelContainer", E.UIParent)
+    E.ColorPickerFrame = newObject("ColorSelect", "ColorPickerFrame", E.UIParent)
+    state[E.ColorPickerFrame].shown = false
     E.StaticPopup1 = newObject("Frame", "StaticPopup1", E.UIParent)
     state[E.StaticPopup1].shown = false
     -- Missing globals: record reads from addon/spec code, lazily provide font objects.
@@ -1598,8 +1922,18 @@ function forge.trade(partner, links, opts)
     if not opts.infoFirst then fire("UI_INFO_MESSAGE", info) end
 end
 function forge.roll(name, value, lo, hi)
-    fire("CHAT_MSG_SYSTEM", wowFormat(W.env.RANDOM_ROLL_RESULT, name, value, lo or 1, hi or 100))
+    chatEvent("CHAT_MSG_SYSTEM", wowFormat(W.env.RANDOM_ROLL_RESULT, name, value, lo or 1, hi or 100))
 end
+-- forge.chatEvent("CHAT_MSG_WHISPER", text, sender[, opts]): a chat line with
+-- the client's 13 arguments (opts: guid, channelName, channelNumber, ...).
+function forge.chatEvent(event, text, sender, opts) chatEvent(event, text, sender, opts) end
+function forge.invites() return W.invites end
+function forge.bag(bag, slots, links) W.bags[bag] = { slots = slots, items = links or {} }; fire("BAG_UPDATE", bag) end
+-- forge.guild{ name = "G", members = { { name = "A", online = true, rankName = "Officer" }, ... } }
+function forge.guild(guild) W.guild = guild; if guild then guild.members = guild.members or {} end end
+-- Names the server knows for calendar invites.
+function forge.calendarPlayers(names) for _, n in ipairs(names) do W.calendar.players[n] = true end end
+function forge.calendarEvents() return W.calendar.events end
 function forge.nextRoll(value) tinsert(W.nextRolls, value) end
 function forge.combat(on)
     W.combat = on and true or false

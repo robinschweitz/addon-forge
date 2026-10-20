@@ -1,0 +1,91 @@
+-- Chat (client SendChatEvent, Script_SendChatMessage, ChatParserParseText,
+-- Script_RandomRoll).
+local function listen(event)
+    local got = {}
+    local f = CreateFrame("Frame")
+    f:RegisterEvent(event)
+    f:SetScript("OnEvent", function(_, _, ...) table.insert(got, { n = select("#", ...), ... }) end)
+    return got
+end
+local function lastSent() local s = forge.sent(); return s[#s] end
+
+test("chat events carry the client's 13 arguments", function()
+    local got = listen("CHAT_MSG_SYSTEM")
+    forge.roll("Bot", 42, 1, 100)
+    forge.roll("Bot", 7, 1, 100)
+    local a, b = got[1], got[2]
+    expect(a.n).toBe(13)
+    expect(a[1]).toBe("Bot rolls 42 (1-100)")
+    expect(a[2]).toBe("")          -- system lines have no sender
+    expect(a[7]).toBe(0)
+    expect(a[12]).toBe("")
+    expect(b[11]).toBe(a[11] + 1)  -- the line ID counts up
+    local w = listen("CHAT_MSG_WHISPER")
+    forge.chatEvent("CHAT_MSG_WHISPER", "hi", "Bot", { guid = "0x0000000000000002" })
+    expect(w[1][2]).toBe("Bot")
+    expect(w[1][12]).toBe("0x0000000000000002")
+end)
+
+test("RandomRoll's result comes back from the server on the next frame", function()
+    local got = listen("CHAT_MSG_SYSTEM")
+    forge.nextRoll(77)
+    RandomRoll(1, 100)
+    expect(#got).toBe(0)
+    forge.advance(0.05)
+    expect(got[1][1]).toBe("Tester rolls 77 (1-100)")
+end)
+
+test("RandomRoll needs both bounds and a valid range", function()
+    local got = listen("CHAT_MSG_SYSTEM")
+    local ok, err = pcall(RandomRoll, 100)
+    expect(ok).toBeFalsy()
+    expect(err).toContain("Usage: RandomRoll")
+    RandomRoll(10, 5)          -- reversed
+    RandomRoll(0, 0)
+    RandomRoll(1, 1000001)
+    RandomRoll("1", "50")      -- strings are numbers
+    forge.advance(0.05)
+    expect(#got).toBe(1)
+    expect(got[1][1]).toContain("(1-50)")
+end)
+
+test("SendChatMessage defaults to SAY and refuses PARTY and RAID outside a group", function()
+    local system = listen("CHAT_MSG_SYSTEM")
+    local before = #forge.sent()
+    SendChatMessage("hello")
+    expect(lastSent().chatType).toBe("SAY")
+    SendChatMessage("x", "PARTY")
+    SendChatMessage("x", "RAID")
+    expect(#forge.sent()).toBe(before + 1)
+    expect(system[1][1]).toBe("You aren't in a party.")
+    expect(system[2][1]).toBe("You are not in a raid group")
+    SendChatMessage("")
+    expect(#forge.sent()).toBe(before + 1)
+    local ok, err = pcall(SendChatMessage, "x", "SHOUT")
+    expect(ok).toBeFalsy()
+    expect(err).toContain("Unknown chat type")
+    ok, err = pcall(SendChatMessage, "x", "WHISPER")
+    expect(err).toContain("missing target player")
+end)
+
+test("SendChatMessage fills %t and %f, cuts at a line break and at 255 bytes", function()
+    SendChatMessage("50%t now")
+    expect(lastSent().message).toBe("50<no target> now")
+    forge.unit("target", { name = "Boss" })
+    SendChatMessage("hit %t, 100% sure")
+    expect(lastSent().message).toBe("hit Boss, 100% sure")
+    SendChatMessage("one\ntwo")
+    expect(lastSent().message).toBe("one")
+    SendChatMessage(string.rep("a", 300))
+    expect(string.len(lastSent().message)).toBe(255)
+end)
+
+test("SendChatMessage allows only || and colour/link escapes", function()
+    SendChatMessage("a || b |cffff0000red|r")
+    expect(lastSent().message).toBe("a || b |cffff0000red|r")
+    local ok, err = pcall(SendChatMessage, "bad |Tx|t")
+    expect(ok).toBeFalsy()
+    expect(err).toContain("Invalid escape code")
+    SendChatMessage("open |cffff0000colour")
+    expect(lastSent().message).toBe("open ")
+end)

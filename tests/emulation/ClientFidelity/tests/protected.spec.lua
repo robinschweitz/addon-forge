@@ -4,6 +4,7 @@ local function lastLog() return ClientFidelityLog[#ClientFidelityLog] end
 
 test("a hardware-event function refuses an SDK-style click and works on a real one", function()
     local b = CreateFrame("Button", "ClientFidelityCalendar", UIParent)
+    CalendarNewEvent()
     b:SetScript("OnClick", function() CalendarAddEvent() end)
     forge.click(b)
     expect(lastLog()).toBe("ADDON_ACTION_BLOCKED:ClientFidelity:CalendarAddEvent()")
