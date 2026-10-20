@@ -221,8 +221,6 @@ corner radius. Icons are square item or spell textures.
 
 **Don't**
 
-- Don't use APIs, methods or templates from later expansions; check them with
-  `forge api lookup`.
 - Don't show color as the only signal.
 - Don't let text wrap into the next row or out of the window.
 - Don't put `|` into strings that players paste or that addons exchange;

@@ -67,14 +67,9 @@ Markers: `UNKNOWN` (fact not given), `TO BE DECIDED` (decision not made),
 11. **A11 Reconcile backlog.** The second question pass, over specs and issues.
 12. **A12 Implement.** One branch and one PR per leaf, in dependency order.
 
-## Track B: spec-driven addons (outline, specified in A1)
+## Track B: spec-driven addons
 
-- `forge new` scaffolds `<Name>-requirements.md` beside the acceptance plan,
-  outside the addon folder so it is never deployed (`FR-`, `NFR-`, `OQ-`).
-- Plan checks carry `"covers": ["FR-1.2"]`; spec titles start with the ID
-  (`test("FR-1.2 first roll counts", ...)`).
-- `forge check` fails when a requirement has no offline spec or an ID doesn't
-  exist, and lists open `OQ-` items. Plan checks per requirement are optional.
-- The run-plan report lists pass or fail for each covered requirement.
-- Pilot: RaidLedger and RaidWishlist. The loot rules agreed with the user are
-  already requirements in all but format.
+Specified in [REQUIREMENTS.md](../REQUIREMENTS.md) FR-14.1-FR-14.6: each addon
+gets `<Name>-requirements.md` beside its plan, plan checks and spec titles
+name requirement IDs, and `forge check` fails on a requirement or message kind
+without an offline spec. RaidLedger and RaidWishlist come first.

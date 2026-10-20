@@ -12,7 +12,8 @@ named, not built yet), `BLOCKED` (waits for an `OD-` decision; none today).
 ## Secure-Coding Inputs
 
 Documents read: `REQUIREMENTS.md`, `ARCHITECTURE.md`, `DESIGN.md`,
-`AGENTS.md` (Capability boundaries), `README.md` (Security notes),
+the capability boundaries of the former `AGENTS.md` (before commit `d9a218e`;
+now in this file), `README.md` (Security notes),
 `docs/agent-playbook.md`, `docs/local-realm.md`, the source modules named
 below, their tests, and PR #14 (Linux headless). No separate security notes
 were given.
@@ -41,7 +42,7 @@ Gaps and conflicts:
   VM, which is TO BE REMOVED (FR-13.2). Their download checks are not carried
   into these rules.
 - The rule "never upload client files, secrets or credential screenshots to
-  an AI provider" (`AGENTS.md`) has no technical enforcement; accepted
+  an AI provider" (SC-018) has no technical enforcement; accepted
   (OD-006).
 
 ## Selected Manicode Prompts
@@ -83,9 +84,8 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
 
 **SC-003 - Plans are bounded data**
 - **Status:** ACTIVE
-- **Rule:** A plan MUST pass the strict schema (exact keys, typed and bounded
-  values, at most 20,000 bytes, 20 steps, 180 s of waits, 20 checks, 10
-  watched paths per client). No plan field may carry code, a shell command,
+- **Rule:** A plan MUST pass the strict schema with its size limits
+  (REQUIREMENTS.md FR-5.1-FR-5.3). No plan field may carry code, a shell command,
   SQL, a GM command or a file path. `slash` steps MUST name a command that the
   addon or a companion defines.
 - **Enforcement:** `scenario_plan.validate_plan`, `load_plan`;
@@ -139,7 +139,7 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
   overlapping source and target paths.
 - **Enforcement:** `local_realm.verify_test_copy`, `make_test_copy`;
   `win_login._test_copy`; `windows_client` window lookup.
-- **Evidence:** `AGENTS.md` (Capability boundaries); FR-11.1.
+- **Evidence:** former `AGENTS.md` capability boundaries; FR-11.1.
 - **Verification:** `test_win_login.py::test_refuses_unmarked_wow`,
   `test_agent_prepare.py::test_prepare_refuses_unmarked_client_on_windows`,
   `test_local_realm.py::test_copies_isolated_client_without_rising_gods_wtf`,
@@ -165,7 +165,8 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
 - **Status:** ACTIVE
 - **Rule:** Offline addon and spec code MUST run without `os`, `io`,
   `package`, `require`, `dofile`, `loadfile`, `debug` or Python access, with
-  an instruction budget and a 256 MB memory cap. Static checks MUST only
+  an instruction budget (20,000,000 by default) and a 256 MB memory cap.
+  Static checks MUST only
   compile Lua, never run it.
 - **Enforcement:** `headless/wow.lua` (sandbox), `headless.run_addon`;
   `lua51.syntax_error`.
@@ -226,7 +227,7 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
   rootless Docker socket counts as local.
 - **Enforcement:** `local_realm.ensure_local_env`, `check_compose`;
   `scripts/ci/check_compose.py`.
-- **Evidence:** `AGENTS.md`; TB-6.
+- **Evidence:** former `AGENTS.md` capability boundaries; TB-6.
 - **Verification:** `test_local_realm.py::test_local_env_private_and_loopback_only`,
   `::test_compose_rejects_exposed_public_bindings`,
   `::test_existing_insecure_env_rejected_not_overwritten`,
@@ -239,7 +240,7 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
   MySQL `TRUNCATE`, or reset existing credentials. It MUST refuse to create
   new database credentials over an unknown existing volume. `start` MUST NOT
   rebuild images or remove volumes.
-- **Enforcement:** `db_guard`, `local_realm.start_existing`; `AGENTS.md`.
+- **Enforcement:** `db_guard`, `local_realm.start_existing`.
 - **Evidence:** FR-11.2.
 - **Verification:** `test_local_realm.py::test_unknown_database_volume_blocks_password_creation`,
   `::test_resume_uses_no_build_and_preserves_volumes`,
@@ -257,7 +258,7 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
   NOT carry server Lua: mod-ale scripts become named fixtures (FR-10.9).
 - **Enforcement:** `agent_realm.SCENARIOS`; `loot_scenario.FixturePeer`;
   `peer_scenario._fixture_env`; plan schema (`FIXTURES`).
-- **Evidence:** FR-10.x; `AGENTS.md`; ARCHITECTURE.md AQ-3.
+- **Evidence:** FR-10.x; ARCHITECTURE.md AQ-3.
 - **Verification:** `test_agent_realm.py::test_unrecognized_scenarios_refused`,
   `::test_fixture_uses_upstream_fixed_go_test_and_redacts_password`,
   `test_peer_scenario.py::test_peer_environment_is_local_only_and_no_soft_pass`,
@@ -304,9 +305,10 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
   `.forge-runs/` evidence and credentials MUST NOT be committed. Agents MUST
   NOT upload client files, secrets, account data or screenshots of login
   screens to an AI provider.
-- **Enforcement:** `.gitignore`; `AGENTS.md`. The upload part stays an
-  instruction for agents, without a technical block (accepted, OD-006).
-- **Evidence:** `AGENTS.md`; `docs/agent-playbook.md` (Codex data has no
+- **Enforcement:** `.gitignore`. The upload part is an instruction to agents
+  (this file, imported by `AGENTS.md`), without a technical block (accepted,
+  OD-006).
+- **Evidence:** former `AGENTS.md` capability boundaries; `docs/agent-playbook.md` (Codex data has no
   licence).
 - **Verification:** `git check-ignore` on each path; manual review of every
   commit.

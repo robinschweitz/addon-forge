@@ -18,9 +18,9 @@ Test evidence is `file::test` under `tests/`. All tests on `main` passed on
 2026-10-20 (293 passed, 2 skipped). Evidence marked "PR #14" is on the
 unmerged branch `pull/14/head` (Linux headless runs, verified live on NixOS on
 2026-10-20); the user will merge it. Decisions marked "decided 2026-10-20" come
-from the first question pass (step A9). Secure-coding controls (credential handling, sandbox
-limits, loopback-only binding, input validation) belong in `SECURITY.md`
-(step A4). This file states only the behaviour that users can see.
+from the first question pass (step A9). Secure-coding controls (credential
+handling, sandbox limits, loopback-only binding, input validation) are in
+`SECURITY.md`. This file states only the behaviour that users can see.
 
 ## Required Requirement Inputs
 
@@ -52,9 +52,7 @@ limits, loopback-only binding, input validation) belong in `SECURITY.md`
   approval. Test realm accounts: `main` and `member` credential slots, kept in
   Windows Credential Manager or the Linux Secret Service.
 - Regulatory or privacy constraints: Use only an authorized private test realm
-  and a legitimately owned client. Never distribute client files or game
-  assets, and never upload them, secrets, credential screenshots or account
-  data to an AI provider. Details: `SECURITY.md` (`TO BE DECIDED`, step A4).
+  and a legitimately owned client. Rules: `SECURITY.md` SC-006, SC-018.
 
 ## Functional Requirements
 
@@ -281,9 +279,14 @@ limits, loopback-only binding, input validation) belong in `SECURITY.md`
   *IMPLEMENTED (live, run `e79dce3d73c2`/`c92f8b278d93`):
   `test_agent_workflow.py::test_checks_are_judged_against_their_own_client_report`,
   `::test_member_steps_run_on_the_member_client`*
-- **FR-6.10** Each result MUST be exactly one of `plan_only`, `passed`,
-  `failed` or `infrastructure_error`. The CLI MUST exit 0 only for
-  `plan_only` and `passed`.
+- **FR-6.10** Each result MUST be exactly one of: `plan_only` (preview;
+  nothing tested or changed); `passed` (matching report, non-empty suite,
+  every assertion and independent check passed, no owned Lua errors);
+  `failed` (matching report with a failed assertion, check or owned Lua error,
+  or a failed gate stage); `infrastructure_error` (no reliable correlated
+  evidence, for example an unreachable client, an old bridge or no report; no
+  conclusion about the addon). The CLI MUST exit 0 only for `plan_only` and
+  `passed`.
   *IMPLEMENTED: `cli.py`; `docs/qa-workflow.md` (Interpreting test outcomes)*
 - **FR-6.11** The system MUST store evidence (result JSON, end screenshot,
   `screenshot` step images, fixture logs) in `.forge-runs/` beside the plan.
@@ -574,9 +577,8 @@ limits, loopback-only binding, input validation) belong in `SECURITY.md`
 - **NFR-1.3** Live acceptance MUST run on native Windows 10/11 with the
   WoWControlSDK, and on Linux with a headless Wine client.
   *PARTIAL: FR-7.5, FR-11.12*
-- **NFR-1.4** Offline code MUST run with an instruction budget (20,000,000 by
-  default) and a 256 MB memory cap, and a breach MUST fail the run instead of
-  hanging. *IMPLEMENTED: `test_offline.py::test_sandbox_blocks_host_access_and_infinite_loops`*
+- **NFR-1.4** An offline run that exceeds its instruction budget or memory
+  cap (limits: SECURITY.md SC-008) MUST fail instead of hanging. *IMPLEMENTED: `test_offline.py::test_sandbox_blocks_host_access_and_infinite_loops`*
 - **NFR-1.5** Every unclear live outcome MUST fail closed as `failed` or
   `infrastructure_error`, never `passed`. *IMPLEMENTED: FR-6.5, FR-6.6*
 - **NFR-1.6** A session MUST NOT use the human's desktop for more than 10
@@ -595,8 +597,8 @@ limits, loopback-only binding, input validation) belong in `SECURITY.md`
 - **NFR-1.10** Each addon MAY choose its own look. Forge enforces only
   readability: no overlapping or overflowing UI, full 25-raider data, and long
   German names that fit.
-  *PARTIAL: decided 2026-10-20; FR-4.7, FR-4.8. Details belong in `DESIGN.md`
-  (step A2)*
+  *PARTIAL: decided 2026-10-20; FR-4.7, FR-4.8. Rules: `DESIGN.md` (Do's and
+  Don'ts)*
 - **NFR-1.11** Setup MUST work for a few friends on their own PCs, not only
   the owner's machines: no hard-coded paths, and guides that start from a
   fresh checkout.
@@ -613,8 +615,7 @@ limits, loopback-only binding, input validation) belong in `SECURITY.md`
 None. The first question pass (2026-10-20) answered OQ-1 to OQ-11:
 
 - **OQ-1** Answered: statuses backed by recorded run IDs win.
-  `docs/qa-workflow.md` and `AGENTS.md` are current; the README fix is part of
-  step A7.
+  `docs/qa-workflow.md` is current; the README was fixed in step A7.
 - **OQ-2** Answered: remove `agent capabilities` (FR-10.10).
 - **OQ-3** Answered: keep Linux, now headless (FR-11.9 to FR-11.12, PR #14).
 - **OQ-4** Answered: remove the cloud realm, the VM and the NixOS module; keep

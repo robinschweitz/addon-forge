@@ -521,12 +521,9 @@ approval. Combat/quest scenarios are **not yet implemented**.
 
 ## Interpreting test outcomes
 
-| Outcome | Meaning |
-| --- | --- |
-| `passed` | Requested in-game tests and independent checks passed for **that specific scenario** |
-| `failed` | An assertion or independent expected condition failed |
-| `infrastructure_error` | No reliable correlated evidence; no conclusion about addon correctness |
-| `plan_only` | Dry-run preview; **nothing was tested or changed** |
+The four outcomes (`plan_only`, `passed`, `failed`, `infrastructure_error`)
+are defined in [REQUIREMENTS.md](../REQUIREMENTS.md) FR-6.10. A `passed`
+covers only **that specific scenario**.
 
 On Windows the bridge report arrives as JSON from `ForgeTestBridge:RunJSON`
 over the SDK; on Wine it is read from

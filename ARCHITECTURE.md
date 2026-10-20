@@ -3,7 +3,7 @@
 This file owns HOW Addon Forge is built: components, boundaries, technology
 and data flow. Behaviour is in [REQUIREMENTS.md](REQUIREMENTS.md), the addon
 UI rules are in [DESIGN.md](DESIGN.md), and security controls are in
-`SECURITY.md` (step A4). It replaces the former `docs/architecture.md`.
+[SECURITY.md](SECURITY.md). It replaces the former `docs/architecture.md`.
 
 ## Required Architecture Inputs
 
@@ -48,15 +48,14 @@ UI rules are in [DESIGN.md](DESIGN.md), and security controls are in
   (CLI, MCP) as entry points. The same functions serve both adapters.
 - **Plans are data.** A plan is validated JSON. Each check type is a fixed
   judgement over the bridge snapshot; each step type maps to one fixed Lua
-  template or one fixed fixture action. No plan field becomes code, shell or
-  SQL.
+  template or one fixed fixture action (DR-6; the safety rule is SC-003).
 - **Gates before live time.** A live run first passes static checks and
   offline specs; a stale running client stops it (FR-6.3, FR-6.4).
 - **Independent observation.** The bridge records what the client shows;
   Forge judges the plan from that snapshot, never from the addon's own
   assertions (FR-6.5).
 - **Fail closed.** Unclear evidence is `infrastructure_error`, never
-  `passed` (NFR-1.5).
+  `passed` (NFR-1.5; outcomes: FR-6.10).
 - **Two live backends with one plan format.** Windows: `wowcontrol` (external
   SDK injected into the test client; JSON in one pipe call). Linux: `xdotool`
   on Xvfb (typed `/run` lines; report through `/reload` and SavedVariables).
@@ -217,15 +216,6 @@ Known deviations, to fix in the backlog:
 - `local_realm` uses `realm_connect.configure_realmlist` to point the test
   copy at `127.0.0.1`. Removing the `realmlist` and `tunnel` commands
   (FR-11.7) must keep that function or move it into `local_realm`.
-
-## Run outcomes
-
-| Outcome | Meaning |
-|---|---|
-| `plan_only` | Preview; nothing was tested or changed |
-| `passed` | Matching report, non-empty suite, every assertion and independent check passed, no owned Lua errors |
-| `failed` | Matching report with a failed assertion, check or owned Lua error, or a failed gate stage |
-| `infrastructure_error` | No reliable correlated evidence (client unreachable, stale or old bridge, no report); no conclusion about the addon |
 
 ## Open Questions
 

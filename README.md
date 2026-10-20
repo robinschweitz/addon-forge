@@ -5,13 +5,13 @@
 Addon Forge gives a human or an AI agent a short, verifiable loop for building WoW 3.3.5a addons:
 
 1. **Create**: `forge new MyAddon` scaffolds a Lua 5.1 addon, an offline spec and an acceptance plan.
-2. **Check (milliseconds)**: `forge check` compiles every file with a real embedded Lua 5.1 and reads the bytecode for APIs that do not exist on 3.3.5a (`C_Timer`, `IsInGroup`, `table.unpack`, `:SetColorTexture`, ...) with file:line hints for the 3.3.5a replacement.
-3. **Spec (sub-second)**: `forge spec` runs the addon in a headless 3.3.5a emulation: real load order, SavedVariables timing, events, OnUpdate time, slash commands, clicks, chat, units, groups, loot and `/reload`.
+2. **Check**: `forge check` compiles every file with a real embedded Lua 5.1 and reads the bytecode for APIs that do not exist on 3.3.5a (`C_Timer`, `IsInGroup`, `table.unpack`, `:SetColorTexture`, ...) with file:line hints for the 3.3.5a replacement.
+3. **Spec**: `forge spec` runs the addon in a headless 3.3.5a emulation: real load order, SavedVariables timing, events, OnUpdate time, slash commands, clicks, chat, units, groups, loot and `/reload`.
 4. **Accept (real client)**: `forge agent run-plan` gates on 2 and 3, deploys, optionally runs realm fixtures, runs the in-game ForgeTestBridge suite over the WoWControlSDK and judges an independent snapshot against the plan's checks.
 
 Agents use the same loop as typed tools through `forge mcp` (configured in `opencode.json` and `.mcp.json`).
 
-**Status (v0.1.0, experimental):** Steps 1-3 run on any OS and are covered by the test suite. The native Windows graphical client + local AzerothCore bridge workflow and a single AzerothGhost peer were **verified live** earlier with bridge v2. The bridge v3 SDK transport (JSON report in one SDK call), the richer plan checks and the `master_loot` fixture are implemented and unit-tested but **not yet verified live**. See [Autonomous QA workflow and verification status](docs/qa-workflow.md).
+**Status (v0.1.0, experimental):** Steps 1-3 run on any OS and are covered by the test suite. Step 4 runs live on Windows (bridge v3 over the SDK, plan steps, `master_loot`, two clients; run IDs in [the verification status](docs/qa-workflow.md#verification-status)) and, single-client, on Linux (PR #14). What Forge does and what is still open: [REQUIREMENTS.md](REQUIREMENTS.md); how it is built: [ARCHITECTURE.md](ARCHITECTURE.md); safety rules: [SECURITY.md](SECURITY.md); addon UI rules: [DESIGN.md](DESIGN.md).
 
 ## Autonomous addon QA: start here (Windows local realm)
 
@@ -27,7 +27,7 @@ copy that preserves your original server settings, deploy Forge addons and
 start the realm. It previews changes unless you explicitly supply
 `--approve-local-setup`. A real WoW/Docker integration run is still needed.
 
-## Headless Hetzner Cloud realm (experimental)
+## Headless Hetzner Cloud realm (experimental; to be removed, REQUIREMENTS.md FR-13.1)
 
 Cloud deployment lives in [cloud/README.md](cloud/README.md). The opt-in
 `hcloud` bootstrap creates a billable SSH-restricted x86 server; an independent,
@@ -44,7 +44,7 @@ Windows 10/11 can use a **native WoW 3.3.5a client without Wine/WSL** for graphi
 
 On Windows, suites run through the WoWControlSDK (`automation_backend = "wowcontrol"`): the bridge returns its report as JSON in the same call, with no `/reload` or SavedVariables round trip. The only typed input left is a validated `/targetexact NAME`, used by peer fixtures because targeting is a protected action. Login also goes through the SDK; the former pixel-calibrated keyboard login was removed. Windows CI uses a mocked Win32 UI and SDK. See the [verification matrix](docs/qa-workflow.md#verification-status).
 
-## Complete Windows/Linux ↔ Hetzner workflow (experimental)
+## Complete Windows/Linux ↔ Hetzner workflow (experimental; to be removed, FR-11.7)
 
 See [end-to-end setup](docs/end-to-end.md) for a secure **SSH-only** connection
 between local WoW (Windows native or Linux/Wine) and a cloud NixOS AzerothCore
@@ -56,7 +56,7 @@ database realmlist settings must also point to loopback; see the guide.
 Live Hetzner NixOS deployment and a full graphical WoW login have **not yet
 been validated**; automated unit/NixOS CI checks do not replace an in-game run.
 
-## NixOS all-in-one test VM (experimental)
+## NixOS all-in-one test VM (experimental; to be removed, FR-13.2)
 
 A full local test appliance (Xfce/X11, Wine, Forge CLI, systemd-managed AzerothCore) is now described in [docs/nixos-vm.md](docs/nixos-vm.md). On a Nix-capable Linux host:
 
@@ -194,16 +194,9 @@ For the downloadable `addon-forge.git.bundle`, first run `git clone addon-forge.
 
 ## Roadmap
 
-- [x] Python CLI, configuration loader, static TOC/API checks
-- [x] Embedded Lua 5.1 syntax + bytecode global analysis; 3.3.5a API dump and lookup
-- [x] Headless 3.3.5a emulation with offline specs, gating real-client runs
-- [x] In-game bridge, SDK JSON transport (v3), report correlation
-- [x] Data-only acceptance plans with UI/text/SavedVariables/chat/event/error checks and named fixtures
-- [x] MCP tool server and `forge new` scaffold
-- [x] Nix flake for development shell/package/NixOS module
-- [ ] Verify bridge v3 SDK transport and `master_loot` fixture live
-- [ ] Combat and quest fixtures
-- [ ] Reproducible realm image and DB seeding
+Each requirement in [REQUIREMENTS.md](REQUIREMENTS.md) carries its status
+(`IMPLEMENTED`, `PARTIAL`, `NOT IMPLEMENTED`, `TO BE REMOVED`, `DEFERRED`).
+The work is planned as described in [docs/spec-driven.md](docs/spec-driven.md).
 
 ## License
 
