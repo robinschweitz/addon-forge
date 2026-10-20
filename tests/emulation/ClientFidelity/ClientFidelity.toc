@@ -1,0 +1,5 @@
+## Interface: 30300
+## Title: ClientFidelity
+## Notes: Probe addon for the offline emulation's client-fidelity specs (not deployed).
+## SavedVariables: ClientFidelityDB, ClientFidelityKept
+ClientFidelity.lua

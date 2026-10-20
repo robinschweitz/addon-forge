@@ -178,6 +178,99 @@ Terminal tab; a run started in another window must be pasted.
 - A session's final screenshot (`RUN_ID.png`) shows the end state; use
   `screenshot` steps for anything in between.
 
+## Offline emulation vs. the client (decompiled 12340 client)
+
+`headless/wow.lua` was audited on 2026-10-20 against a C++ decompilation of the
+12340 client ([SatyPardus/wowdecomp](https://github.com/SatyPardus/wowdecomp),
+cloned locally to `.forge-tools/wowdecomp`; used as reference only: never copy
+its code here). Function names below are the client's. The probe addon
+`tests/emulation/ClientFidelity` holds a spec for every fixed point; 23 of its
+28 tests failed on the old emulator.
+
+Fixed in the emulator:
+- **SavedVariables** (`LoadAddOn`, `FrameScript_LoadVariables`): the saved file
+  runs after the addon's files, in a scratch table, and only the values it set
+  are copied into globals. A variable never saved, or saved as nil, keeps what
+  the addon's file assigned (`MyDB = MyDB or {}` at file scope survives). The
+  emulator used to overwrite it with nil.
+- **Login vs. /reload order** (`CGGameUI::InitializeFrameXML`,
+  `LoadAccountVariables`, `AccountVariablesLoadedCallback`): at login
+  ADDON_LOADED, PLAYER_LOGIN, PLAYER_ENTERING_WORLD, then VARIABLES_LOADED when
+  the account data arrives. On /reload the account data is cached, so
+  VARIABLES_LOADED fires *before* PLAYER_LOGIN. PLAYER_LOGIN fires on every
+  reload (`m_loggingIn` is set in `InitializeFrameXML`). Leaving goes
+  PLAYER_LEAVING_WORLD (`LeaveWorld`), then PLAYER_LOGOUT, then the
+  SavedVariables are written (`CGGameUI::Shutdown`).
+- **OnShow/OnHide follow visibility** (`CSimpleFrame::ShowThis`/`HideThis`,
+  `SetParent`): `Show()` under a hidden parent runs no OnShow; when the parent
+  appears, its shown children run OnShow *before* the parent's own. Hiding runs
+  the children's OnHide first; already-hidden children stay quiet.
+  `SetParent` on a visible frame runs OnHide, then OnShow if the new parent is
+  visible.
+- **Text** (`CSimpleFontString::SetText`, `LanguageProcess`): `GetText()` is nil
+  for empty text; numbers become text, other types (`true`, tables) clear it;
+  `|4one:many;` is resolved at SetText (`"3 |4item:items;"` reads back as
+  `"3 items"`, plural rule by locale), colour/link escapes are kept;
+  `SetText` on a FontString without a font is an error ("Font not set":
+  `CreateFontString(nil, "OVERLAY")` with no template or `SetFontObject`). A
+  plain `Button` has no font string until its first non-empty `SetText`
+  (`GetFontString()` is nil); `EditBox:SetText(nil)` is a usage error.
+- **Event dispatch** (`FrameScript_SignalEvent`): listeners run in registration
+  order; a frame registered during a dispatch waits for the next signal (this
+  already matched); a frame **unregistered** during the dispatch is skipped for
+  the rest of it (the emulator still delivered). `RegisterEvent` with a name the
+  client lacks does nothing; the emulator now ignores the names in
+  `wowapi.MODERN_EVENTS` (checked against the client's event table) and warns.
+  RaidLedger's `LOOT_READY` registration is such a dead one (harmless:
+  `LOOT_OPENED` does the work).
+- **OnUpdate** (`CSimpleTop::OnLayerUpdate`, `CFrameStrataNode::OnLayerUpdate`):
+  one elapsed value per frame for every visible frame (matched). A frame shown
+  during the pass waits for the next frame; one hidden during it is skipped.
+- **SendAddonMessage** (`Script_SendAddonMessage`): type defaults to PARTY;
+  only PARTY, RAID, GUILD, BATTLEGROUND, WHISPER (any case), anything else
+  errors "Unknown addon chat type"; RAID outside a raid goes to PARTY; PARTY
+  without a party is **dropped silently** (an offline spec that forgot
+  `forge.party` used to see the message); WHISPER needs a target; prefix and
+  text are joined as `prefix<TAB>text` (up to 2999 bytes in the client), and the
+  receiver splits at the first tab, so a tab in the prefix moves into the
+  message. CHAT_MSG_ADDON args: prefix, message, channel (PARTY, RAID, GUILD,
+  WHISPER, BATTLEGROUND), sender.
+- **Protected actions** (`CGGameUI::CanPerformAction`, `ShowBlockedActionFeedback`).
+  Addon code is always tainted. Three kinds, each refused with
+  ADDON_ACTION_BLOCKED (or ADDON_ACTION_FORBIDDEN) `(addonName, "Func()")`:
+  - *hardware event needed*: AcceptTrade, CancelTradeAccept, CalendarAddEvent,
+    CalendarUpdateEvent, PlaceAuctionBid, CancelAuction, AcceptProposal,
+    SearchLFGJoin/Leave, AcceptBattlefieldPort, and ReloadUI (`CGGameUI::Reload`).
+    The hardware flag is set only around a button's OnClick from a real mouse
+    click or key binding (`CSimpleButton::OnLayerMouseDown/Up`, which is what a
+    `hardware_click` step uses) and an edit box's OnEnterPressed from the Enter
+    key (`CSimpleEditBox`). So a slash command *typed into chat* may call them;
+    timers, `Button:Click()`, plan `click`/`slash` steps may not.
+  - *out of combat only*: SetRaidSubgroup, SwapRaidSubgroup, macro and binding
+    changes, action bar pickups, item equipping.
+  - *never from an addon*: TargetUnit (`CGGameUI::Target`), movement and
+    camera functions, RunMacro, SpellStopCasting, SpellTargetUnit.
+  Offline: `forge.click`/`forge.slash`/timers are no hardware event;
+  `forge.hardwareClick(frame)`, `forge.clickText(text, nil, {hardware = true})`,
+  `forge.slash(text, {hardware = true})` and `forge.press(box, "ENTER")` are.
+  `forge.stub` of a guarded function keeps the guard. RaidLedger's calendar
+  spec stubbed CalendarAddEvent and pressed CREATE EVENT with a plain click; it
+  passed only because the stub bypassed the rule. It now uses a hardware click
+  (as its live plan's `hardware_click` does) and a typed `/ledger calendar`.
+
+Not changed (checked, or unclear):
+- RandomRoll and SendChatMessage are not protected (`CanPerformAction(10)` is
+  allowed), matching the live finding above.
+- Frame-level protection (Show/Hide/SetPoint of secure frames in combat,
+  `CScriptRegion::ProtectedFunctionsAllowed`) is not emulated: no emulated
+  frame is protected.
+- The 255-byte addon message limit is server-side; the client sends up to 2999
+  bytes. Not modelled offline; keep messages short.
+- The server echoes PARTY/RAID addon messages to the sender (see above); the
+  emulator does not, so specs fire CHAT_MSG_ADDON themselves.
+- OnUpdate order (strata, then level, then registration) and the order of
+  regions before child frames in OnShow are approximated by creation order.
+
 ## How to debug a failing live run
 
 1. Read the result JSON: `stage` says where it failed (`static`, `offline`,

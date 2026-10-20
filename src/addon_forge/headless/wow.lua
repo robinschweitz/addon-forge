@@ -98,7 +98,7 @@ end
 
 ---------------------------------------------------------------- report state
 local report = { load_errors = {}, errors = {}, tests = {}, nil_globals = {},
-                 unemulated_methods = {}, missing_methods = {}, unknown_templates = {} }
+                 unemulated_methods = {}, missing_methods = {}, unknown_templates = {}, modern_events = {} }
 local currentTest
 
 local function recordError(message)
@@ -214,8 +214,28 @@ function Region:GetParent() return state[self].parent end
 -- SetParent moves the object between its parents' lists, like the client:
 -- otherwise a re-parented frame is missing from GetChildren, layoutIssues
 -- and sketches of its new parent.
+-- OnShow/OnHide follow visibility, not the shown flag (client
+-- CSimpleFrame::ShowThis/HideThis): a frame becoming visible shows its shown
+-- children first, then runs its own OnShow; Show() under a hidden parent runs
+-- nothing until the parent appears.
+local function becameVisible(obj)
+    for _, kid in ipairs(state[obj].children) do
+        if state[kid].shown then becameVisible(kid) end
+    end
+    runScript(obj, "OnShow")
+end
+local function becameHidden(obj)
+    for _, kid in ipairs(state[obj].children) do
+        if state[kid].shown then becameHidden(kid) end
+    end
+    runScript(obj, "OnHide")
+end
+
 function Region:SetParent(p)
     local s = state[self]
+    -- Re-parenting a visible frame hides it, then shows it again under the new
+    -- parent if that one is visible (client CSimpleFrame::SetParent).
+    local wasVisible = self:IsVisible()
     local old = s.parent and state[s.parent]
     local list = "children"
     if old then
@@ -228,11 +248,23 @@ function Region:SetParent(p)
             end
         end
     end
+    if wasVisible then becameHidden(self) end
     s.parent = p
     if p and state[p] then tinsert(state[p][list], self) end
+    if s.shown and self:IsVisible() then becameVisible(self) end
 end
-function Region:Show() local s = state[self]; if not s.shown then s.shown = true; runScript(self, "OnShow") end end
-function Region:Hide() local s = state[self]; if s.shown then s.shown = false; runScript(self, "OnHide") end end
+function Region:Show()
+    local s = state[self]
+    local wasVisible = self:IsVisible()
+    s.shown = true
+    if not wasVisible and self:IsVisible() then becameVisible(self) end
+end
+function Region:Hide()
+    local s = state[self]
+    local wasVisible = self:IsVisible()
+    s.shown = false
+    if wasVisible then becameHidden(self) end
+end
 function Region:IsShown() return state[self].shown and true or false end
 function Region:IsVisible()
     local obj = self
@@ -353,9 +385,49 @@ function Region:GetRect() local r = rectOf(self); if r then return r.l, r.b, r.r
 
 -- FontString
 local FontString = class("FontString", "Region")
-function FontString:SetText(text) state[self].text = text ~= nil and tostring(text) or nil end
+-- Client text rules (CSimpleFontString::SetText, LanguageProcess): only
+-- strings and numbers are text (anything else clears it), "|4one:many;" picks
+-- the plural form for the number before it, and an empty text reads as nil.
+local PLURAL = {
+    frFR = function(n) return n > 1 and 1 or 0 end,
+    ruRU = function(n)
+        if n % 100 >= 11 and n % 100 <= 14 then return 2 end
+        if n % 10 == 1 then return 0 end
+        return (n % 10 >= 2 and n % 10 <= 4) and 1 or 2
+    end,
+}
+local function pluralize(text)
+    if not sfind(text, "|4", 1, true) then return text end
+    local rule = PLURAL[W.locale] or function(n) return n ~= 1 and 1 or 0 end
+    local number = 0
+    return (sgsub(text, "()|4([^;]*);?", function(pos, forms)
+        local before = smatch(ssub(text, 1, pos - 1), "(%d+)%D*$")
+        number = before and tonumber(before) or number
+        local list = {}
+        for form in string.gmatch(forms .. ":", "([^:]*):") do list[#list + 1] = form end
+        local pick = list[rule(number) + 1] or ""
+        return (sgsub(pick, "^ +", ""))
+    end))
+end
+local function clientText(text)
+    if type(text) ~= "string" and type(text) ~= "number" then return nil end
+    text = pluralize(tostring(text))
+    if #text > 8192 then text = ssub(text, 1, 8189) end
+    return text ~= "" and text or nil
+end
+local function hasFont(obj)
+    local s = state[obj]
+    return s.font ~= nil or s.fontObject ~= nil or s.ownFont
+end
+function FontString:SetText(text)
+    if not hasFont(self) then error((state[self].name or "<unnamed>") .. ":SetText(): Font not set", 2) end
+    state[self].text = clientText(text)
+end
 function FontString:GetText() return state[self].text end
-function FontString:SetFormattedText(fmt, ...) self:SetText(sformat(fmt, ...)) end
+function FontString:SetFormattedText(fmt, ...)
+    if not hasFont(self) then error((state[self].name or "<unnamed>") .. ":SetFormattedText(): Font not set", 2) end
+    state[self].text = clientText(wowFormat(fmt, ...))
+end
 function FontString:SetFont(font, size, flags) state[self].font = { font, size, flags }; return true end
 function FontString:GetFont() local f = state[self].font or {}; return f[1], f[2], f[3] end
 function FontString:SetFontObject(obj) state[self].fontObject = obj end
@@ -397,7 +469,16 @@ function Frame:HookScript(script, fn)
     tinsert(s.hooks[script], fn)
 end
 function Frame:RegisterEvent(event)
-    if type(event) ~= "string" then error("Usage: frame:RegisterEvent(\"event\")", 2) end
+    if type(event) ~= "string" and type(event) ~= "number" then
+        error("Usage: " .. (state[self].name or "<unnamed>") .. ':RegisterEvent("event")', 2)
+    end
+    event = tostring(event)
+    -- The client ignores names it has no event for (e.g. GROUP_ROSTER_UPDATE,
+    -- added in 5.0): the frame never hears of them.
+    if W.modernEvents[event] then
+        if not report.modern_events[event] then report.modern_events[event] = where(3) end
+        return
+    end
     local list = W.events[event] or {}
     W.events[event] = list
     for _, f in ipairs(list) do if f == self then return end end
@@ -468,12 +549,20 @@ function Frame:GetAttribute(k) return state[self].attributes[k] end
 local Button = class("Button", "Frame")
 local function buttonText(self)
     local s = state[self]
-    if not s.fontString then s.fontString = self:CreateFontString(nil, "ARTWORK") end
+    if not s.fontString then
+        s.fontString = self:CreateFontString(nil, "ARTWORK")
+        state[s.fontString].ownFont = true
+    end
     return s.fontString
 end
-function Button:SetText(t) buttonText(self):SetText(t) end
+-- A plain button gets its font string on the first non-empty SetText
+-- (client CSimpleButton::SetText); templates bring theirs.
+function Button:SetText(t)
+    t = clientText(t)
+    if t or state[self].fontString then state[buttonText(self)].text = t end
+end
 function Button:GetText() return state[self].fontString and state[self].fontString:GetText() end
-function Button:SetFormattedText(fmt, ...) self:SetText(sformat(fmt, ...)) end
+function Button:SetFormattedText(fmt, ...) self:SetText(wowFormat(fmt, ...)) end
 function Button:GetFontString() return state[self].fontString end
 -- The width of the button's text, estimated like FontString:GetStringWidth.
 function Button:GetTextWidth() return state[self].fontString and state[self].fontString:GetStringWidth() or 0 end
@@ -511,7 +600,13 @@ function CheckButton:SetCheckedTexture() end
 
 -- EditBox
 local EditBox = class("EditBox", "Frame")
-function EditBox:SetText(t) state[self].text = tostring(t or ""); runScript(self, "OnTextChanged", false) end
+function EditBox:SetText(t)
+    if type(t) ~= "string" and type(t) ~= "number" then
+        error("Usage: " .. (state[self].name or "<unnamed>") .. ':SetText("text")', 2)
+    end
+    state[self].text = tostring(t)
+    runScript(self, "OnTextChanged", false)
+end
 function EditBox:GetText() return state[self].text or "" end
 function EditBox:Insert(t) self:SetText(self:GetText() .. tostring(t)) end
 function EditBox:GetNumber() return tonumber(state[self].text) or 0 end
@@ -595,7 +690,7 @@ local function syncTooltipLines(self)
     for i = 1, math.max(#lines, s.synced or 0) do
         local key = s.name .. "TextLeft" .. i
         local fs = W.env[key]
-        if not fs then fs = newObject("FontString", key, self) end
+        if not fs then fs = newObject("FontString", key, self); state[fs].ownFont = true end
         state[fs].text = lines[i]
     end
     s.synced = #lines
@@ -661,15 +756,15 @@ local function CreateFrame(kind, name, parent, template)
                 local bar = newObject("Slider", fname .. "ScrollBar", frame)
                 state[frame].scrollBar = bar
             elseif (t == "OptionsCheckButtonTemplate" or t == "UICheckButtonTemplate") and fname then
-                newObject("FontString", fname .. "Text", frame)
+                state[newObject("FontString", fname .. "Text", frame)].ownFont = true
             elseif t == "OptionsSliderTemplate" and fname then
-                newObject("FontString", fname .. "Text", frame)
-                newObject("FontString", fname .. "Low", frame)
-                newObject("FontString", fname .. "High", frame)
+                for _, part in ipairs({ "Text", "Low", "High" }) do
+                    state[newObject("FontString", fname .. part, frame)].ownFont = true
+                end
             end
         end
     end
-    if kind == "Button" or kind == "CheckButton" then buttonText(frame) end
+    if (kind == "Button" or kind == "CheckButton") and template then buttonText(frame) end
     return frame
 end
 
@@ -695,12 +790,15 @@ end
 
 local function emit(text) tinsert(W.chat, tostring(text)) end
 
+-- Client FrameScript_SignalEvent: listeners in registration order; a frame
+-- registered during the dispatch waits for the next signal, a frame
+-- unregistered during it is skipped for the rest of this one.
 local function fire(event, ...)
     local seen, list = {}, {}
     for i, frame in ipairs(W.events[event] or {}) do list[i] = frame end
     for _, frame in ipairs(list) do
         seen[frame] = true
-        runScript(frame, "OnEvent", event, ...)
+        if state[frame].events[event] then runScript(frame, "OnEvent", event, ...) end
     end
     for _, frame in ipairs(W.objects) do
         if not seen[frame] and state[frame].allEvents then runScript(frame, "OnEvent", event, ...) end
@@ -726,6 +824,31 @@ local function slashDispatch(text)
         end
     end
     error("No addon registered slash command " .. command, 2)
+end
+
+-- Protected actions (client CGGameUI::CanPerformAction and its callers). Addon
+-- code is always tainted, so: "hardware" functions need a real click or key
+-- press in progress (a button's OnClick from the mouse or a key binding, an
+-- edit box's OnEnterPressed from the Enter key), "combat" ones are refused in
+-- combat, "forbidden" ones never work from an addon. A refused call does
+-- nothing and fires ADDON_ACTION_BLOCKED / ADDON_ACTION_FORBIDDEN with the
+-- addon name and "Function()".
+local PROTECTED = {}   -- name -> kind, so forge.stub keeps the guard
+local function protected(name, kind, fn)
+    PROTECTED[name] = kind
+    return function(...)
+        local refused = kind == "forbidden" or (kind == "hardware" and not W.hardware)
+            or (kind == "combat" and W.combat)
+        if refused then
+            tinsert(W.blocked, name)
+            fire(kind == "forbidden" and "ADDON_ACTION_FORBIDDEN" or "ADDON_ACTION_BLOCKED", W.addonName, name .. "()")
+            return
+        end
+        return fn(...)
+    end
+end
+local function recorder(name)
+    return function(...) tinsert(W.protectedCalls, { name = name, args = { ... } }) end
 end
 
 local function api(env)
@@ -769,8 +892,30 @@ local function api(env)
     E.SendChatMessage = function(msg, chatType, lang, target)
         tinsert(W.sent, { message = tostring(msg), chatType = chatType or "SAY", target = target })
     end
+    -- Client Script_SendAddonMessage: PARTY by default; RAID outside a raid
+    -- goes to the party; PARTY without a party is dropped silently; other chat
+    -- types are an error. The receiver splits "prefix<TAB>message" at the
+    -- first tab, so a tab in the prefix moves the rest into the message.
+    local ADDON_TYPES = { PARTY = 1, RAID = 1, GUILD = 1, BATTLEGROUND = 1, WHISPER = 1 }
     E.SendAddonMessage = function(prefix, msg, chatType, target)
-        tinsert(W.addonMessages, { prefix = prefix, message = msg, chatType = chatType, target = target })
+        prefix = (type(prefix) == "string" or type(prefix) == "number") and tostring(prefix) or ""
+        msg = (type(msg) == "string" or type(msg) == "number") and tostring(msg) or ""
+        if prefix == "" and msg == "" then
+            error('Usage: SendAddonMessage("prefix", "message" [,"type"] [,"target"])', 2)
+        end
+        local kind = "PARTY"
+        if type(chatType) == "string" or type(chatType) == "number" then
+            kind = supper(tostring(chatType))
+            if not ADDON_TYPES[kind] then error("Unknown addon chat type", 2) end
+        end
+        if kind == "RAID" and #W.raid == 0 then kind = "PARTY" end
+        if kind == "PARTY" and W.partyCount == 0 and #W.raid == 0 then return end
+        if kind == "WHISPER" and (type(target) ~= "string" or target == "") then
+            error("SendAddonMessage(): Whisper message missing target player!", 2)
+        end
+        local line = ssub(prefix .. "	" .. msg, 1, 2999)
+        local p, m = smatch(line, "^([^	]*)	(.*)$")
+        tinsert(W.addonMessages, { prefix = p, message = m, chatType = kind, target = target })
     end
     E.ChatFrame_AddMessageEventFilter = function(event, fn) W.chatFilters[event] = W.chatFilters[event] or {}; tinsert(W.chatFilters[event], fn) end
     E.ChatFrame_RemoveMessageEventFilter = function() end
@@ -843,8 +988,27 @@ local function api(env)
         end)
     end
     E.GetTradePlayerItemLink = function(slot) return W.trade and W.trade.items[slot] end
-    E.AcceptTrade = function() if W.trade then W.trade.playerAccepted = true end end
+    E.AcceptTrade = protected("AcceptTrade", "hardware", function() if W.trade then W.trade.playerAccepted = true end end)
     E.CancelTrade = function() end
+    -- Hardware-event functions; when allowed they are recorded for specs
+    -- (forge.protectedCalls()) unless a spec stubs them.
+    for _, name in ipairs({ "CalendarAddEvent", "CalendarUpdateEvent", "CancelTradeAccept", "PlaceAuctionBid",
+        "CancelAuction", "AcceptProposal", "AcceptBattlefieldPort" }) do
+        E[name] = protected(name, "hardware", recorder(name))
+    end
+    for _, name in ipairs({ "SetRaidSubgroup", "SwapRaidSubgroup", "CreateMacro", "EditMacro", "DeleteMacro",
+        "SetBinding", "SetBindingClick", "SetBindingSpell", "SetBindingItem", "SetBindingMacro",
+        "SetOverrideBinding", "SetOverrideBindingClick", "ClearOverrideBindings", "PickupAction",
+        "PlaceAction", "PickupSpell", "PickupMacro", "PickupPetAction", "ChangeActionBarPage",
+        "AutoEquipCursorItem" }) do
+        E[name] = protected(name, "combat", recorder(name))
+    end
+    for _, name in ipairs({ "TargetUnit", "RunMacro", "StopMacro", "SpellStopCasting", "SpellTargetUnit", "MoveForwardStart", "JumpOrAscendStart", "ToggleAutoRun" }) do
+        E[name] = protected(name, "forbidden", recorder(name))
+    end
+    -- /reload from addon code needs a hardware event too (CGGameUI::Reload);
+    -- the client reloads at its next idle, here on the next forge.advance step.
+    E.ReloadUI = protected("ReloadUI", "hardware", function() tinsert(W.pending, function() H.forge.reload() end) end)
     -- Loot and items
     E.GetNumLootItems = function() return W.lootOpen and #W.loot or 0 end
     E.GetLootSlotLink = function(slot) local l = W.lootOpen and W.loot[slot]; return l and l.link end
@@ -1010,7 +1174,7 @@ local function newWorld(config, saved)
           lootCandidates = {}, lootMethod = { method = "group" }, raid = {}, partyCount = 0, leader = false,
           items = {}, nextRolls = {}, pending = {}, time = 0, epoch = 1281052800, combat = false, keys = {},
           money = 0, zone = "Dalaran", realm = "AzerothCore", locale = config.locale or "enUS",
-          gameMinutes = 12 * 60, mapX = 0.5, mapY = 0.5,
+          gameMinutes = 12 * 60, mapX = 0.5, mapY = 0.5, hardware = false, blocked = {}, protectedCalls = {},
           cvars = {}, units = defaultUnits(), addonName = config.addonName, metadata = config.metadata or {},
           strings = { RANDOM_ROLL_RESULT = "%s rolls %d (%d-%d)", OKAY = "Okay", CANCEL = "Cancel", YES = "Yes",
                       NO = "No", ACCEPT = "Accept", DECLINE = "Decline", CLOSE = "Close", NONE = "None",
@@ -1060,6 +1224,7 @@ local function newWorld(config, saved)
         return nil
     end })
     W.knownMethods = config.methods
+    W.modernEvents = config.modernEvents or {}
     W.savedNames = config.savedVariables or {}
     W.saved = saved or {}
     return E
@@ -1080,7 +1245,17 @@ local function asFrame(f)
 end
 
 function forge.fire(event, ...) fire(event, ...) end
-function forge.slash(text) slashDispatch(text) end
+-- forge.slash(text[, { hardware = true }]): hardware = typed into chat by a
+-- person (the chat box's Enter is a hardware event); without it the command
+-- runs like a plan `slash` step (SDK Lua, no hardware event).
+local function withHardware(on, fn, ...)
+    local before = W.hardware
+    W.hardware = on and true or false
+    local ok, err = pcall(fn, ...)
+    W.hardware = before
+    if not ok then error(err, 0) end
+end
+function forge.slash(text, opts) withHardware(opts and opts.hardware, slashDispatch, text) end
 function forge.advance(seconds, step)
     step = step or 0.05
     local remaining = seconds
@@ -1091,9 +1266,15 @@ function forge.advance(seconds, step)
         local pending = W.pending
         W.pending = {}
         for _, fn in ipairs(pending) do fn() end
+        -- One pass over the frames visible when the frame starts (client
+        -- CFrameStrataNode::OnLayerUpdate): a frame shown by another's
+        -- OnUpdate waits for the next frame, a hidden one is skipped.
+        local visible = {}
         for _, obj in ipairs(W.objects) do
-            local s = state[obj]
-            if s.scripts.OnUpdate and Methods[s.type].IsVisible and obj:IsVisible() then runScript(obj, "OnUpdate", dt) end
+            if state[obj].scripts.OnUpdate and obj:IsVisible() then visible[#visible + 1] = obj end
+        end
+        for _, obj in ipairs(visible) do
+            if state[obj].scripts.OnUpdate and obj:IsVisible() then runScript(obj, "OnUpdate", dt) end
         end
     end
 end
@@ -1103,6 +1284,16 @@ function forge.click(frame, button)
     if not f:IsVisible() then error("Cannot click hidden frame " .. tostring(state[f].name), 2) end
     f:Click(button)
 end
+-- A real mouse click (plan `hardware_click`): protected "hardware" functions
+-- work inside its OnClick. forge.click is SDK Lua (plan `click`): they refuse.
+function forge.hardwareClick(frame, button)
+    local f = asFrame(frame)
+    if not Methods[state[f].type].Click then error("Frame cannot be clicked", 2) end
+    if not f:IsVisible() then error("Cannot click hidden frame " .. tostring(state[f].name), 2) end
+    withHardware(true, f.Click, f, button)
+end
+function forge.blocked() return W.blocked end
+function forge.protectedCalls() return W.protectedCalls end
 -- Find a visible region whose text equals `text` (or contains it with plain=true).
 function forge.findText(text, contains)
     for _, obj in ipairs(W.objects) do
@@ -1122,12 +1313,14 @@ function forge.wheel(frame, delta)
     if not f:IsVisible() then error("Cannot scroll hidden frame " .. tostring(state[f].name), 2) end
     runScript(f, "OnMouseWheel", delta)
 end
-function forge.clickText(text, button)
+-- forge.clickText(text[, button[, { hardware = true }]]): hardware = a real
+-- mouse click, like forge.hardwareClick.
+function forge.clickText(text, button, opts)
     local obj = forge.findText(text)
     if not obj then error("No visible text " .. tostring(text), 2) end
     while obj and not Methods[state[obj].type].Click do obj = state[obj].parent end
     if not obj then error("Text " .. tostring(text) .. " is not inside a clickable frame", 2) end
-    obj:Click(button)
+    withHardware(opts and opts.hardware, obj.Click, obj, button)
 end
 function forge.rect(frame)
     local r = rectOf(asFrame(frame))
@@ -1271,7 +1464,8 @@ function forge.press(editbox, key)
     local f = asFrame(editbox)
     local script = ({ ENTER = "OnEnterPressed", ESCAPE = "OnEscapePressed", TAB = "OnTabPressed" })[key]
     if not script then error("forge.press supports ENTER, ESCAPE, TAB", 2) end
-    runScript(f, script)
+    -- Enter in an edit box is a hardware event (client CSimpleEditBox key handling).
+    withHardware(key == "ENTER", runScript, f, script)
 end
 function forge.frame(name) return rawget(W.env, name) end
 function forge.text(frame) local f = asFrame(frame); return f.GetText and f:GetText() end
@@ -1282,7 +1476,12 @@ function forge.sent() return W.sent end
 function forge.popups() return W.popups end
 function forge.sounds() return W.sounds end
 function forge.time() return W.time end
-function forge.stub(name, value) rawset(W.env, name, value) end
+-- A stub of a protected function keeps its protection: the spec models
+-- what the server does, not whether the client lets the addon call it.
+function forge.stub(name, value)
+    if PROTECTED[name] and type(value) == "function" then value = protected(name, PROTECTED[name], value) end
+    rawset(W.env, name, value)
+end
 function forge.unit(token, fields)
     token = slower(token)
     if fields == false then W.units[token] = nil; return end
@@ -1356,7 +1555,7 @@ function forge.trade(partner, links, opts)
         fire("TRADE_PLAYER_ITEM_CHANGED", i)
     end
     fire("TRADE_ACCEPT_UPDATE", 0, 1)
-    if not opts.cancel then W.env.AcceptTrade() end
+    if not opts.cancel then withHardware(true, W.env.AcceptTrade) end
     if opts.clearOnComplete and not opts.cancel then
         for i in ipairs(links or {}) do
             W.trade.items[i] = nil
@@ -1459,16 +1658,27 @@ local function loadAddon(saved, reloaded)
             if not ok then tinsert(report.load_errors, tostring(rerr)) end
         end
     end
-    -- The client assigns SavedVariables after the addon's files ran.
-    for _, name in ipairs(W.savedNames) do rawset(E, name, deepcopy(W.saved[name])) end
+    -- The client runs the SavedVariables file after the addon's files, in a
+    -- scratch table, and copies only the values it set (client LoadAddOn,
+    -- FrameScript_LoadVariables): a variable saved as nil, or never saved,
+    -- keeps what the addon's files assigned.
+    for _, name in ipairs(W.savedNames) do
+        if W.saved[name] ~= nil then rawset(E, name, deepcopy(W.saved[name])) end
+    end
     fire("ADDON_LOADED", config.addonName)
+    -- VARIABLES_LOADED waits for the account data: at login it arrives after
+    -- world entry; on /reload it is cached and fires before PLAYER_LOGIN
+    -- (client LoadAccountVariables, CGGameUI::InitializeFrameXML).
+    if reloaded then fire("VARIABLES_LOADED") end
     fire("PLAYER_LOGIN")
     fire("PLAYER_ENTERING_WORLD")
-    fire("VARIABLES_LOADED")
+    if not reloaded then fire("VARIABLES_LOADED") end
 end
 
 -- Simulates /reload: SavedVariables persist, everything else is rebuilt.
+-- The client leaves the world before it logs the UI out (CGGameUI::Shutdown).
 function forge.reload()
+    fire("PLAYER_LEAVING_WORLD")
     fire("PLAYER_LOGOUT")
     local persisted = {}
     for _, name in ipairs(W.savedNames) do persisted[name] = deepcopy(rawget(W.env, name)) end

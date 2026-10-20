@@ -111,6 +111,11 @@ def _classify(raw: dict, defined: set[str]) -> list[dict]:
         notes.append({"severity": "info", "where": where,
                       "message": f"{label} is not emulated offline (no-op returning nil); "
                                  "verify it exists on this widget type in 3.3.5a"})
+    events = raw.get("modern_events") if isinstance(raw.get("modern_events"), dict) else {}
+    for name, where in sorted(events.items()):
+        notes.append({"severity": "warning", "where": where,
+                      "message": f"Event {name} does not exist on 3.3.5a: RegisterEvent ignores it, so the "
+                                 f"frame never receives it. {wowapi.MODERN_EVENTS.get(name, '')}".rstrip()})
     templates = raw.get("unknown_templates") if isinstance(raw.get("unknown_templates"), dict) else {}
     for name, where in sorted(templates.items()):
         notes.append({"severity": "info", "where": where,
@@ -195,7 +200,8 @@ def run_addon(addon_dir: Path, spec: Path | None = None, *, budget: int = 20_000
     harness = loader()
     harness.budget = budget
     config = {"addonName": addon_dir.name, "metadata": _metadata(toc.path),
-              "savedVariables": toc.saved_variables}
+              "savedVariables": toc.saved_variables,
+              "modernEvents": {name: True for name in wowapi.MODERN_EVENTS}}
     methods = wowapi.known_methods()
     if methods:
         config["methods"] = {kind: {name: True for name in names} for kind, names in methods.items()}

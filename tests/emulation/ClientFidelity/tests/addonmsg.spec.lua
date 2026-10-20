@@ -1,0 +1,36 @@
+-- SendAddonMessage (client Script_SendAddonMessage; the receiver splits at
+-- the first tab).
+test("PARTY without a party is dropped silently", function()
+    SendAddonMessage("CF", "hello", "PARTY")
+    SendAddonMessage("CF", "hello")
+    expect(#forge.addonMessages()).toBe(0)
+end)
+
+test("the chat type defaults to PARTY and RAID outside a raid goes to the party", function()
+    forge.party({ "Partner" })
+    SendAddonMessage("CF", "one")
+    SendAddonMessage("CF", "two", "raid")
+    local sent = forge.addonMessages()
+    expect(sent[1].chatType).toBe("PARTY")
+    expect(sent[2].chatType).toBe("PARTY")
+end)
+
+test("unknown chat types and whispers without a target are errors", function()
+    local ok, err = pcall(SendAddonMessage, "CF", "x", "SAY")
+    expect(ok).toBeFalsy()
+    expect(err).toContain("Unknown addon chat type")
+    ok, err = pcall(SendAddonMessage, "CF", "x", "WHISPER")
+    expect(ok).toBeFalsy()
+    expect(err).toContain("Whisper message missing target player")
+    ok = pcall(SendAddonMessage, "", "")
+    expect(ok).toBeFalsy()
+end)
+
+test("a tab in the prefix moves the rest into the message", function()
+    forge.party({ "Partner" })
+    local before = #forge.addonMessages()
+    SendAddonMessage("CF\tx", "y", "PARTY")
+    local m = forge.addonMessages()[before + 1]
+    expect(m.prefix).toBe("CF")
+    expect(m.message).toBe("x\ty")
+end)

@@ -114,7 +114,7 @@ test("CALENDAR EVENT creates the raid event and invites everyone but the creator
     expect(table.getn(called("CalendarAddEvent"))).toBe(0)
     expect(chatHas("3 invites ready: click CREATE EVENT (or /ledger calendar again) to add the event.")).toBe(true)
     expect(forge.findText("CREATE EVENT (3)")).toBeTruthy()
-    forge.clickText("CREATE EVENT (3)")
+    forge.clickText("CREATE EVENT (3)", nil, { hardware = true })   -- live: hardware_click
     forge.advance(2, 0.1)
     expect(forge.findText("CALENDAR EVENT")).toBeTruthy()
     expect(called("CalendarNewEvent")[1]).toBeTruthy()
@@ -142,7 +142,7 @@ test("a name the server does not know is reported; the event is still added", fu
     expect(forge.findText("CALENDAR EVENT")).toBeTruthy()    -- still waiting for the last answer
     forge.advance(6, 0.1)
     expect(forge.findText("CREATE EVENT (3)")).toBeTruthy()
-    forge.slash("/ledger calendar")                           -- the slash command adds it too
+    forge.slash("/ledger calendar", { hardware = true })      -- typed in chat: adds it too
     expect(table.getn(called("CalendarAddEvent"))).toBe(1)
     expect(chatHas("Calendar event \"ICC 25 Mittwoch\" on 21.10. 20:00 created with 3 invites.")).toBe(true)
     expect(chatHas("1 characters could not be invited (not found?).")).toBe(true)

@@ -91,6 +91,31 @@ MODERN_METHODS = {
     "RegisterUnitEvent": "Added in 5.0; RegisterEvent and filter the unit argument",
 }
 
+# Events the 3.3.5a client does not have (checked against the 12340 client's
+# event table). RegisterEvent ignores unknown names silently, so a frame
+# waiting for one of these never runs in the real client.
+MODERN_EVENTS = {
+    "GROUP_ROSTER_UPDATE": "Added in 5.0; use PARTY_MEMBERS_CHANGED and RAID_ROSTER_UPDATE",
+    "GROUP_JOINED": "Added in 5.x; watch PARTY_MEMBERS_CHANGED / RAID_ROSTER_UPDATE",
+    "GROUP_LEFT": "Added in 5.x; watch PARTY_MEMBERS_CHANGED / RAID_ROSTER_UPDATE",
+    "PLAYER_SPECIALIZATION_CHANGED": "Added in 5.0; use ACTIVE_TALENT_GROUP_CHANGED / PLAYER_TALENT_UPDATE",
+    "CHAT_MSG_ADDON_LOGGED": "Added in 7.x; 3.3.5a only has CHAT_MSG_ADDON",
+    "LOADING_SCREEN_DISABLED": "Added after 3.3.5a; use PLAYER_ENTERING_WORLD",
+    "LOADING_SCREEN_ENABLED": "Added after 3.3.5a; use PLAYER_LEAVING_WORLD",
+    "ENCOUNTER_START": "Added in 5.x; 3.3.5a has INSTANCE_ENCOUNTER_ENGAGE_UNIT",
+    "ENCOUNTER_END": "Added in 5.x; watch the boss's death in COMBAT_LOG_EVENT_UNFILTERED",
+    "UNIT_POWER": "Added in 4.0; use UNIT_MANA, UNIT_RAGE, UNIT_ENERGY, UNIT_RUNIC_POWER",
+    "UNIT_POWER_FREQUENT": "Added in 4.x; use UNIT_MANA and the other per-power events",
+    "UNIT_HEALTH_FREQUENT": "Added after 3.3.5a; use UNIT_HEALTH",
+    "BAG_UPDATE_DELAYED": "Added in 5.x; use BAG_UPDATE",
+    "GET_ITEM_INFO_RECEIVED": "Added in 4.x; poll GetItemInfo or wait for an item to be cached",
+    "ITEM_DATA_LOAD_RESULT": "Added in 8.x; poll GetItemInfo",
+    "LOOT_READY": "Added in 5.x; use LOOT_OPENED",
+    "GROUP_INVITE_CONFIRMATION": "Added in 5.x; 3.3.5a has PARTY_INVITE_REQUEST",
+    "UI_SCALE_CHANGED": "Added after 3.3.5a; use DISPLAY_SIZE_CHANGED",
+    "PET_BATTLE_OPENING_START": "Pet battles were added in 5.0",
+}
+
 MODERN_PREFIX = re.compile(r"C_[A-Z]")  # C_ namespaces did not exist in 3.3.5a
 
 

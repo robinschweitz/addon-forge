@@ -137,6 +137,32 @@ end)
     assert run_specs(root)["status"] == "passed"
 
 
+def test_emulation_matches_the_audited_client_behaviour():
+    # tests/emulation/ClientFidelity specs encode behaviour checked against the
+    # 3.3.5a client (docs/agent-playbook.md, "Offline emulation vs. the client").
+    result = run_specs(ROOT / "tests" / "emulation" / "ClientFidelity")
+    assert result["status"] == "passed", result
+    assert result["tests"] >= 28
+
+
+def test_events_the_client_lacks_are_ignored_and_reported(tmp_path):
+    root = addon(tmp_path, """
+ProbeHeard = 0
+local f = CreateFrame("Frame")
+f:RegisterEvent("GROUP_ROSTER_UPDATE")
+f:SetScript("OnEvent", function() ProbeHeard = ProbeHeard + 1 end)
+""", spec="""
+test("the client never delivers it", function()
+    forge.fire("GROUP_ROSTER_UPDATE")
+    expect(ProbeHeard).toBe(0)
+end)
+""")
+    run = run_specs(root)["runs"][1]
+    assert run["tests"][0]["status"] == "passed", run
+    assert any(d["severity"] == "warning" and "GROUP_ROSTER_UPDATE" in d["message"]
+               and "PARTY_MEMBERS_CHANGED" in d["message"] for d in run["diagnostics"])
+
+
 def test_sandbox_blocks_host_access_and_infinite_loops(tmp_path):
     root = addon(tmp_path, "ProbeHost = { os = os, io = io, python = python, require = require }\n", spec="""
 test("no host libraries", function()
