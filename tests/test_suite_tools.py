@@ -212,7 +212,7 @@ def test_lookup_attaches_codex_signatures_and_payloads(tmp_path):
                                  "parameters": [{"name": "itemID", "type": "number"}],
                                  "returns": [{"name": "name", "type": "string"}, {"name": "link", "type": "string"}]}
     loot = wowapi.lookup("CHAT_MSG_LOOT", codex=codex)
-    assert loot["exists"] is True and loot["source"] == "wowdecomp-12340"
+    assert loot["exists"] is True and loot["source"] == "milkyway-codex"  # no decompilation here
     assert loot["reference"]["payload"] == [{"name": "message", "type": "string"}]
     point = wowapi.lookup("Frame:SetPoint", codex=codex)  # inherited from Region
     assert point["reference"]["signature"] == 'Region:SetPoint("point")'
@@ -282,12 +282,13 @@ def test_lookup_uses_local_decompiled_client_registrations(tmp_path):
 
 
 def test_local_12340_decompilation_answers_native_apis_without_a_client_dump():
-    if not wowapi.DECOMP_DIR.is_dir():
+    local = Path(wowapi.__file__).resolve().parents[2] / ".forge-tools" / "wowdecomp"
+    if not local.is_dir():
         pytest.skip("local wowdecomp checkout is optional")
-    result = wowapi.lookup("CalendarAddEvent")
+    result = wowapi.lookup("CalendarAddEvent", decomp=local)
     assert result["exists"] is True and result["source"] == "wowdecomp-12340"
     assert result["implementation"] == {"source": "wowdecomp-12340",
                                         "path": "WoW/Source/Ui/Calendar_Scripts.cpp",
                                         "line": 2113,
                                         "symbol": "Script_CalendarAddEvent"}
-    assert wowapi.lookup("CALENDAR_UPDATE_EVENT_LIST")["source"] == "wowdecomp-12340"
+    assert wowapi.lookup("CALENDAR_UPDATE_EVENT_LIST", decomp=local)["source"] == "wowdecomp-12340"

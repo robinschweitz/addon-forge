@@ -163,9 +163,11 @@ end)
                and "PARTY_MEMBERS_CHANGED" in d["message"] for d in run["diagnostics"])
 
 
-def test_decompiled_event_table_blocks_unlisted_events_in_offline_addon_specs(tmp_path):
-    if not wowapi.DECOMP_DIR.is_dir():
+def test_decompiled_event_table_blocks_unlisted_events_in_offline_addon_specs(tmp_path, monkeypatch):
+    local = Path(wowapi.__file__).resolve().parents[2] / ".forge-tools" / "wowdecomp"
+    if not local.is_dir():
         pytest.skip("local wowdecomp checkout is optional")
+    monkeypatch.setattr(wowapi, "DECOMP_DIR", local)
     root = addon(tmp_path, """
 ProbeHeard = 0
 local f = CreateFrame("Frame")
