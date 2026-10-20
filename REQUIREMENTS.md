@@ -117,6 +117,10 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   replaces the Lua error handler (`seterrorhandler`).
   *NOT IMPLEMENTED: decided 2026-10-21 (SECURITY.md OD-009, THREAT_MODEL.md
   T-013)*
+- **FR-2.11** `forge check` MUST fail when a named top-level window of the
+  addon (a frame created with `UIParent` as its parent) has no offline spec
+  that fills it with full data and calls `forge.layoutIssues` on it.
+  *NOT IMPLEMENTED: decided 2026-10-21 (second question pass) (DESIGN.md readability rules)*
 
 ### 3. 3.3.5a API knowledge (`forge api`, `forge_api_lookup`)
 
@@ -194,6 +198,12 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **FR-4.10** `forge spec` MUST exit 0 only when every run passed, print a
   per-test summary, and print the full result with `--json`.
   *IMPLEMENTED: `cli.py`; no dedicated test*
+- **FR-4.12** `forge spec` MUST run every spec file once in a deDE and once in
+  an enUS world, and a spec passes only when it passes in both. Specs MUST NOT
+  assert exact locale-specific words; they compare against the addon's own
+  text keys or the client's GlobalStrings.
+  *NOT IMPLEMENTED: decided 2026-10-21 (second question pass); existing RaidLedger and RaidWishlist specs that
+  assert German words need rewriting*
 - **FR-4.11** The offline emulator MUST refuse to load addon or spec files
   that hold precompiled Lua bytecode, and report a load error.
   *NOT IMPLEMENTED: THREAT_MODEL.md T-004 (such a file loaded and ran on
@@ -226,7 +236,7 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **FR-5.4** The system MUST support the fixtures `master_loot`, `raid_lead`
   and `boe_loot`. `raid_lead` and `boe_loot` MUST require `master_loot`.
   Fixtures and steps MUST require the bridge observer, and fixtures MUST
-  require `peers` = 0. `peer_roll` and `peer_trade` MUST require
+  require `peers` = 0, except the planned `party` fixture (FR-10.11). `peer_roll` and `peer_trade` MUST require
   `master_loot`.
   *IMPLEMENTED: `test_agent_workflow.py::test_raid_lead_fixture_extends_master_loot`,
   `::test_boe_loot_fixture_extends_master_loot`*
@@ -308,7 +318,8 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **FR-6.12** Every approved live run (`run-plan`, `session`, `forge_run_plan`,
   `forge_session`, `release`) MUST append one entry to a run log: time, entry
   point (CLI or MCP), plan, content hash of the plan's addons, run IDs and
-  outcome.
+  outcome. The log is `.forge-runs/run-log.jsonl` beside the plan (not in
+  Git).
   *NOT IMPLEMENTED: decided 2026-10-21 (SECURITY.md OD-008, THREAT_MODEL.md
   T-001)*
 - **FR-6.13** The judge MUST attribute captured Lua errors to an addon by
@@ -424,10 +435,11 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   showing the password.
   *IMPLEMENTED (live): `test_win_login.py::test_member_account_fixture_gets_the_password_only_by_environment`,
   `::test_failed_member_fixture_saves_nothing_and_redacts`*
-- **FR-10.8** The first combat fixture MUST be a general boss fight: a boss
-  that changes phase at fixed health marks and casts spells, so that an addon
-  can observe the casts and phase changes. It is not tied to one addon.
-  *NOT IMPLEMENTED: decided 2026-10-20*
+- **FR-10.8** The first combat fixture MUST be a general boss fight
+  (`boss_fight`): a boss with 3 phases, changing at 66% and 33% health, a
+  different spell in each phase and a yell at each phase change, so that an
+  addon can observe the casts and phase changes. It is not tied to one addon.
+  *NOT IMPLEMENTED: decided 2026-10-20; shape decided 2026-10-21 (second question pass)*
 - **FR-10.9** New server-side fixtures MUST be prototyped as server Lua
   (mod-ale) and then promoted to named, typed plan fixtures. Plans MUST NOT
   carry raw server Lua.
@@ -438,8 +450,9 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   *TO BE REMOVED: decided 2026-10-20 (the command lists working features as
   "in progress")*
 - **FR-10.11** A plan MUST be able to put the graphical test character into
-  one party with up to 4 peers, so that party frames and party addons can be
-  tested.
+  one party with 1-4 peers with `"fixtures": ["party"]` and `"peers": 1-4` (the
+  one fixture allowed with peers), so that party frames and party addons can
+  be tested.
   *NOT IMPLEMENTED: decided 2026-10-20. Today the peers form their own party
   (`docs/qa-workflow.md`, Verification status)*
 - **FR-10.12** The system SHOULD provide a quest fixture.
@@ -568,8 +581,9 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **FR-14.3** `forge check` MUST fail when an addon requirement has no offline
   spec, or when a spec or plan names an ID that does not exist. It MUST list
   open `OQ-` items. A plan check per requirement is optional (some behaviour,
-  such as ties, cannot be forced live).
-  *NOT IMPLEMENTED: decided 2026-10-20*
+  such as ties, cannot be forced live). Addons without a requirements file
+  are not checked; `forge new` creates one, so new addons are.
+  *NOT IMPLEMENTED: decided 2026-10-20; exemption decided 2026-10-21 (second question pass)*
 - **FR-14.4** A run-plan result MUST list pass or fail for each covered addon
   requirement.
   *NOT IMPLEMENTED: `docs/spec-driven.md`*
@@ -580,13 +594,15 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **FR-14.6** An addon's requirements file MUST list each addon message kind
   and import format the addon accepts. `forge check` MUST fail when one of
   them lacks an offline spec for a malformed input or one for an unauthorized
-  sender. PROPOSED: the list uses `MSG-` IDs, and spec titles name them.
+  sender. Message kinds use their own `MSG-` IDs (`MSG-1`, `MSG-2`, ...), and
+  spec titles name them (`MSG-3 malformed ...`, `MSG-3 unauthorized ...`).
   *NOT IMPLEMENTED: decided 2026-10-21 (SECURITY.md SC-019, OD-007)*
 
 ### 15. Release gate
 
-- **FR-15.1** `forge release <Addon>` MUST copy the addon into the configured
-  `wow-addons` checkout and commit it there, and MUST NOT push.
+- **FR-15.1** `forge release <Addon>` MUST copy the addon into the
+  `wow-addons` checkout named by `[release] addons_repo` in
+  `forge.local.toml`, and commit it there, and MUST NOT push.
   *NOT IMPLEMENTED: decided 2026-10-21 (ARCHITECTURE.md AQ-4)*
 - **FR-15.2** `forge release` MUST run every acceptance plan of the addon
   itself, as live sessions on exactly the files being released (it needs
@@ -624,15 +640,14 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **NFR-1.8** The full test suite MUST pass on every commit to `main`.
   *IMPLEMENTED: `tests/`; user's git habit (verified in a clean worktree)*
 - **NFR-1.9** Forge's checks and specs MUST keep addons working in German
-  (deDE) and English (enUS) clients, for example by testing addon texts and
-  client strings in both locales.
+  (deDE) and English (enUS) clients (FR-4.12).
   *PARTIAL: decided 2026-10-20. deDE is verified live on Windows, enUS live on
-  Linux (PR #14); offline specs can set `forge.locale`. No check enforces both*
+  Linux (PR #14); FR-4.12 is NOT IMPLEMENTED*
 - **NFR-1.10** Each addon MAY choose its own look. Forge enforces only
   readability: no overlapping or overflowing UI, full 25-raider data, and long
   German names that fit.
-  *PARTIAL: decided 2026-10-20; FR-4.7, FR-4.8. Rules: `DESIGN.md` (Do's and
-  Don'ts)*
+  *PARTIAL: decided 2026-10-20; FR-4.7, FR-4.8, FR-2.11. Rules: `DESIGN.md`
+  (Do's and Don'ts)*
 - **NFR-1.11** Setup MUST work for a few friends on their own PCs, not only
   the owner's machines: no hard-coded paths, and guides that start from a
   fresh checkout.

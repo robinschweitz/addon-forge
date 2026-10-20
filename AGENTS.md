@@ -66,8 +66,10 @@ addon, or change the test pipeline.
   `pip install -e ".[linux]"` (Linux, PR #14).
 - Forge tests: `.venv\Scripts\python.exe -m pytest -q`. They MUST pass before
   every commit (NFR-1.8).
-- Git: one focused commit per change; ask before pushing. Branch and pull
-  request policy per backlog issue: `TO BE DECIDED` (backlog step A10).
+- Git: each leaf issue gets its own branch and pull request whose body says
+  `Closes #n`. Push the branch, open the PR, and merge it yourself once the
+  test suite, every acceptance criterion and any live run the issue needs have
+  passed. Other pushes to `main` need the human's OK.
 
 ## Do and don't
 
