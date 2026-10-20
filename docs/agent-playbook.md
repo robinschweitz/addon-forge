@@ -11,6 +11,12 @@ isolated test client (German `deDE`, build 12340) unless marked otherwise.
 1. `forge new Name` (or edit `projects/Name/`). Lua 5.1, `## Interface: 30300`.
 2. `forge check projects/Name` until clean. "unknown global" = almost always a
    hallucinated or post-Wrath API; ask `forge api lookup NAME` / `Widget:Method`.
+   It also answers event names, and when `.forge-tools/milkyway-codex/` holds
+   the [MilkyWay Codex](https://github.com/suprsokr/milkyway-codex-mcp) JSON
+   data (copied from its `src/data/`; no licence, so never commit it) it adds a
+   `reference` with signatures, return values and event payloads. Existence
+   still comes from the client dump; the Codex `protected` flags are wrong for
+   3.3.5a (CalendarAddEvent, SendChatMessage) and are not used.
 3. Write offline specs in `projects/Name/tests/*.spec.lua` **before** fixing a
    bug: reproduce it as a failing spec, then fix, then watch it pass.
 4. `forge spec projects/Name` until green, including `forge.layoutIssues(frame)`

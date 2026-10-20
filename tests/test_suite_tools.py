@@ -186,3 +186,48 @@ def test_pipe_connect_gives_up_with_a_clear_error_and_never_retries_other_errors
     with pytest.raises(OSError):
         _connect(denied, sleep=lambda s: None)
     assert denied.calls == 1
+
+
+def _codex(tmp_path):
+    (tmp_path / "api-functions.json").write_text(json.dumps([
+        {"name": "GetItemInfo", "signature": "name, link = GetItemInfo(itemID)", "protected": True,
+         "hwEvent": True, "description": "prose", "parameters": [{"name": "itemID", "type": "number",
+                                                                  "optional": False}],
+         "returns": [{"name": "name", "type": "string"}, {"name": "link", "type": "string"}]}]))
+    (tmp_path / "events.json").write_text(json.dumps([
+        {"name": "CHAT_MSG_LOOT", "parameters": [{"name": "message", "type": "string"}]},
+        {"name": "GROUP_ROSTER_UPDATE", "parameters": []}]))
+    (tmp_path / "widgets.json").write_text(json.dumps([
+        {"name": "Region", "methods": [{"name": "Region:SetPoint(\"point\")",
+                                        "signature": "Region:SetPoint(\"point\") - Sets an anchor",
+                                        "parameters": [{"name": "point", "type": "string"}]}]},
+        {"name": "Frame", "inherits": ["Region"], "methods": []}]))
+    return tmp_path
+
+
+def test_lookup_attaches_codex_signatures_and_payloads(tmp_path):
+    codex = _codex(tmp_path)
+    item = wowapi.lookup("GetItemInfo", codex=codex)
+    assert item["reference"] == {"source": "milkyway-codex", "signature": "name, link = GetItemInfo(itemID)",
+                                 "parameters": [{"name": "itemID", "type": "number"}],
+                                 "returns": [{"name": "name", "type": "string"}, {"name": "link", "type": "string"}]}
+    loot = wowapi.lookup("CHAT_MSG_LOOT", codex=codex)
+    assert loot["exists"] is True and loot["source"] == "milkyway-codex"
+    assert loot["reference"]["payload"] == [{"name": "message", "type": "string"}]
+    point = wowapi.lookup("Frame:SetPoint", codex=codex)  # inherited from Region
+    assert point["reference"]["signature"] == 'Region:SetPoint("point")'
+
+
+def test_codex_never_overrules_known_absent_apis(tmp_path):
+    codex = _codex(tmp_path)
+    roster = wowapi.lookup("GROUP_ROSTER_UPDATE", codex=codex)
+    assert roster["exists"] is False and "reference" not in roster
+    assert wowapi.lookup("IsInRaid", codex=codex)["exists"] is False
+
+
+def test_lookup_without_codex_data_is_unchanged(tmp_path):
+    assert "reference" not in wowapi.lookup("GetItemInfo", codex=tmp_path)
+    broken = tmp_path / "broken"
+    broken.mkdir()
+    (broken / "events.json").write_text("{broken")
+    assert wowapi.reference("CHAT_MSG_LOOT", broken) is None

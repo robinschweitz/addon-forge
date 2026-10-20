@@ -9,14 +9,22 @@ Two sources, in order of authority:
 2. The built-in lists below, used whether or not a dump exists. They name only
    APIs that are known to be absent from 3.3.5a (added in later expansions, or
    Lua 5.2+), so an error from them is high-confidence.
+
+Lookups also attach signatures and event payloads from a local copy of the
+MilkyWay Codex data (``.forge-tools/milkyway-codex``, not committed: it has no
+licence). It never decides whether something exists when a dump does, and its
+``protected``/``hwEvent`` flags are ignored: they are wrong for 3.3.5a
+(CalendarAddEvent, SendChatMessage).
 """
 from __future__ import annotations
 
 from functools import lru_cache
+import json
 from pathlib import Path
 import re
 
 DUMP_PATH = Path(__file__).resolve().parents[2] / "wow" / "api" / "globals-30300.txt"
+CODEX_DIR = Path(__file__).resolve().parents[2] / ".forge-tools" / "milkyway-codex"
 
 # Lua 5.1 base library plus the extra globals WoW 3.3.5a adds to every
 # environment. Used so a missing dump never flags these as unknown.
@@ -158,8 +166,73 @@ def modern_global(name: str) -> str | None:
     return None
 
 
-def lookup(name: str, path: Path | None = None) -> dict:
-    """Answer 'does this global (or Widget:Method) exist on 3.3.5a?' for agents and humans."""
+def _fields(items, *keys) -> list[dict]:
+    return [{k: item[k] for k in keys if k in item}
+            for item in items or [] if isinstance(item, dict) and item.get("name")]
+
+
+def _reference(entry: dict, signature: str | None = None) -> dict:
+    # Signature, parameter and return names/types only: no protection flags
+    # (wrong for 3.3.5a), no "optional" (false even for optional arguments)
+    # and no prose (the data has no licence).
+    ref = {"source": "milkyway-codex"}
+    if signature or entry.get("signature"):
+        ref["signature"] = (signature or entry["signature"]).split(" - ")[0].strip()
+    ref["parameters"] = _fields(entry.get("parameters"), "name", "type")
+    if "returns" in entry:
+        ref["returns"] = _fields(entry.get("returns"), "name", "type")
+    return ref
+
+
+@lru_cache(maxsize=4)
+def _load_codex(root: Path) -> dict[str, dict]:
+    """name / EVENT / Widget:Method -> reference entry; empty when the data is absent or broken."""
+    def read(name):
+        try:
+            data = json.loads((root / name).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        return [d for d in data if isinstance(d, dict) and isinstance(d.get("name"), str)] \
+            if isinstance(data, list) else []
+
+    out: dict[str, dict] = {}
+    for fn in read("api-functions.json"):
+        out[fn["name"]] = {"kind": "function", **_reference(fn)}
+    for ev in read("events.json"):
+        out[ev["name"]] = {"kind": "event", "source": "milkyway-codex",
+                           "payload": _fields(ev.get("parameters"), "name", "type")}
+    widgets = {w["name"]: w for w in read("widgets.json")}
+    for wname, widget in widgets.items():
+        seen, chain = set(), [wname]
+        while chain:  # own methods first, then inherited ones
+            current = widgets.get(chain.pop(0))
+            if not current or current["name"] in seen:
+                continue
+            seen.add(current["name"])
+            for m in current.get("methods") or []:
+                found = isinstance(m, dict) and re.search(r"\w+:(\w+)\(", str(m.get("name", "")))
+                if found:
+                    out.setdefault(f"{wname}:{found.group(1)}",
+                                   {"kind": "method", **_reference(m, m.get("signature") or m["name"])})
+            chain += [i for i in current.get("inherits") or [] if isinstance(i, str)]
+    return out
+
+
+def reference(name: str, root: Path | None = None) -> dict | None:
+    """Signature or event payload for NAME from the local Codex data, if present."""
+    return _load_codex(root or CODEX_DIR).get(name)
+
+
+def lookup(name: str, path: Path | None = None, codex: Path | None = None) -> dict:
+    """Answer 'does this global (or Widget:Method, or event) exist on 3.3.5a?' for agents and humans."""
+    result = _exists(name, path, codex)
+    ref = reference(name, codex) if result["exists"] is not False else None
+    if ref:
+        result["reference"] = {k: v for k, v in ref.items() if k != "kind"}
+    return result
+
+
+def _exists(name: str, path: Path | None, codex: Path | None) -> dict:
     if ":" in name:
         widget, method = name.split(":", 1)
         methods = known_methods(path).get(widget)
@@ -169,6 +242,13 @@ def lookup(name: str, path: Path | None = None) -> dict:
             return {"name": name, "exists": None, "source": "unknown",
                     "hint": "No method dump for this widget type; run 'forge api dump'"}
         return {"name": name, "exists": method in methods, "source": "client-dump"}
+    if name in MODERN_EVENTS:
+        return {"name": name, "kind": "event", "exists": False, "source": "builtin",
+                "hint": MODERN_EVENTS[name]}
+    ref = reference(name, codex)
+    if ref and ref["kind"] == "event":  # the dump holds globals, not the event table
+        return {"name": name, "kind": "event", "exists": True, "source": "milkyway-codex",
+                "hint": "Event list from the MilkyWay Codex, not the client; confirm live if it matters"}
     problem = modern_global(name)
     dump = known_globals(path)
     if problem:
