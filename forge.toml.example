@@ -5,6 +5,10 @@ wow_dir = "/home/YOUR_USER/Games/WoW-3.3.5a"
 wine_prefix = "/home/YOUR_USER/.local/share/addon-forge/wine"
 window_name = "World of Warcraft"
 report_timeout = 35
+# Linux headless runs (docs/linux-headless.md):
+# automation_backend = "xdotool"
+# display = ":79"
+# xvfb = "nix"
 
 [realm]
 source_dir = "/home/YOUR_USER/Dev/azerothcore-wotlk"

@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import secrets
 import shutil
+import stat
 import subprocess
 import sys
 import tomllib
@@ -31,6 +32,9 @@ EXPECTED_PORTS = {
     ("ac-worldserver", 8085),
     ("ac-worldserver", 7878),
 }
+# Services with upstream prebuilt images on Docker Hub (acore/ac-wotlk-*): pulling them
+# replaces the long C++ build of `docker compose build`.
+PREBUILT_SERVICES = ("ac-database", "ac-db-import", "ac-worldserver", "ac-authserver", "ac-client-data-init")
 SKIP_WOW_ROOT = {"wtf", "cache", "screenshots", "logs", "errors"}
 MARKER = ".addon-forge-test-copy.json"
 
@@ -344,11 +348,62 @@ def start_existing(realm: Path, *, db_port: int | None = None,
     return 0
 
 
+def local_rootless_socket(host: str) -> bool:
+    """True for this user's rootless Docker socket (NixOS virtualisation.docker.rootless
+    with setSocketVariable sets DOCKER_HOST to it); any other DOCKER_HOST may be remote."""
+    if not hasattr(os, "getuid"):
+        return False
+    path = Path(f"/run/user/{os.getuid()}/docker.sock")
+    if host != f"unix://{path}":
+        return False
+    try:
+        info = path.lstat()
+    except OSError:
+        return False
+    return stat.S_ISSOCK(info.st_mode) and info.st_uid == os.getuid()
+
+
+OVERRIDE_MARKER = "# Local Addon Forge test realm only (loopback, disposable)."
+
+
+def write_compose_override(realm: Path, *, rootless: bool, disable_warden: bool) -> Path | None:
+    """docker-compose.override.yml for what a local test realm may need:
+
+    - rootless Docker maps container root to the host user who owns the checkout,
+      while the images' "acore" user (1000) maps to an unrelated sub-UID that cannot
+      write env/dist (db-import failed with "Permission denied"), so the services run
+      as container root;
+    - AzerothGhost fixtures cannot log in with Warden enabled (explicit opt-in only).
+    An override Forge did not write is never changed.
+    """
+    if not rootless and not disable_warden:
+        return None
+    path = realm / "docker-compose.override.yml"
+    if path.exists() and not path.read_text(encoding="utf-8").startswith(OVERRIDE_MARKER):
+        raise RuntimeError(f"{path} was not written by Addon Forge; refusing to change it")
+    services = ("ac-db-import", "ac-client-data-init", "ac-authserver", "ac-worldserver")
+    lines = [OVERRIDE_MARKER, "services:"]
+    for service in services:
+        body = []
+        if rootless:
+            body.append('    user: "0:0"')
+        if disable_warden and service == "ac-worldserver":
+            body += ["    environment:", '      AC_WARDEN_ENABLED: "0"']
+        if body:
+            lines += [f"  {service}:", *body]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"Wrote {path.name}: " + ", ".join(
+        reason for reason, used in (("services as container root (rootless Docker)", rootless),
+                                    ("AC_WARDEN_ENABLED=0 for fixtures", disable_warden)) if used))
+    return path
+
+
 def check_tools() -> None:
     for binary in ("docker", "git"):
         if not shutil.which(binary):
             raise RuntimeError(f"Missing {binary}. Install Git and Docker Desktop first.")
-    if os.environ.get("DOCKER_HOST"):
+    host = os.environ.get("DOCKER_HOST")
+    if host and not local_rootless_socket(host):
         raise RuntimeError("DOCKER_HOST is set: refusing possibly remote Docker daemon.")
     context = _run(["docker", "context", "show"], capture=True).stdout.strip()
     if context not in ("default", "desktop-linux"):
@@ -388,7 +443,8 @@ def local_config_file(config_path: Path, target: Path, realm: Path) -> None:
 
 def setup(source: Path | None, target: Path, realm: Path, locale: str | None,
           config_path: Path, *, approve: bool = False,
-          adopt_existing: bool = False) -> None:
+          adopt_existing: bool = False, pull_images: bool = False,
+          disable_warden: bool = False) -> None:
     source, target, realm = paths(source, target, realm)
     config_path = config_path.expanduser().resolve()
     print(f"Original WoW (untouched): {source if source else 'not supplied'}")
@@ -433,6 +489,8 @@ def setup(source: Path | None, target: Path, realm: Path, locale: str | None,
         verify_test_copy(target, source)
     clone_azerothcore(realm)
     ensure_local_env(realm)
+    write_compose_override(realm, rootless=local_rootless_socket(os.environ.get("DOCKER_HOST", "")),
+                           disable_warden=disable_warden)
     check_compose(realm)
     if not target.exists():
         if source is None:
@@ -447,9 +505,12 @@ def setup(source: Path | None, target: Path, realm: Path, locale: str | None,
             raise RuntimeError(f"Run setup from Addon Forge repository root: {addon}")
         print(f"Installed test addon: {deploy(addon, target)}")
     print("Building and starting the local AzerothCore containers...")
-    # Build the images without starting dependent services. Validate the
-    # persisted database credentials before allowing importer/worldserver startup.
-    _run(["docker", "compose", "build"], cwd=realm)
+    # Build (or pull the upstream prebuilt) images without starting dependent services.
+    # Validate the persisted database credentials before allowing importer/worldserver startup.
+    if pull_images:
+        _run(["docker", "compose", "pull", *PREBUILT_SERVICES], cwd=realm)
+    else:
+        _run(["docker", "compose", "build"], cwd=realm)
     from .db_guard import verify_database_healthy
     verify_database_healthy(realm)
     _run(["docker", "compose", "up", "-d", "--no-build"], cwd=realm)

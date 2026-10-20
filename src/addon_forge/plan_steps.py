@@ -173,20 +173,25 @@ def _trade_to_peer(item_id: int, peer, lua, sleep) -> str:
 
 
 def run_steps(steps: list[dict], pid: int, *, rpc=None, sleep=time.sleep, peer=None,
-              screenshot=None, pids: dict | None = None, press_click=None) -> list[dict]:
+              screenshot=None, pids: dict | None = None, press_click=None, typed=None) -> list[dict]:
     """Run steps in order; stop at the first one the client did not perform.
 
     `peer` is the master_loot fixture's bot (peer_roll, peer_trade); `screenshot`
     saves a client window under a name and returns the file path; `press_click`
     sends the hardware_click chord to a client's window. In a
     two-player plan `pids` maps "member" to the second client's process, and a
-    step with "client": "member" runs there.
+    step with "client": "member" runs there. `typed` (Linux/Wine) is the typed
+    transport's `lua` callable (typed_lua): it replaces the SDK, its results are
+    checked afterwards through typed_step_checks, and hardware_click is a plain
+    click because a typed line already is a key press.
     """
     rpc = rpc or request  # resolved at call time so the transport can be replaced
     pids = {"main": pid, **(pids or {})}
     current = {"pid": pid}
 
     def lua(code: str):
+        if typed is not None:
+            return typed(code)
         reply = rpc("lua.evaluate", {"code": code}, expected_pid=current["pid"])
         return reply.get("result") if isinstance(reply, dict) and reply.get("ok") is True else "sdk_error"
 
@@ -212,6 +217,8 @@ def run_steps(steps: list[dict], pid: int, *, rpc=None, sleep=time.sleep, peer=N
                     result = "ok"
                 except (OSError, RuntimeError) as exc:
                     result = f"screenshot_failed:{type(exc).__name__}"
+        elif kind == "hardware_click" and typed is not None:
+            result = lua(_code({"type": "click", "value": value}))
         elif kind == "hardware_click":
             if press_click is None:
                 result = "no_hardware_input"
@@ -237,3 +244,70 @@ def run_steps(steps: list[dict], pid: int, *, rpc=None, sleep=time.sleep, peer=N
             error.log = log
             raise error
     return log
+
+
+# Typed transport (Linux/Wine "xdotool" backend). There is no reply channel: each
+# step's Lua runs as a typed '/run' line and stores its result in
+# ForgeStepResults[n]; the plan then checks ForgeStepResults.<n> == "ok" through
+# the bridge report like any other watched global (typed_step_checks). A line
+# that would exceed WoW's 255-character chat box is sent in pieces into
+# ForgeStepBuffer and run with loadstring by a last short line. Typed lines run
+# inside a real key press, so hardware_click is a plain click there.
+STEP_RESULTS = "ForgeStepResults"
+STEP_BUFFER = "ForgeStepBuffer"
+TYPED_LINE_LIMIT = 255
+TYPED_STEP_KINDS = ("slash", "roll", "click", "paste", "hardware_click")
+
+
+def lua_literal(text: str) -> str:
+    """A Lua 5.1 double-quoted string literal for text (no \\u escapes in 5.1)."""
+    out = []
+    for char in text:
+        if char in '\\"':
+            out.append("\\" + char)
+        elif char == "\n":
+            out.append("\\n")
+        elif ord(char) < 32 or ord(char) == 127:
+            out.append(f"\\{ord(char):03d}")
+        else:
+            out.append(char)
+    return '"' + "".join(out) + '"'
+
+
+def typed_lines(index: int, code: str, limit: int = TYPED_LINE_LIMIT) -> list[str]:
+    """The /run lines that run `code` and store its result as step `index`."""
+    statement = (f"{STEP_RESULTS}={STEP_RESULTS} or {{}} "
+                 f"{STEP_RESULTS}[{int(index)}]=(function() {code} end)()")
+    if len("/run " + statement) <= limit:
+        return ["/run " + statement]
+    prefix = f"/run {STEP_BUFFER}=({STEP_BUFFER} or \"\").."
+    lines, piece = [f"/run {STEP_BUFFER}=nil"], ""
+    for char in statement:
+        if len(prefix + lua_literal(piece + char)) > limit:
+            lines.append(prefix + lua_literal(piece))
+            piece = ""
+        piece += char
+    if piece:
+        lines.append(prefix + lua_literal(piece))
+    lines.append(f"/run local s={STEP_BUFFER} {STEP_BUFFER}=nil local f=loadstring(s) "
+                 f"if f then f() else {STEP_RESULTS}={STEP_RESULTS} or {{}} "
+                 f"{STEP_RESULTS}[{int(index)}]=\"syntax_error\" end")
+    return lines
+
+
+def typed_lua(send_line):
+    """A `lua` callable for run_steps that types each step and reports "ok" when sent."""
+    state = {"index": 0}
+
+    def lua(code: str):
+        state["index"] += 1
+        for line in typed_lines(state["index"], code):
+            send_line(line)
+        return "ok"
+    return lua
+
+
+def typed_step_checks(steps: list[dict]) -> list[dict]:
+    """The checks that prove every typed step ran and returned "ok" in the client."""
+    count = sum(1 for step in steps if step["type"] in TYPED_STEP_KINDS)
+    return [{"type": "global_equals", "path": f"{STEP_RESULTS}.{n}", "value": "ok"} for n in range(1, count + 1)]

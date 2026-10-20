@@ -219,15 +219,27 @@ local function installErrorHandler()
     end)
 end
 
+-- Typed transport (Linux/Wine): '/forge watch PATH' adds a global path for the
+-- next '/forge run' to read, one per line because a chat line holds 255 characters.
+Bridge.watched = Bridge.watched or {}
+local MAX_WATCHED = 64
+
 SLASH_FORGETEST1 = "/forge"
 SlashCmdList["FORGETEST"] = function(msg)
     local suite, id = string.match(msg or "", "^run%s+(%w+)%s+(%w+)%s*$")
     local expected = string.match(msg or "", "^expect%s+(%a+)%s*$")
+    local watch = string.match(msg or "", "^watch%s+([%w_%.]+)%s*$")
     if expected then
         Bridge.expectedPeer = expected
         DEFAULT_CHAT_FRAME:AddMessage("Forge expected peer: " .. expected)
+    elseif watch then
+        if #Bridge.watched < MAX_WATCHED and string.match(watch, "^[%a_][%w_]*[%w_%.]*$") then
+            table.insert(Bridge.watched, watch)
+        end
     elseif suite and id then
-        local report = runSuite(suite, id)
+        local paths = Bridge.watched
+        Bridge.watched = {}
+        local report = runSuite(suite, id, paths)
         DEFAULT_CHAT_FRAME:AddMessage("|cff66ccffForge|r " .. suite .. ": " .. #report.tests .. " assertions finished. Use /reload to persist.")
     else
         DEFAULT_CHAT_FRAME:AddMessage("Usage: /forge run smoke RUN_ID, then /reload")

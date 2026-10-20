@@ -1,5 +1,6 @@
 """Safety-first tests of local AzerothCore bootstrap (no daemon/game needed)."""
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -325,3 +326,47 @@ def test_db_health_success(tmp_path, monkeypatch):
     monkeypatch.setattr(db_guard, "_capture", docker)
     db_guard.verify_database_healthy(tmp_path, attempts=1)
     assert ["docker", "compose", "up", "-d", "--no-deps", "ac-database"] in calls
+
+
+def test_rootless_socket_of_this_user_counts_as_local(tmp_path, monkeypatch):
+    if not hasattr(os, "getuid"):
+        pytest.skip("POSIX only")
+    assert not realm.local_rootless_socket("tcp://10.0.0.5:2375")
+    assert not realm.local_rootless_socket(f"unix:///run/user/{os.getuid() + 1}/docker.sock")
+    assert not realm.local_rootless_socket("unix:///var/run/docker.sock")
+    monkeypatch.setenv("DOCKER_HOST", "tcp://10.0.0.5:2375")
+    monkeypatch.setattr(realm.shutil, "which", lambda name: "/bin/" + name)
+    with pytest.raises(RuntimeError, match="DOCKER_HOST"):
+        realm.check_tools()
+
+
+def test_setup_can_pull_prebuilt_images_instead_of_building(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(realm, "_run", lambda argv, **kw: calls.append(argv))
+    source, target, checkout = fixture_paths(tmp_path)
+    for name in ("check_tools", "verify_test_copy", "clone_azerothcore", "ensure_local_env", "write_compose_override",
+                 "check_compose", "make_test_copy", "local_config_file"):
+        monkeypatch.setattr(realm, name, lambda *a, **k: True)
+    monkeypatch.setattr(realm, "configure_realmlist", lambda *a, **k: ("r", "b"))
+    monkeypatch.setattr(realm, "deploy", lambda addon, target: addon)
+    import addon_forge.db_guard as guard
+    monkeypatch.setattr(guard, "verify_database_healthy", lambda root: None)
+    monkeypatch.chdir(Path(__file__).resolve().parents[1])
+    realm.setup(source, target, checkout, "enUS", tmp_path / "forge.local.toml",
+                approve=True, pull_images=True)
+    assert ["docker", "compose", "pull", *realm.PREBUILT_SERVICES] in calls
+    assert ["docker", "compose", "build"] not in calls
+
+
+def test_compose_override_for_rootless_docker_and_opt_in_warden(tmp_path):
+    root = tmp_path / "ac"
+    root.mkdir()
+    assert realm.write_compose_override(root, rootless=False, disable_warden=False) is None
+    path = realm.write_compose_override(root, rootless=True, disable_warden=False)
+    text = path.read_text()
+    assert text.count('user: "0:0"') == 4 and "AC_WARDEN_ENABLED" not in text
+    text = realm.write_compose_override(root, rootless=True, disable_warden=True).read_text()
+    assert 'AC_WARDEN_ENABLED: "0"' in text
+    path.write_text("services: {}\n")
+    with pytest.raises(RuntimeError, match="not written by Addon Forge"):
+        realm.write_compose_override(root, rootless=True, disable_warden=False)

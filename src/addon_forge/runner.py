@@ -52,9 +52,15 @@ def judge(report: dict, run_id: str, required_tests: tuple[str, ...] = (),
     return TestResult(status, run_id, details)
 
 
-def _savedvariables_report(cfg: Config, client, suite: str, run_id: str):
+def _savedvariables_report(cfg: Config, client, suite: str, run_id: str, paths: tuple[str, ...] = ()):
+    from .wowcontrol import WATCH_PATH
     previous = latest_report(cfg.wow_dir)
     prior_mtime = previous[0].stat().st_mtime_ns if previous else 0
+    # A typed chat line is short: the bridge collects watched paths one line at a time.
+    for path in paths:
+        if not WATCH_PATH.fullmatch(path):
+            raise ValueError(f"Invalid watch path {path!r}")
+        client.command(f"/forge watch {path}")
     client.command(f"/forge run {suite} {run_id}")
     # Tests run synchronously inside the slash handler. Allow UI updates before flushing.
     time.sleep(1)
@@ -104,7 +110,7 @@ def run_smoke(cfg: Config, suite: str = "smoke", out_dir: Path | None = None,
         client = None
     else:
         client = ClientController(cfg)
-        report = _savedvariables_report(cfg, client, suite, run_id)
+        report = _savedvariables_report(cfg, client, suite, run_id, paths)
         result = judge(report, run_id, required_tests, owner) if report else _missing_report(cfg, run_id)
     if out_dir:
         out_dir.mkdir(parents=True, exist_ok=True)

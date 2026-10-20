@@ -16,13 +16,14 @@ PASSWORD_PATTERN = re.compile(r"[!-~]{8,16}\Z")
 CHARACTER_PATTERN = re.compile(r"[A-Z][a-z]{1,11}\Z")
 
 
-def create_member_account(cfg, account: str, character: str, *, run=None, save=None) -> str:
+def create_member_account(cfg, account: str, character: str, *, run=None, save=None, slot: str = "member") -> str:
     """Create the second test player (account + character) for two-client plans.
 
     The account must not exist yet (the fixture refuses existing ones, so no
     credentials are ever reset). A random password is generated here, passed
-    only through the Go fixture's environment, and stored in the "member"
-    Windows Credential Manager slot once the fixture succeeded. Returns the
+    only through the Go fixture's environment, and stored in the credential vault
+    slot (default "member"; "main" for the graphical test player) once the fixture
+    succeeded. Returns the
     character name the realm accepted.
     """
     import json
@@ -63,7 +64,7 @@ def create_member_account(cfg, account: str, character: str, *, run=None, save=N
                 tail = (proc.stdout or "")[-1500:].replace(password, "<redacted>")
                 raise RuntimeError("Member account fixture failed:\n" + tail)
             created = json.loads(result.read_text(encoding="utf-8"))
-        (save or save_credentials)(cfg.wow_dir, account, read_password=lambda _prompt: password, slot="member")
+        (save or save_credentials)(cfg.wow_dir, account, read_password=lambda _prompt: password, slot=slot)
         return str(created.get("character"))
     finally:
         password = ""

@@ -40,8 +40,11 @@ def make_parser():
     client = sub.add_parser("client")
     client_sub = client.add_subparsers(dest="action", required=True)
     client_sub.add_parser("start")
-    login = client_sub.add_parser("login", help="Store the test account for SDK login in Windows Credential Manager")
-    login.add_argument("mode", choices=["save"])
+    client_sub.add_parser("headless", help="Linux: start the private Xvfb display ([client] display) and the "
+                                           "test client on it")
+    login = client_sub.add_parser("login", help="save: store the test account in the OS credential vault; "
+                                                "enter (Linux): log in with it and enter the world")
+    login.add_argument("mode", choices=["save", "enter"])
     login.add_argument("--account", help="Test-only realm account name")
     login.add_argument("--slot", choices=["main", "member"], default="main",
                        help="Credential slot: main test character, or the second player (member)")
@@ -67,6 +70,8 @@ def make_parser():
                                           "create-member"])
     local.add_argument("--account-name", help="Local realm account name (password prompted securely)")
     local.add_argument("--character", help="create-member: the second player's character name")
+    local.add_argument("--slot", choices=["member", "main"], default="member",
+                       help="create-member: credential slot (main = the graphical test player)")
     local.add_argument("--source-wow", type=Path, help="Original WoW client directory (read-only)")
     local.add_argument("--test-wow", type=Path, help="New isolated WoW test copy")
     local.add_argument("--realm-dir", type=Path, help="AzerothCore checkout directory")
@@ -76,6 +81,10 @@ def make_parser():
     local.add_argument("--approve-port-change", action="store_true")
     local.add_argument("--adopt-existing-test-wow", action="store_true",
                        help="Explicitly reuse an existing separate WoW copy")
+    local.add_argument("--pull-images", action="store_true",
+                       help="setup: pull upstream prebuilt AzerothCore images instead of building them")
+    local.add_argument("--disable-warden-for-fixtures", action="store_true",
+                       help="setup: test-only override AC_WARDEN_ENABLED=0 (the AzerothGhost fixtures need it)")
     agent = sub.add_parser("agent", help="Agent-facing inspectable local test realm capabilities")
     agent_sub = agent.add_subparsers(dest="action", required=True)
     agent_sub.add_parser("capabilities")
@@ -223,9 +232,10 @@ def main(argv=None) -> int:
                 if not args.account_name or not args.character:
                     raise ValueError("Supply --account-name and --character (the password is generated "
                                      "and stored in Windows Credential Manager, never shown)")
-                name = create_member_account(load_config(args.config), args.account_name, args.character)
+                name = create_member_account(load_config(args.config), args.account_name, args.character,
+                                             slot=args.slot)
                 print(f"Created {args.account_name.upper()} with character {name}; credentials saved in the "
-                      "member slot.")
+                      f"{args.slot} slot.")
                 return 0
             if args.action == "create-account":
                 from .local_account import create_test_account
@@ -243,7 +253,8 @@ def main(argv=None) -> int:
                     raise ValueError("Supply --test-wow for local-realm setup")
                 setup(args.source_wow, args.test_wow, realm, args.locale,
                       Path("forge.local.toml"), approve=args.approve_local_setup,
-                      adopt_existing=args.adopt_existing_test_wow)
+                      adopt_existing=args.adopt_existing_test_wow, pull_images=args.pull_images,
+                      disable_warden=args.disable_warden_for_fixtures)
                 return 0
             if args.action == "start":
                 return start_existing(realm, db_port=args.db_port,
@@ -289,6 +300,18 @@ def main(argv=None) -> int:
         if args.command == "api" and args.action == "dump":
             from .wowcontrol import dump_api
             print(json.dumps(dump_api(cfg), indent=2))
+            return 0
+        if args.command == "client" and args.action == "login" and args.mode == "enter":
+            from .client import LinuxClientController
+            LinuxClientController(cfg).login(args.slot)
+            print("Login typed; check the realm or a screenshot to confirm the character is in the world.")
+            return 0
+        if args.command == "client" and args.action == "headless":
+            from .client import LinuxClientController
+            from .xvfb_display import start_display
+            display_pid = start_display(cfg)
+            print(f"Display {cfg.display}: " + (f"started, PID {display_pid}" if display_pid else "already running"))
+            print(f"Client started on {cfg.display}, PID: {LinuxClientController(cfg).start()}")
             return 0
         if args.command == "client" and args.action == "login":
             from .win_login import save_credentials

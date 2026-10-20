@@ -1,6 +1,7 @@
 """Local configuration; no secrets are stored here."""
 from dataclasses import dataclass
 from pathlib import Path
+import re
 import tomllib
 
 
@@ -15,6 +16,11 @@ class Config:
     wowcontrol_injector: Path | None = None
     wowcontrol_dll: Path | None = None
     wowcontrol_realm: str = ""
+    # Linux "xdotool" backend: the X display the test client runs on (e.g. ":79"
+    # from 'forge client headless'); None keeps the session's DISPLAY.
+    display: str | None = None
+    xvfb: str = "Xvfb"
+    dri_path: Path | None = None
 
 
 def load_config(path: Path) -> Config:
@@ -28,8 +34,11 @@ def load_config(path: Path) -> Config:
     wine = client.get("wine_prefix", "~/.local/share/addon-forge/wine")
     realm_path = realm.get("source_dir")
     backend = client.get("automation_backend", "win32")
-    if backend not in ("win32", "wowcontrol"):
-        raise ValueError("Unknown automation backend; choose win32 or wowcontrol")
+    if backend not in ("win32", "wowcontrol", "xdotool"):
+        raise ValueError("Unknown automation backend; choose win32, wowcontrol or xdotool")
+    display = client.get("display")
+    if display is not None and not re.fullmatch(r":[0-9]{1,3}", str(display)):
+        raise ValueError("[client] display must look like \":79\"")
     def optional_path(name):
         value = client.get(name)
         return Path(value).expanduser().resolve() if value else None
@@ -43,4 +52,7 @@ def load_config(path: Path) -> Config:
         wowcontrol_injector=optional_path("wowcontrol_injector"),
         wowcontrol_dll=optional_path("wowcontrol_dll"),
         wowcontrol_realm=client.get("wowcontrol_realm", ""),
+        display=display,
+        xvfb=client.get("xvfb", "Xvfb"),
+        dri_path=optional_path("dri_path"),
     )
