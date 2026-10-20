@@ -619,7 +619,8 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   *PARTIAL: FR-5.3; FR-7.7 is NOT IMPLEMENTED*
 - **NFR-1.7** No speed target. The README's "milliseconds" and "sub-second"
   claims MUST be removed.
-  *TO BE REMOVED: decided 2026-10-20*
+  *IMPLEMENTED: decided 2026-10-20; claims removed from `README.md` in
+  `10e85c3`*
 - **NFR-1.8** The full test suite MUST pass on every commit to `main`.
   *IMPLEMENTED: `tests/`; user's git habit (verified in a clean worktree)*
 - **NFR-1.9** Forge's checks and specs MUST keep addons working in German
