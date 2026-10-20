@@ -133,6 +133,10 @@ limits, loopback-only binding, input validation) belong in `SECURITY.md`
   `::test_api_dump_refuses_outside_world`*
 - **FR-3.5** The MCP lookup tool MUST accept at most 50 names per call.
   *IMPLEMENTED: `mcp_server.py`; no dedicated test*
+- **FR-3.6** `forge api dump` MUST also record the font file and size of the
+  client's standard font objects (for example `GameFontNormal`), and offline
+  text sizes MUST use them when present.
+  *NOT IMPLEMENTED: decided 2026-10-20 (DESIGN.md DQ-2)*
 
 ### 4. Offline specs (`forge spec`, `forge_spec`)
 
