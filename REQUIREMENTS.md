@@ -510,7 +510,8 @@ limits, loopback-only binding, input validation) belong in `SECURITY.md`
   `nix/hosts/forge-cloud*.nix`).
   *TO BE REMOVED: decided 2026-10-20; never verified live*
 - **FR-13.2** NixOS all-in-one test VM (`nix/hosts/forge-vm.nix`,
-  `docs/nixos-vm.md`) and the NixOS workstation module (`nix/modules/`).
+  `docs/nixos-vm.md`, `scripts/setup_wizard.py`, `scripts/client_fetch.py`
+  and their tests) and the NixOS workstation module (`nix/modules/`).
   *TO BE REMOVED: decided 2026-10-20. The user's NixOS machine sets up its own
   rootless Docker (`docs/linux-headless.md` in PR #14)*
 - **FR-13.3** The flake MUST provide a dev shell (`nix develop`) and the
@@ -535,13 +536,18 @@ limits, loopback-only binding, input validation) belong in `SECURITY.md`
   open `OQ-` items. A plan check per requirement is optional (some behaviour,
   such as ties, cannot be forced live).
   *NOT IMPLEMENTED: decided 2026-10-20*
+- **FR-14.4** A run-plan result MUST list pass or fail for each covered addon
+  requirement.
+  *NOT IMPLEMENTED: `docs/spec-driven.md`*
 - **FR-14.5** RaidLedger and RaidWishlist MUST be the first addons with
   requirements files, holding every loot rule the user chose, each covered by
   an offline spec.
   *NOT IMPLEMENTED: decided 2026-10-20*
-- **FR-14.4** A run-plan result MUST list pass or fail for each covered addon
-  requirement.
-  *NOT IMPLEMENTED: `docs/spec-driven.md`*
+- **FR-14.6** An addon's requirements file MUST list each addon message kind
+  and import format the addon accepts. `forge check` MUST fail when one of
+  them lacks an offline spec for a malformed input or one for an unauthorized
+  sender. PROPOSED: the list uses `MSG-` IDs, and spec titles name them.
+  *NOT IMPLEMENTED: decided 2026-10-21 (SECURITY.md SC-019, OD-007)*
 
 ### 15. Release gate
 
