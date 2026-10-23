@@ -60,7 +60,9 @@ test("corrections and trades are announced too", function()
     GiveMasterLoot(1, 1)                     -- the master looter keeps it for now
     forge.advance(0.1)
     forge.closeLoot()
-    expect(raidSaid("[Loot] " .. TOKEN .. " goes to Tester - main spec.")).toBe(true)
+    -- The raid hears who won it, not who holds it (user request 2026-10-23).
+    expect(raidSaid("[Loot] " .. TOKEN .. " goes to Alice - main spec (with Tester until traded).")).toBe(true)
+    expect(raidSaid("[Loot] " .. TOKEN .. " goes to Tester - main spec.")).toBe(false)
     forge.trade("Alice", { TOKEN })
     expect(raidSaid("[Loot] " .. TOKEN .. " goes to Alice - main spec (traded).")).toBe(true)
 end)
