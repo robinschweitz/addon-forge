@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger timer 10"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger start"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "peer_roll",
+      "value": [
+        1,
+        100
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 12
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidLedgerRecipient",
+        "Test"
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "screenshot",
+      "value": "held_announced"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger timer reset"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    }
+  ],
+  "checks": [
+    {
+      "type": "event_fired",
+      "value": "CHAT_MSG_LOOT"
+    },
+    {
+      "type": "chat_contains",
+      "value": " gewonnen von Flo"
+    },
+    {
+      "type": "chat_contains",
+      "value": " geht an Flo"
+    },
+    {
+      "type": "chat_contains",
+      "value": " - Main-Spec (bei Test bis zum Handel)."
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.state",
+      "value": "held"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.recipient",
+      "value": "Test"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.spec",
+      "value": "ms"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.confirmed",
+      "value": true
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}
