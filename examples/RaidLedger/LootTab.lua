@@ -7,16 +7,14 @@ local _, ns = ...
 local L = ns.L
 local core, ui = ns.core, ns.ui
 local roster = core.roster
-local ITEM_ROWS, ROLL_ROWS = 19, 10
 local LEFT_WIDTH = 288
-local RIGHT_X = LEFT_WIDTH + 12
-local RIGHT_WIDTH = ns.CONTENT_WIDTH - RIGHT_X
+local ROLLS_TOP, ROLLS_BELOW = 120, 76   -- the roll list sits between the buttons and the hand-out
 
 local panel = CreateFrame("Frame", "RaidLedgerLootTab")
 local itemOffset, rollOffset = 0, 0
 local openRecord          -- an open award picked in the loot list (it is rolled from here)
 
-local itemPane = ns.pane(panel, 0, 0, LEFT_WIDTH, ns.CONTENT_HEIGHT, "RaidLedgerRollPane")
+local itemPane = ns.pane(panel, 0, 0, LEFT_WIDTH, nil, "RaidLedgerRollPane")
 local clearLoot = ns.flatButton(itemPane, L["EMPTY"], 64)
 clearLoot:SetHeight(18)
 clearLoot:SetPoint("TOPRIGHT", itemPane, "TOPRIGHT", -8, -6)
@@ -26,20 +24,21 @@ emptyText:SetWidth(LEFT_WIDTH - 30)
 emptyText:SetText(L["Open the master loot window\nPlayers can then use /rnd"])
 emptyText:SetJustifyH("CENTER")
 
-local itemRows = {}
-for i = 1, ITEM_ROWS do
-    local row = ns.listRow(itemPane, LEFT_WIDTH - 20, { 66, 34 }, "RaidLedgerItemRow" .. i)
+local itemRows = ns.rowList(function(i)
+    local row = ns.listRow(itemPane, 0, { 66, 34 }, "RaidLedgerItemRow" .. i)
     row:SetPoint("TOPLEFT", itemPane, "TOPLEFT", 10, -28 - (i - 1) * ns.ROW_HEIGHT)
-    itemRows[i] = row
-end
+    row:SetPoint("RIGHT", itemPane, "RIGHT", -10, 0)
+    return row
+end)
 
-local detail = ns.pane(panel, RIGHT_X, 0, RIGHT_WIDTH, ns.CONTENT_HEIGHT, "RaidLedgerDetailPane")
+local detail = ns.pane(panel, 0, 0, nil, nil, "RaidLedgerDetailPane")
+ns.sideBySide(itemPane, detail, LEFT_WIDTH)
 detail.heading:SetText(L["SELECTED ITEM"])
 
 -- The item's name; hovering it shows the item.
 local titleButton = CreateFrame("Button", nil, detail)
 titleButton:SetPoint("TOPLEFT", detail, "TOPLEFT", 12, -28)
-titleButton:SetWidth(RIGHT_WIDTH - 24)
+titleButton:SetPoint("RIGHT", detail, "RIGHT", -12, 0)
 titleButton:SetHeight(18)
 local itemTitle = ns.label(titleButton, "GameFontHighlight", 13, {0.94, 0.97, 1.00}, "RaidLedgerItem")
 itemTitle:SetAllPoints(titleButton)
@@ -47,7 +46,7 @@ itemTitle:SetJustifyH("LEFT")
 itemTitle:SetWordWrap(false)
 local stateLine = ns.label(detail, "GameFontNormalSmall", 10, {0.45, 0.68, 0.80}, "RaidLedgerRollDetail")
 stateLine:SetPoint("TOPLEFT", titleButton, "BOTTOMLEFT", 0, -4)
-stateLine:SetWidth(RIGHT_WIDTH - 24)
+stateLine:SetPoint("RIGHT", titleButton, "RIGHT", 0, 0)
 stateLine:SetHeight(14)
 stateLine:SetJustifyH("LEFT")
 stateLine:SetWordWrap(false)
@@ -66,20 +65,20 @@ local rollValueHeading = ns.label(detail, "GameFontNormalSmall", 9, {0.55, 0.72,
 rollValueHeading:SetPoint("TOPRIGHT", detail, "TOPRIGHT", -16, -106)
 rollValueHeading:SetText(L["RESULT"])
 
-local rollRows = {}
-for i = 1, ROLL_ROWS do
-    local row = ns.listRow(detail, RIGHT_WIDTH - 20, { 30, 40 }, "RaidLedgerRollLine" .. i)
-    row:SetPoint("TOPLEFT", detail, "TOPLEFT", 10, -120 - (i - 1) * ns.ROW_HEIGHT)
-    rollRows[i] = row
-end
+local rollRows = ns.rowList(function(i)
+    local row = ns.listRow(detail, 0, { 30, 40 }, "RaidLedgerRollLine" .. i)
+    row:SetPoint("TOPLEFT", detail, "TOPLEFT", 10, -ROLLS_TOP - (i - 1) * ns.ROW_HEIGHT)
+    row:SetPoint("RIGHT", detail, "RIGHT", -10, 0)
+    return row
+end)
 local noRolls = ns.label(detail, "GameFontNormalSmall", 10, {0.42, 0.61, 0.70})
 noRolls:SetPoint("TOPLEFT", detail, "TOPLEFT", 16, -124)
 
 local recipientHint = ns.label(detail, "GameFontNormalSmall", 9, {0.45, 0.60, 0.68})
-recipientHint:SetPoint("TOPLEFT", detail, "TOPLEFT", 14, -306)
+recipientHint:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", 14, 70)
 recipientHint:SetText(L["RECIPIENT NAME"])
 local recipientBox = CreateFrame("EditBox", "RaidLedgerRecipient", detail, "InputBoxTemplate")
-recipientBox:SetPoint("TOPLEFT", detail, "TOPLEFT", 18, -318)
+recipientBox:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", 18, 58)
 recipientBox:SetWidth(186)
 recipientBox:SetHeight(22)
 recipientBox:SetAutoFocus(false)
@@ -89,7 +88,7 @@ allButton:SetHeight(22)
 allButton:SetPoint("LEFT", recipientBox, "RIGHT", 8, 0)
 
 local giveButton = ns.flatButton(detail, L["GIVE + RECORD"], 150, "RaidLedgerAward")
-giveButton:SetPoint("TOPLEFT", detail, "TOPLEFT", 12, -344)
+giveButton:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", 12, 32)
 local parkButton = ns.flatButton(detail, L["PARK"], 80, "RaidLedgerPark")
 parkButton:SetPoint("LEFT", giveButton, "RIGHT", 6, 0)
 ns.makeBackdrop(parkButton, 0.20, 0.12, 0.30, 0.98)
@@ -102,26 +101,23 @@ for _, button in ipairs({ deButton, bankButton }) do ns.makeBackdrop(button, 0.1
 ---------------------------------------------------------------------------
 -- The whole raid by group (ALLE) and the roll menu (right-click)
 ---------------------------------------------------------------------------
+-- It opens just above ALLE, across the whole tab.
 local picker = CreateFrame("Frame", "RaidLedgerMembers", panel)
-picker:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, -100)
-picker:SetWidth(ns.CONTENT_WIDTH)
+picker:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 0, 146)
+picker:SetPoint("RIGHT", panel, "RIGHT", 0, 0)
 picker:SetHeight(130)
 picker:SetFrameLevel(panel:GetFrameLevel() + 20)
 ns.makeBackdrop(picker, 0.025, 0.052, 0.078, 0.99)
 picker:EnableMouse(true)
 picker:Hide()
 picker.headings, picker.cells = {}, {}
-local PICKER_WIDTH = math.floor((ns.CONTENT_WIDTH - 22) / 5) - 4
 for g = 1, 5 do
-    local x = 11 + (g - 1) * (PICKER_WIDTH + 4)
     local heading = ns.label(picker, "GameFontNormalSmall", 9, {1.00, 0.80, 0.32})
-    heading:SetPoint("TOPLEFT", picker, "TOPLEFT", x + 2, -8)
     heading:SetText(string.format(L["GROUP %d"], g))
     picker.headings[g] = heading
     picker.cells[g] = {}
     for row = 1, 5 do
-        local cell = ns.listRow(picker, PICKER_WIDTH, nil)
-        cell:SetPoint("TOPLEFT", picker, "TOPLEFT", x, -21 - (row - 1) * 20)
+        local cell = ns.listRow(picker, 100, nil)
         cell:SetScript("OnClick", function(self)
             if self.fullName then recipientBox:SetText(self.fullName) end
             picker:Hide()
@@ -130,6 +126,23 @@ for g = 1, 5 do
     end
 end
 ns.Ledger:HookScript("OnHide", function() picker:Hide() end)
+
+-- A larger window: more loot and roll rows, wider raid-group columns.
+ns.onResize(function(width, height)
+    itemRows.fit(ns.rowsFit(height, 28, 6))
+    rollRows.fit(ns.rowsFit(height, ROLLS_TOP, ROLLS_BELOW))
+    local cellWidth = math.floor((width - 22) / 5) - 4
+    for g = 1, 5 do
+        local x = 11 + (g - 1) * (cellWidth + 4)
+        picker.headings[g]:ClearAllPoints()
+        picker.headings[g]:SetPoint("TOPLEFT", picker, "TOPLEFT", x + 2, -8)
+        for row, cell in ipairs(picker.cells[g]) do
+            cell:SetWidth(cellWidth)
+            cell:ClearAllPoints()
+            cell:SetPoint("TOPLEFT", picker, "TOPLEFT", x, -21 - (row - 1) * 20)
+        end
+    end
+end)
 
 local menu = CreateFrame("Frame", "RaidLedgerRollMenu", ns.Ledger)
 menu:SetWidth(132)
@@ -247,7 +260,7 @@ end
 local function drawItems()
     local lines, openCount = lootLines()
     local selected = core.selectedEntry()
-    itemOffset = math.max(0, math.min(itemOffset, table.getn(lines) - ITEM_ROWS))
+    itemOffset = math.max(0, math.min(itemOffset, table.getn(lines) - table.getn(itemRows)))
     itemPane.heading:SetText(openCount > 0 and string.format(L["LOOT (%d)  |  %d OPEN"], table.getn(core.active()), openCount)
         or string.format(L["LOOT (%d)"], table.getn(core.active())))
     for i, row in ipairs(itemRows) do
@@ -299,8 +312,8 @@ end
 local function drawRolls(entry)
     local log = entry and core.sortedRollLog(entry) or {}
     local count = table.getn(log)
-    rollOffset = math.max(0, math.min(rollOffset, count - ROLL_ROWS))
-    rollHeading:SetText(count > ROLL_ROWS and string.format(L["ROLLS (%d, SCROLL)"], count) or string.format(L["ROLLS (%d)"], count))
+    rollOffset = math.max(0, math.min(rollOffset, count - table.getn(rollRows)))
+    rollHeading:SetText(count > table.getn(rollRows) and string.format(L["ROLLS (%d, SCROLL)"], count) or string.format(L["ROLLS (%d)"], count))
     local won = wonBy(entry, log)
     local itemID = entry and core.itemIDFromLink(entry.item)
     for i, row in ipairs(rollRows) do

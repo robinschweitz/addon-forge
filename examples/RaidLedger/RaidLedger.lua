@@ -2081,7 +2081,7 @@ local HELP = {
     L["/ledger export - show the website export"],
     L["/ledger sync - ask the group's other ledgers for this raid's awards"],
     L["/ledger newraid (or CLEAR) - empty the award ledger for the next raid; add confirm to skip the question"],
-    L["/ledger clear - drop all active rolls;  /ledger reset - recenter the window"],
+    L["/ledger clear - drop all active rolls;  /ledger reset - the window back to the middle, normal size and scale"],
 }
 
 SLASH_RAIDLEDGER1 = "/ledger"

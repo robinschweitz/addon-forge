@@ -527,4 +527,11 @@ Not changed (checked, or unclear):
   `3a5b72212252`. Scrolling itself is verified offline only
   (`tests/scrolling.spec.lua`, 30 wishes / 25 open / 40 awards); plan `click`
   steps cannot turn the mouse wheel. RaidLedger's tally tab is now SPIELER.
+- RaidLedger 2.6.0 (resizable, scalable window; the RAID list fills the tab,
+  after the raider screenshot of 2026-10-24) passed live in run
+  `f572285e0ba5` (`RaidLedger-window-acceptance.json`, no fixtures):
+  `/ledger scale 70` and `130` render and save, the grip shows, the RAID tab
+  lines up. Solo, the attendance EXPORT only says "Noch niemand im Raid
+  gesehen" (the first run's check expected a roster and was wrong). Dragging
+  the grip is verified offline only (`forge.drag`); plans have no drag step.
 - `projects/` is git-ignored: new addons there are local only until moved to `examples/` or their own repo.
