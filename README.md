@@ -179,7 +179,34 @@ forge client start | screenshot OUTPUT.png | login save --account NAME
 forge test --suite smoke --require-test example_frame_visible
 forge agent run-plan PLAN.json [--approve-fixtures]
 forge agent session PLAN.json [--approve-fixtures]
+forge release PATH_TO_ADDON [--approve-fixtures]
 forge realm up|down|status
+```
+
+### Releasing an addon
+
+Edit addons only here. `forge --config forge.local.toml release examples/RaidLedger`
+previews a release: the version, the plans it will run, the files it will
+copy and the branches it will create. With `--approve-fixtures` it runs every
+acceptance plan of the addon as a live session (an hour or more for
+RaidLedger), refuses unless all pass and the files did not change meanwhile,
+then:
+
+1. commits the `.toc`, its files and `README.md` to a new branch
+   `release/<Addon>-<version>` of your `wow-addons` checkout, and
+2. runs the raid-website's own `cmd/sync-addons` on a new branch
+   `addons/<Addon>-<version>` of your `raid-website` checkout, and lists the
+   website pages and changelog that name the addon.
+
+Both checkouts stay on their current branch (Forge uses temporary worktrees),
+and nothing is pushed: push the two branches, update the listed website pages
+and changelog, and open the pull requests. Configure the checkouts in
+`forge.local.toml`:
+
+```toml
+[release]
+addons_repo = "F:/wow-addons"
+website_repo = "F:/raid-website"   # optional
 ```
 
 ## Publish to GitHub

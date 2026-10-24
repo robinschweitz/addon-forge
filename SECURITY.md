@@ -338,17 +338,23 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
   FR-14.6, not built).
 
 **SC-020 - Release only what passed**
-- **Status:** PLANNED
+- **Status:** ACTIVE
 - **Rule:** `forge release` MUST run every acceptance plan of the addon live
   on exactly the files it releases, and copy the addon only when all pass. It
   MUST NOT trust earlier result files (OD-011). It MUST leave out `tests/`,
-  `.forge-runs/` and the test bridge, and MUST NOT push. Passing runs are
-  the whole gate; no human review step is required (OD-002).
-- **Enforcement:** `forge release` (not built).
-- **Evidence:** FR-15.1-FR-15.3; ARCHITECTURE.md AQ-4; T-023, T-024.
-- **Verification:** unit tests for the release command: a failing plan, or a
-  file changed after the run, must stop the release; old result files must be
-  ignored.
+  `.forge-runs/` and the test bridge, and MUST NOT push to `wow-addons` or
+  the website. It MUST refuse when an addon file changed after the first run.
+  Passing runs are the whole gate; no human review step is required (OD-002).
+  Git runs only as fixed argument lists (no shell), in temporary worktrees
+  Forge removes again; a failure deletes the branches the release made.
+- **Enforcement:** `release.release`, `release.release_files`.
+- **Evidence:** FR-15.1-FR-15.6; ARCHITECTURE.md AQ-4; T-023, T-024.
+- **Verification:** `test_release.py::test_a_failing_plan_stops_the_release_and_is_named`,
+  `::test_a_file_changed_during_the_runs_stops_the_release`,
+  `::test_old_result_files_are_never_a_pass`,
+  `::test_released_files_are_the_toc_its_files_and_the_readme`,
+  `::test_every_plan_passes_then_both_repositories_get_a_branch_and_a_commit`
+  (nothing pushed).
 
 **SC-021 - Close only the marked client; bound the session**
 - **Status:** ACTIVE for closing; PLANNED for the 10-minute limit (FR-7.7)

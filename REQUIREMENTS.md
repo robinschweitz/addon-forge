@@ -619,18 +619,38 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 
 - **FR-15.1** `forge release <Addon>` MUST copy the addon into the
   `wow-addons` checkout named by `[release] addons_repo` in
-  `forge.local.toml`, and commit it there, and MUST NOT push.
-  *NOT IMPLEMENTED: decided 2026-10-21 (ARCHITECTURE.md AQ-4)*
+  `forge.local.toml`, and commit it there, and MUST NOT push. The commit goes
+  on a new branch `release/<Addon>-<version>` cut from `origin/main`, in a
+  separate worktree, so the user's checkout is left as it is. The copy is the
+  `.toc`, the files it lists and the addon's `README.md`; files of the old
+  version that the new `.toc` no longer lists are removed.
+  *IMPLEMENTED (no live release yet): `release.py::release`; `test_release.py::test_every_plan_passes_then_both_repositories_get_a_branch_and_a_commit`*
 - **FR-15.2** `forge release` MUST run every acceptance plan of the addon
   itself, as live sessions on exactly the files being released (it needs
   `--approve-fixtures`), and MUST refuse unless all pass. It MUST NOT rely on
-  earlier result files, and MUST name the plans that failed.
-  *NOT IMPLEMENTED: decided 2026-10-21 (SECURITY.md OD-011, THREAT_MODEL.md
-  T-024)*
+  earlier result files, and MUST name the plans that failed. The plans of an
+  addon are the plan files beside its folder whose `addon` is that addon.
+  *IMPLEMENTED (no live release yet): `test_release.py::test_a_failing_plan_stops_the_release_and_is_named`, `::test_an_infrastructure_error_counts_as_not_passed`, `::test_old_result_files_are_never_a_pass`, `::test_plans_of_an_addon_are_the_plan_files_beside_it_that_name_it`*
 - **FR-15.3** A released copy MUST NOT contain `tests/`, `.forge-runs/` or the
   test bridge.
-  *NOT IMPLEMENTED: decided 2026-10-21; `README.md` (Security notes) already
-  asks to keep the bridge out of releases*
+  *IMPLEMENTED (no live release yet): `release.py::release_files`; `test_release.py::test_released_files_are_the_toc_its_files_and_the_readme`*
+- **FR-15.4** `forge release` MUST refuse when any file of the addon changed
+  between the first live run and the copy (content hash), and when the
+  addon's `.toc` version is already the one on the `wow-addons` main branch.
+  *IMPLEMENTED (no live release yet): `test_release.py::test_a_file_changed_during_the_runs_stops_the_release`, `::test_an_already_released_version_is_refused_before_any_run`*
+- **FR-15.5** When `[release] website_repo` names a `raid-website` checkout,
+  `forge release` MUST, after the `wow-addons` commit, run the website's own
+  `go run ./cmd/sync-addons <release worktree>` on a new branch
+  `addons/<Addon>-<version>` cut from `origin/main` (separate worktree),
+  commit the synced bundle, and MUST NOT push. It MUST list the website files
+  outside the bundle that name the addon (pages, changelog), which still need
+  a human or agent update in the same change.
+  *IMPLEMENTED (no live release yet): `test_release.py::test_every_plan_passes_then_both_repositories_get_a_branch_and_a_commit`, `::test_the_website_sync_may_change_only_the_released_addon` (another addon's bundle may not change; no half release); the real `cmd/sync-addons` ran against raid-website `origin/main` on 2026-10-24*
+- **FR-15.6** Without `--approve-fixtures`, `forge release` MUST only preview:
+  the plans it would run, the version, the files it would copy and the
+  branches it would create. It MUST NOT start a client or write to either
+  repository.
+  *IMPLEMENTED (no live release yet): `test_release.py::test_preview_changes_nothing_and_starts_no_client`, `::test_cli_previews_a_release`*
 
 ## Non-Functional Requirements
 

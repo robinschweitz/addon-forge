@@ -31,6 +31,9 @@ def make_parser():
     lookup = api_sub.add_parser("lookup", help="Does a global or Widget:Method exist on 3.3.5a?")
     lookup.add_argument("names", nargs="+")
     api_sub.add_parser("dump", help="Dump _G and widget methods from the in-world SDK test client")
+    rel = sub.add_parser("release", help="Run every live plan of an addon, then commit it to wow-addons and the website bundle (no push)")
+    rel.add_argument("addon", type=Path, help="Addon folder, e.g. examples/RaidLedger")
+    rel.add_argument("--approve-fixtures", action="store_true", help="Run the live plans and write the release branches")
     mcp = sub.add_parser("mcp", help="Serve Forge tools to an agent over MCP (stdio)")
     mcp.add_argument("--projects", type=Path, default=Path("projects"))
     mcp.add_argument("--allow-fixtures", action="store_true",
@@ -160,6 +163,11 @@ def main(argv=None) -> int:
             results = [lookup(name) for name in args.names]
             print(json.dumps(results, indent=2))
             return 0 if all(r["exists"] is not False for r in results) else 1
+        if args.command == "release":
+            from .release import release
+            result = release(load_config(args.config), args.addon, approve=args.approve_fixtures)
+            print(json.dumps(result, indent=2))
+            return 0 if result["status"] in ("plan_only", "released") else 1
         if args.command == "mcp":
             from .mcp_server import serve
             return serve(args.projects, args.config, allow_fixtures=args.allow_fixtures)

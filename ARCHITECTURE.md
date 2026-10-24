@@ -78,7 +78,11 @@ UI rules are in [DESIGN.md](DESIGN.md), and security controls are in
   `wow-addons` checkout and commits it only when every live plan of that
   addon passed on exactly the files being released (AQ-4, FR-15.1). The
   release runs those plans itself as live sessions; it does not trust earlier
-  result files (FR-15.2, THREAT_MODEL.md T-024).
+  result files (FR-15.2, THREAT_MODEL.md T-024). The commit goes on a release
+  branch in a worktree Forge creates, and the same release syncs the
+  raid-website's embedded addon bundle with the website's own
+  `cmd/sync-addons` on a second branch (FR-15.5). Nothing is pushed; the
+  human or agent pushes and opens the pull requests.
 
 ## Components and flows
 
@@ -102,7 +106,7 @@ UI rules are in [DESIGN.md](DESIGN.md), and security controls are in
 | Realm fixtures (`loot_scenario.py`, `peer_scenario.py`, `agent_realm.py`, `agent_scenarios/*.go`) | Start Go fixtures; command-file handshake with the bot; cleanup | fixture logs | FR-10.x | PARTIAL (combat, full party) |
 | Realm setup (`local_realm.py`, `db_guard.py`, `local_account.py`) | Clone and configure AzerothCore; loopback-only compose; test copy; accounts | `.env`, `forge.local.toml`, test WoW copy | FR-11.1, FR-11.2, FR-10.7 | SUPPORTED |
 | SDK build (`wowcontrol_build.py`, `tools/wowcontrol-sdk/`) | Build the pinned external SDK with the Forge patch | `.forge-tools/wowcontrol-sdk` | FR-11.5 | SUPPORTED |
-| Release (`forge release`, new) | Run every plan of the addon as a live session; copy and commit into `wow-addons` | release commit | FR-15.x | PARTIALLY DEFINED (not built) |
+| Release (`release.py`, `forge release`) | Run every plan of the addon as a live session; copy and commit into `wow-addons` on a release branch; sync the website bundle on its own branch; never push | release branches (made in temporary git worktrees) | FR-15.x | SUPPORTED (no live release yet) |
 | Removal set (`realm_connect.py` CLI commands, `cloud/`, `scripts/cloud/`, `nix/hosts`, `nix/disko`, `nix/modules`, `agent capabilities`) | — | — | FR-11.7, FR-13.1, FR-13.2, FR-10.10 | TO BE REMOVED |
 
 ### Main data flow: an approved live run
@@ -194,9 +198,9 @@ flowchart LR
 - **DR-2** The offline layer (`validate`, `lua51`, `headless`, `wowapi`,
   `scaffold`) never imports a client, realm or orchestration module, so it
   runs on any OS without a game.
-- **DR-3** Only the orchestrator (`agent_workflow`) and the session runner
-  (`agent_session`, `agent_prepare`) combine layers. Lower layers never call
-  them.
+- **DR-3** Only the orchestrator (`agent_workflow`), the session runner
+  (`agent_session`, `agent_prepare`) and the release (`release`, which runs
+  sessions) combine layers. Lower layers never call them.
 - **DR-4** Only the client drivers talk to the game client (SDK pipe, window
   input, screenshots, display). Only the realm modules start Docker or Go.
 - **DR-5** The CLI and MCP adapters hold no logic of their own beyond argument
