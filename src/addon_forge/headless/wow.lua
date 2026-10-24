@@ -278,8 +278,21 @@ end
 function Region:SetWidth(w) state[self].width = w end
 function Region:SetHeight(h) state[self].height = h end
 function Region:SetSize(w, h) state[self].width, state[self].height = w, h end
-function Region:GetWidth() return state[self].width or 0 end
-function Region:GetHeight() return state[self].height or 0 end
+-- Without its own size a region reports the size its anchors give it
+-- (client CLayoutFrame::GetSize falls back to the resolved rect).
+local rectOf, effectiveScale
+function Region:GetWidth()
+    local w = state[self].width
+    if w and w ~= 0 then return w end
+    local r = rectOf(self)
+    return r and (r.r - r.l) / effectiveScale(self) or 0
+end
+function Region:GetHeight()
+    local h = state[self].height
+    if h and h ~= 0 then return h end
+    local r = rectOf(self)
+    return r and (r.t - r.b) / effectiveScale(self) or 0
+end
 function Region:GetSize() return self:GetWidth(), self:GetHeight() end
 function Region:SetPoint(point, rel, relPoint, x, y)
     if type(rel) == "number" then rel, relPoint, x, y = nil, nil, rel, relPoint end
@@ -332,13 +345,27 @@ local function textWidth(obj)
     return widest * fontSize(obj) * 0.6, math.max(lines, 1)
 end
 
+-- Rects are in screen pixels: a frame's size and anchor offsets are in its
+-- own units, multiplied by its effective scale (its scale times its parent's;
+-- font strings and textures use their frame's).
+function effectiveScale(obj)
+    local scale = 1
+    while obj and state[obj] do
+        local s = state[obj]
+        if s.type ~= "FontString" and s.type ~= "Texture" then scale = scale * (s.scale or 1) end
+        obj = s.parent
+    end
+    return scale
+end
+
 local resolving = {}
-local function rectOf(obj)
+function rectOf(obj)
     local s = state[obj]
     if not s then return nil end
     if obj == W.env.UIParent then return { l = 0, t = 720, r = 1280, b = 0 } end
     if #s.points == 0 or resolving[obj] then return nil end
     resolving[obj] = true
+    local e = effectiveScale(obj)
     local L, R, T, B, CX, CY
     for _, p in ipairs(s.points) do
         local rel = p[2] or W.env.UIParent
@@ -347,17 +374,18 @@ local function rectOf(obj)
             local rp = p[3] or p[1]
             local x = (POINT_X[rp] == "L" and rr.l) or (POINT_X[rp] == "R" and rr.r) or (rr.l + rr.r) / 2
             local y = (POINT_Y[rp] == "T" and rr.t) or (POINT_Y[rp] == "B" and rr.b) or (rr.t + rr.b) / 2
-            x, y = x + (p[4] or 0), y + (p[5] or 0)
+            x, y = x + (p[4] or 0) * e, y + (p[5] or 0) * e
             local px, py = POINT_X[p[1]], POINT_Y[p[1]]
             if px == "L" then L = x elseif px == "R" then R = x else CX = x end
             if py == "T" then T = y elseif py == "B" then B = y else CY = y end
         end
     end
     resolving[obj] = nil
-    local w, h = s.width, s.height
+    local w, h = s.width and s.width * e, s.height and s.height * e
     if s.type == "FontString" then
         local tw, explicit = textWidth(obj)
-        local size = fontSize(obj)
+        local size = fontSize(obj) * e
+        tw = tw * e
         if not w or w == 0 then w = (L and R) and (R - L) or tw end
         if not h or h == 0 then
             local lines = explicit
@@ -376,12 +404,19 @@ local function rectOf(obj)
 end
 H.rectOf = rectOf
 
-function Region:GetLeft() local r = rectOf(self); return r and r.l end
-function Region:GetRight() local r = rectOf(self); return r and r.r end
-function Region:GetTop() local r = rectOf(self); return r and r.t end
-function Region:GetBottom() local r = rectOf(self); return r and r.b end
-function Region:GetCenter() local r = rectOf(self); if r then return (r.l + r.r) / 2, (r.t + r.b) / 2 end end
-function Region:GetRect() local r = rectOf(self); if r then return r.l, r.b, r.r - r.l, r.t - r.b end end
+-- Positions come back in the region's own units, like the client's.
+local function ownRect(self)
+    local r = rectOf(self)
+    if not r then return nil end
+    local e = effectiveScale(self)
+    return { l = r.l / e, t = r.t / e, r = r.r / e, b = r.b / e }
+end
+function Region:GetLeft() local r = ownRect(self); return r and r.l end
+function Region:GetRight() local r = ownRect(self); return r and r.r end
+function Region:GetTop() local r = ownRect(self); return r and r.t end
+function Region:GetBottom() local r = ownRect(self); return r and r.b end
+function Region:GetCenter() local r = ownRect(self); if r then return (r.l + r.r) / 2, (r.t + r.b) / 2 end end
+function Region:GetRect() local r = ownRect(self); if r then return r.l, r.b, r.r - r.l, r.t - r.b end end
 
 -- FontString
 local FontString = class("FontString", "Region")
@@ -459,11 +494,19 @@ function Texture:SetGradientAlpha() end
 
 -- Frame
 local Frame = class("Frame", "Region")
-function Frame:SetScript(script, fn) state[self].scripts[script] = fn end
+-- Frames with an OnSizeChanged script join the layout pass in forge.advance.
+local function watchSize(self, script)
+    if script == "OnSizeChanged" and not state[self].sizeWatched then
+        state[self].sizeWatched = true
+        tinsert(W.sizeWatch, self)
+    end
+end
+function Frame:SetScript(script, fn) state[self].scripts[script] = fn; watchSize(self, script) end
 function Frame:GetScript(script) return state[self].scripts[script] end
 function Frame:HasScript(script) return true end
 function Frame:HookScript(script, fn)
     local s = state[self]
+    watchSize(self, script)
     if not s.scripts[script] then s.scripts[script] = fn; return end
     s.hooks[script] = s.hooks[script] or {}
     tinsert(s.hooks[script], fn)
@@ -517,9 +560,11 @@ function Frame:SetFrameStrata(v) state[self].strata = v end
 function Frame:GetFrameStrata() return state[self].strata or "MEDIUM" end
 function Frame:SetFrameLevel(v) state[self].level = v end
 function Frame:GetFrameLevel() return state[self].level or 1 end
-function Frame:SetScale(v) state[self].scale = v end
+-- A new scale lays the frame out again, so OnSizeChanged runs once more
+-- (client CLayoutFrame::SetLayoutScale clears the rect).
+function Frame:SetScale(v) state[self].scale = v; state[self].lastSize = nil end
 function Frame:GetScale() return state[self].scale end
-function Frame:GetEffectiveScale() return state[self].scale end
+function Frame:GetEffectiveScale() return effectiveScale(self) end
 function Frame:EnableMouse(v) state[self].mouse = v and true or false end
 function Frame:IsMouseEnabled() return state[self].mouse or false end
 function Frame:EnableMouseWheel(v) state[self].wheel = v and true or false end
@@ -527,12 +572,26 @@ function Frame:EnableKeyboard(v) state[self].keyboard = v and true or false end
 function Frame:SetMovable(v) state[self].movable = v and true or false end
 function Frame:IsMovable() return state[self].movable or false end
 function Frame:SetResizable(v) state[self].resizable = v and true or false end
+function Frame:IsResizable() return state[self].resizable or false end
 function Frame:SetMinResize(w, h) state[self].minResize = { w, h } end
+function Frame:GetMinResize() local m = state[self].minResize or { 0, 0 }; return m[1], m[2] end
 function Frame:SetMaxResize(w, h) state[self].maxResize = { w, h } end
+function Frame:GetMaxResize() local m = state[self].maxResize or { 0, 0 }; return m[1], m[2] end
 function Frame:RegisterForDrag(...) state[self].drag = { ... } end
-function Frame:StartMoving() state[self].moving = true end
-function Frame:StartSizing() state[self].sizing = true end
-function Frame:StopMovingOrSizing() state[self].moving, state[self].sizing = nil, nil end
+-- One frame at a time moves or sizes with the mouse (Script_StartMoving,
+-- Script_StartSizing, CSimpleTop::StartMoveOrResizeFrame); forge.drag moves
+-- the mouse.
+function Frame:StartMoving()
+    if not state[self].movable then error("Frame " .. tostring(state[self].name or "<unnamed>") .. " is not movable", 2) end
+    if not W.moveResize then W.moveResize = { frame = self, mode = "move" } end
+end
+function Frame:StartSizing(point)
+    if not state[self].resizable then error("Frame " .. tostring(state[self].name or "<unnamed>") .. " is not resizable", 2) end
+    if not W.moveResize then W.moveResize = { frame = self, mode = "size", point = point or "BOTTOMRIGHT" } end
+end
+function Frame:StopMovingOrSizing()
+    if W.moveResize and W.moveResize.frame == self then W.moveResize = nil end
+end
 function Frame:SetClampedToScreen(v) state[self].clamped = v end
 function Frame:SetToplevel(v) state[self].toplevel = v end
 function Frame:SetUserPlaced(v) state[self].userPlaced = v end
@@ -1487,7 +1546,7 @@ local FONT_PATTERNS = { "^GameFont", "^ChatFont", "^NumberFont", "^SystemFont", 
     "^SubZoneText", "^ZoneText", "^Tooltip", "^Game.*Font", "^FriendsFont", "^InvoiceFont", "^MailFont", "^SpellFont" }
 
 local function newWorld(config, saved)
-    W = { objects = {}, events = {}, chat = {}, sent = {}, addonMessages = {}, sounds = {}, popups = {},
+    W = { objects = {}, sizeWatch = {}, events = {}, chat = {}, sent = {}, addonMessages = {}, sounds = {}, popups = {},
           optionsPanels = {}, chatFilters = {}, awards = {}, looted = {}, loot = {}, lootOpen = false,
           lootCandidates = {}, lootMethod = { method = "group" }, raid = {}, partyCount = 0, leader = false,
           items = {}, nextRolls = {}, pending = {}, time = 0, epoch = 1281052800, combat = false, keys = {},
@@ -1615,6 +1674,20 @@ function forge.advance(seconds, step)
                 end
             end
         end
+        -- The layout pass (CLayoutFrame::OnFrameResize): a frame whose size
+        -- changed since the last pass runs OnSizeChanged with its new size,
+        -- the first time when its rect first resolves.
+        for _, obj in ipairs(W.sizeWatch) do
+            local s = state[obj]
+            if (s.scripts.OnSizeChanged or s.hooks.OnSizeChanged) and rectOf(obj) then
+                local w, h = obj:GetWidth(), obj:GetHeight()
+                local last = s.lastSize or { 0, 0 }
+                if math.abs(w - last[1]) > 1e-4 or math.abs(h - last[2]) > 1e-4 then
+                    s.lastSize = { w, h }
+                    runScript(obj, "OnSizeChanged", w, h)
+                end
+            end
+        end
         -- One pass over the frames visible when the frame starts (client
         -- CFrameStrataNode::OnLayerUpdate): a frame shown by another's
         -- OnUpdate waits for the next frame, a hidden one is skipped.
@@ -1670,6 +1743,48 @@ function forge.clickText(text, button, opts)
     while obj and not Methods[state[obj].type].Click do obj = state[obj].parent end
     if not obj then error("Text " .. tostring(text) .. " is not inside a clickable frame", 2) end
     withHardware(opts and opts.hardware, obj.Click, obj, button)
+end
+-- forge.drag(frame, dx, dy): press the left button on `frame`, move the mouse
+-- by dx, dy screen pixels (y grows upward, like WoW) and release it. The frame
+-- that started moving or sizing in OnMouseDown or OnDragStart follows: moved,
+-- or sized from its sizing corner within its Min/MaxResize, the opposite
+-- corner kept in place. Then OnDragStop, OnMouseUp and one frame.
+local SIZE_X = { BOTTOMRIGHT = 1, RIGHT = 1, TOPRIGHT = 1, BOTTOMLEFT = -1, LEFT = -1, TOPLEFT = -1 }
+local SIZE_Y = { BOTTOMRIGHT = -1, BOTTOM = -1, BOTTOMLEFT = -1, TOPRIGHT = 1, TOP = 1, TOPLEFT = 1 }
+local function clampSize(v, lo, hi)
+    v = math.max(v, lo or 0)
+    if hi and hi > 0 then v = math.min(v, hi) end
+    return v
+end
+function forge.drag(frame, dx, dy)
+    local f = asFrame(frame)
+    if not f:IsVisible() then error("Cannot drag hidden frame " .. tostring(state[f].name), 2) end
+    runScript(f, "OnMouseDown", "LeftButton")
+    if state[f].drag then runScript(f, "OnDragStart", "LeftButton") end
+    local active = W.moveResize
+    local r = active and rectOf(active.frame)
+    if r then
+        local target = active.frame
+        local s, e = state[target], effectiveScale(target)
+        local l, t = r.l, r.t
+        if active.mode == "move" then
+            l, t = l + dx, t + dy
+        else
+            local w, h = (r.r - r.l) / e, (r.t - r.b) / e
+            local sx, sy = SIZE_X[active.point] or 0, SIZE_Y[active.point] or 0
+            local min, max = s.minResize or { 0, 0 }, s.maxResize or { 0, 0 }
+            local nw = clampSize(w + sx * dx / e, min[1], max[1])
+            local nh = clampSize(h + sy * dy / e, min[2], max[2])
+            if sx < 0 then l = l - (nw - w) * e end
+            if sy > 0 then t = t + (nh - h) * e end
+            s.width, s.height = nw, nh
+        end
+        -- The client anchors a moved or sized frame by its top left.
+        s.points = { { "TOPLEFT", W.env.UIParent, "BOTTOMLEFT", l / e, t / e } }
+    end
+    if state[f].drag then runScript(f, "OnDragStop") end
+    runScript(f, "OnMouseUp", "LeftButton")
+    forge.advance(0.01)
 end
 function forge.rect(frame)
     local r = rectOf(asFrame(frame))

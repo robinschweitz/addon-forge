@@ -198,6 +198,17 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **FR-4.10** `forge spec` MUST exit 0 only when every run passed, print a
   per-test summary, and print the full result with `--json`.
   *IMPLEMENTED: `cli.py`; no dedicated test*
+- **FR-4.13** The emulation MUST model frame size and scale like the 12340
+  client: `StartMoving`/`StartSizing` fail unless the frame is movable or
+  resizable; `forge.drag(frame, dx, dy)` moves the frame that started moving,
+  or sizes the one that started sizing within its `Min/MaxResize`;
+  `OnSizeChanged` runs on the next frame, only when the size changed (also
+  after `SetScale`); a frame without its own size reports the size of its
+  anchors; and `SetScale` scales a frame and its children on screen, so
+  `forge.layoutIssues` sees a scaled window that leaves the screen.
+  *IMPLEMENTED: `headless/wow.lua`;
+  `tests/emulation/ClientFidelity/tests/size.spec.lua` (run by
+  `test_offline.py::test_emulation_matches_the_audited_client_behaviour`)*
 - **FR-4.12** `forge spec` MUST run every spec file once in a deDE and once in
   an enUS world, and a spec passes only when it passes in both. Specs MUST NOT
   assert exact locale-specific words; they compare against the addon's own
