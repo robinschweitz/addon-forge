@@ -89,9 +89,8 @@
       "value": "Raid #45 Live Fenster: 0 / 3 im Raid"
     },
     {
-      "type": "frame_text_contains",
-      "frame": "RaidLedgerRosterText",
-      "value": "RS2;ROSTER;45;Test;"
+      "type": "chat_contains",
+      "value": "RaidLedger: Noch niemand im Raid gesehen."
     },
     {
       "type": "no_lua_errors",
