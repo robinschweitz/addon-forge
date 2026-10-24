@@ -92,7 +92,7 @@ UI rules are in [DESIGN.md](DESIGN.md), and security controls are in
 | Offline emulator (`headless/`) | Sandboxed 3.3.5a world; spec API; layout and sketch | spec results, sketches | FR-4.x | SUPPORTED |
 | Plan schema (`scenario_plan.py`) | Validate plans; judge checks against a snapshot; split foreign errors | none (pure) | FR-5.x, FR-6.5, FR-6.7 | SUPPORTED |
 | Orchestrator (`agent_workflow.py`) | Preview; gate; deploy; fixtures; steps; suite; judge; evidence | `.forge-runs/` | FR-6.x | SUPPORTED |
-| Session runner (`agent_session.py`, `agent_prepare.py`) | Start, log in, enter world, member client, then the orchestrator | none | FR-7.x | PARTIAL (FR-7.6, FR-7.7, Linux) |
+| Session runner (`agent_session.py`, `agent_prepare.py`) | Start, log in, enter world, member client, then the orchestrator | none | FR-7.x | PARTIAL (FR-7.7, Linux) |
 | Step runner (`plan_steps.py`) | Fixed Lua per step type; hardware-click binding; typed `/run` lines on Linux | step log | FR-6.8, FR-11.10 | SUPPORTED |
 | Deploy (`deploy.py`) | Validated copy into `Interface/AddOns` with rollback; change detection | client addon folder | FR-9.x, FR-6.4 | SUPPORTED |
 | Client drivers: Windows (`windows_client.py`, `wowcontrol*.py`, `win_login.py`, `clients.py`, `addon_settings.py`) | Find the marked client window/PID; SDK requests; login; screenshots; key presses; per-character addon list | vault entries (main, member) | FR-7.x, FR-11.3-FR-11.6 | SUPPORTED |

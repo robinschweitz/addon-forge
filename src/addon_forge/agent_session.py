@@ -11,7 +11,8 @@ def run_session(cfg: Config, plan_path: Path, *, approve: bool = False):
     if not approve:
         return {"status": "plan_only", "plan": plan}
     from .win_login import _test_copy, _credentials
-    from .windows_client import WindowsAPI, _client_binary
+    from . import windows_client
+    from .windows_client import _client_binary
     from .deploy import deploy
     from .agent_prepare import prepare_environment
     from .agent_workflow import run_plan
@@ -20,14 +21,9 @@ def run_session(cfg: Config, plan_path: Path, *, approve: bool = False):
     if sys.platform != "win32":
         raise RuntimeError("Native Windows is required")
     wow = _test_copy(cfg.wow_dir)
-    api = WindowsAPI()
-    try:
-        api.find_window(cfg.window_name, _client_binary(wow))
-    except RuntimeError as exc:
-        if "found 0." not in str(exc):
-            raise
-    else:
-        raise RuntimeError("Close test WoW before starting the session")
+    # A test client left over from an earlier session would keep its old code:
+    # close it (only the marked copy's processes) before deploying (FR-7.6).
+    closed = windows_client.close_test_clients(windows_client.WindowsAPI(), cfg.window_name, _client_binary(wow))
 
     addon = (plan_path.resolve().parent / plan["addon"]).resolve()
     if not addon.is_relative_to(plan_path.resolve().parent) or not addon.is_dir():
@@ -68,4 +64,5 @@ def run_session(cfg: Config, plan_path: Path, *, approve: bool = False):
             return {"status": "infrastructure_error", "preparation": prepared,
                     "error": f"Member client for {plan['member']} did not enter the world: {exc}"}
     result = run_plan(cfg, plan_path, approve=True, deployed_before_start=True)
-    return {"status": result["status"], "preparation": prepared, "plan_result": result}
+    return {"status": result["status"], "preparation": prepared, "plan_result": result,
+            "closed_clients": closed}

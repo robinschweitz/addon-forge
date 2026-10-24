@@ -50,10 +50,10 @@ agent runs live sessions itself:
 1. **Say so before every run.** The session launches the test client on the
    human's desktop and sends keypresses; nobody may type or use WoW for the
    ~2 minutes it takes.
-2. Close any running test client first (only `F:\Wow\wow_second`, never
-   another WoW installation). A session leaves the client running when it
-   ends, and the next `agent session` refuses to start ("Close test WoW before
-   starting the session"): check the process path, then stop that process.
+2. A session leaves the test client running when it ends; the next
+   `agent session` closes it before deploying (FR-7.6): only processes whose
+   executable is the marked copy's `Wow.exe`, never another WoW installation.
+   A client that ignores the close request for 20 s is ended.
 3. Run the session in the background from the repository root and read the
    JSON result and the `.forge-runs/` evidence yourself.
 4. Report pass/fail with the run ID and what the checks proved.

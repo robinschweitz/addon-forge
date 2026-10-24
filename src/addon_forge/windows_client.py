@@ -73,6 +73,29 @@ def validate_chat_command(command: str) -> None:
         raise ValueError("Only single-line printable ASCII commands up to 180 characters are permitted")
 
 
+def close_test_clients(api, title: str, binary: Path, timeout: float = 20.0) -> list[int]:
+    """Close every running client of the marked test copy (FR-7.6, SC-021).
+
+    Only windows whose process runs `binary` (the marked copy's Wow.exe) are
+    touched, never another installation. Each gets WM_CLOSE; a client still
+    running after `timeout` s is ended, after checking its executable again
+    (the pid could have been reused). Returns the closed pids."""
+    closed = []
+    for hwnd, pid in api.find_windows(title, binary):
+        api.close_window(hwnd)
+        if not api.wait_exit(pid, timeout):
+            path = api._process_path(pid)
+            if path is not None and not _same_executable(path, binary):
+                raise RuntimeError(f"Process {pid} is no longer the test client; not ending it")
+            api.terminate(pid, binary)
+            if not api.wait_exit(pid, 5):
+                raise RuntimeError(f"Test WoW process {pid} did not exit")
+        closed.append(pid)
+    if api.find_windows(title, binary):
+        raise RuntimeError("Test WoW is still running after closing it")
+    return closed
+
+
 class WindowsAPI:
     """Minimal user32/kernel32 interface. No background/multi-window key injection."""
 
@@ -122,6 +145,12 @@ class WindowsAPI:
         self.kernel.QueryFullProcessImageNameW.restype = wintypes.BOOL
         self.kernel.CloseHandle.argtypes = [wintypes.HANDLE]
         self.kernel.CloseHandle.restype = wintypes.BOOL
+        self.user.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+        self.user.PostMessageW.restype = wintypes.BOOL
+        self.kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        self.kernel.WaitForSingleObject.restype = wintypes.DWORD
+        self.kernel.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+        self.kernel.TerminateProcess.restype = wintypes.BOOL
 
     def _process_path(self, pid: int) -> str | None:
         handle = self.kernel.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
@@ -133,6 +162,36 @@ class WindowsAPI:
             if not self.kernel.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size)):
                 return None
             return buffer.value
+        finally:
+            self.kernel.CloseHandle(handle)
+
+    def close_window(self, hwnd: int) -> None:
+        """Ask a window to close (WM_CLOSE), as its close button does."""
+        self.user.PostMessageW(hwnd, 0x0010, 0, 0)
+
+    def wait_exit(self, pid: int, timeout: float) -> bool:
+        """True once process `pid` has exited (or is gone), waiting up to `timeout` s."""
+        handle = self.kernel.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
+        if not handle:
+            return True
+        try:
+            return self.kernel.WaitForSingleObject(handle, int(timeout * 1000)) == 0  # WAIT_OBJECT_0
+        finally:
+            self.kernel.CloseHandle(handle)
+
+    def terminate(self, pid: int, binary: Path) -> None:
+        """End process `pid`, re-checking on the same handle that it runs `binary`."""
+        handle = self.kernel.OpenProcess(0x0001 | 0x1000, False, pid)  # TERMINATE | QUERY_LIMITED
+        if not handle:
+            raise RuntimeError(f"Cannot open test WoW process {pid} to end it")
+        try:
+            size = wintypes.DWORD(32768)
+            buffer = ctypes.create_unicode_buffer(size.value)
+            if (not self.kernel.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size))
+                    or not _same_executable(buffer.value, binary)):
+                raise RuntimeError(f"Process {pid} is no longer the test client; not ending it")
+            if not self.kernel.TerminateProcess(handle, 1):
+                raise RuntimeError(f"Could not end test WoW process {pid}")
         finally:
             self.kernel.CloseHandle(handle)
 
