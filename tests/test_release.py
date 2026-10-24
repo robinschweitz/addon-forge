@@ -67,7 +67,10 @@ class Sessions:
         if self.change:
             self.change(len(self.ran))
         status = self.statuses.get(plan.name, "passed")
-        return {"status": status, "plan_result": {"run_id": f"run{len(self.ran)}"}}
+        # The shape agent_session.run_session returns: run IDs live in the bridge test result.
+        checks = [{"type": "chat_contains", "value": "x", "passed": status == "passed"}]
+        return {"status": status, "plan_result": {"status": status, "test": {"run_id": f"run{len(self.ran)}"},
+                                                  "independent": {"status": status, "checks": checks}}}
 
 
 def website_sync(calls):
@@ -154,6 +157,9 @@ def test_a_failing_plan_stops_the_release_and_is_named(tmp_path):
                              sync=website_sync([]))
     assert result["status"] == "failed"
     assert result["failed_plans"] == ["Demo-two-acceptance.json"]
+    failed = result["plan_results"][1]
+    assert failed["run_id"] == "run2"
+    assert failed["failed_checks"] == [{"type": "chat_contains", "value": "x", "passed": False}]
     assert "release/Demo-2.0.0" not in git(addons, "branch", "-a")
     assert "addons/Demo-2.0.0" not in git(website, "branch", "-a")
 

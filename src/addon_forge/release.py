@@ -114,6 +114,27 @@ def _commit(tree: Path, paths: list[str], message: str) -> str:
     return _git(tree, "rev-parse", "HEAD").stdout.strip()
 
 
+def _summary(outcome: dict) -> dict:
+    """Run ID and, for a failure, where and why: what to look at next."""
+    result = outcome.get("plan_result") or {}
+    test = result.get("test") or {}
+    summary = {"run_id": test.get("run_id")}
+    if test.get("member_run_id"):
+        summary["member_run_id"] = test["member_run_id"]
+    if outcome.get("status") != PASSED:
+        for key in ("stage", "error"):
+            value = result.get(key) or outcome.get(key)
+            if value:
+                summary[key] = value
+        if outcome.get("preparation") and outcome.get("status") == "infrastructure_error" and not result:
+            summary["preparation"] = outcome["preparation"].get("status")
+        checks = (result.get("independent") or {}).get("checks") or []
+        failing = [check for check in checks if not check.get("passed")]
+        if failing:
+            summary["failed_checks"] = failing
+    return summary
+
+
 def release(cfg: Config, addon: Path, *, approve: bool = False, session=None, sync=None) -> dict:
     """Preview (default) or run a release of `addon`; see the module docstring."""
     addon = addon.resolve()
@@ -164,9 +185,7 @@ def release(cfg: Config, addon: Path, *, approve: bool = False, session=None, sy
             outcome = session(cfg, plan, approve=True)
         except Exception as exc:   # a session that cannot even start is not a pass
             outcome = {"status": "infrastructure_error", "error": str(exc)}
-        run_id = (outcome.get("plan_result") or {}).get("run_id")
-        plan_results.append({"plan": plan.name, "status": outcome.get("status"), "run_id": run_id,
-                             **({"error": outcome["error"]} if outcome.get("error") else {})})
+        plan_results.append({"plan": plan.name, "status": outcome.get("status"), **_summary(outcome)})
         if outcome.get("status") != PASSED:
             failed.append(plan.name)
     result["plan_results"] = plan_results
