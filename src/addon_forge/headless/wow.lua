@@ -795,10 +795,18 @@ end
 function GameTooltip:AddDoubleLine(l, r) self:AddLine(tostring(l) .. "  " .. tostring(r)) end
 function GameTooltip:NumLines() return #(state[self].lines or {}) end
 -- Line 1 is the link; forge.item(id, { tooltip = { ITEM_BIND_ON_EQUIP, ... } })
--- adds the item's further tooltip lines.
+-- adds the item's further tooltip lines. An item the client has not cached
+-- (forge.item(id, { cached = false })) shows RETRIEVING_ITEM_INFO, and the
+-- tooltip asks the server: the item is cached on the next frame (ASSUMPTION,
+-- the tooltip code is not in the decompilation; seen live with RaidWishlist).
 function GameTooltip:SetHyperlink(link)
-    self:SetText(link)
     local def = W.items[tonumber(string.match(tostring(link), "item:(%d+)") or "")]
+    if def and def.cached == false then
+        self:SetText(W.env.RETRIEVING_ITEM_INFO or "Retrieving item information")
+        tinsert(W.pending, function() def.cached = nil end)
+        return
+    end
+    self:SetText(link)
     for _, line in ipairs(def and def.tooltip or {}) do self:AddLine(W.env[line] or line) end
 end
 function GameTooltip:IsOwned(f) return state[self].owner == f end
@@ -1355,6 +1363,9 @@ local function api(env)
         if not i and type(key) == "string" then
             for _, data in pairs(W.items) do if data.name == key then i = data end end
         end
+        -- Only cached items answer; GetItemInfo never asks the server
+        -- (Script_GetItemInfo: g_itemDBCache.GetRecord without a callback).
+        if i and i.cached == false then return end
         if i then return i.name, i.link, i.quality or 1, i.itemLevel or 1, i.minLevel or 1, i.type or "Miscellaneous",
             i.subType or "Junk", i.stackCount or 1, i.equipLoc or "", i.texture or "Interface\\Icons\\INV_Misc_QuestionMark", i.sellPrice or 0 end
     end
@@ -1579,6 +1590,7 @@ local function newWorld(config, saved)
                       ERR_TRADE_COMPLETE = "Trade complete.", ERR_TRADE_CANCELLED = "Trade cancelled.",
                       ITEM_BIND_ON_EQUIP = "Binds when equipped", ITEM_BIND_ON_PICKUP = "Binds when picked up",
                       ITEM_SOULBOUND = "Soulbound", PLAYER_OFFLINE = "Offline",
+                      RETRIEVING_ITEM_INFO = "Retrieving item information",
                       ERR_NOT_IN_GROUP = "You aren't in a party.", ERR_NOT_IN_RAID = "You are not in a raid group",
                       ERR_INVITE_PLAYER_S = "You have invited %s to join your group.",
                       ERR_JOINED_GROUP_S = "%s joins the party.", ERR_RAID_MEMBER_ADDED_S = "%s has joined the raid group.",
@@ -2015,6 +2027,7 @@ function forge.openLoot(items)
         local entry = type(item) == "table" and item or { link = item }
         if entry.id and W.items[entry.id] then
             local def = W.items[entry.id]
+            def.cached = nil   -- a looted item is known to the client
             entry.link, entry.name, entry.quality = entry.link or def.link, entry.name or def.name, entry.quality or def.quality
         end
         W.loot[i] = entry

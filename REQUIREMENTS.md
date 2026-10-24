@@ -210,6 +210,13 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   *IMPLEMENTED: `headless/wow.lua`;
   `tests/emulation/ClientFidelity/tests/size.spec.lua` (run by
   `test_offline.py::test_emulation_matches_the_audited_client_behaviour`)*
+- **FR-4.14** The emulation MUST model the client's item cache: an item a
+  spec declares with `forge.item(id, { cached = false })` gives no
+  `GetItemInfo` answer, and asking again does not change that; showing it in
+  a tooltip shows `RETRIEVING_ITEM_INFO` and caches it on a later frame; a
+  looted item is cached. No event announces it (3.3.5a has none).
+  *IMPLEMENTED: `headless/wow.lua`; `tests/emulation/ClientFidelity/tests/items.spec.lua`
+  (the tooltip query is an ASSUMPTION until a live run shows it)*
 - **FR-4.12** `forge spec` MUST run every spec file once in a deDE and once in
   an enUS world, and a spec passes only when it passes in both. Specs MUST NOT
   assert exact locale-specific words; they compare against the addon's own

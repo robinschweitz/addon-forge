@@ -306,6 +306,15 @@ Fixed in the emulator:
   `1.2999999523163`, so save the scale you computed, never `GetScale()`
   (RaidWishlist's live run `f048f689a0a9` failed on exactly that).
 
+- **Item cache** (`Script_GetItemInfo`, `DBCache::GetRecord`, 2026-10-24;
+  probe spec `items`): `GetItemInfo` answers only for items the client has
+  cached and never asks the server (it looks the item up without a
+  callback). An item a raider's client never saw has no name or link until
+  something asks, for example a tooltip (`SetHyperlink`, ASSUMPTION: the
+  tooltip code is not in the decompilation), and the answer arrives later
+  with no event (`GET_ITEM_INFO_RECEIVED` is 4.x). Offline,
+  `forge.item(id, { cached = false })` declares such an item.
+
 Second pass (2026-10-20, the APIs the project addons use; probe specs
 `chat`, `group`, `world`, `calendar`):
 - **Chat event payload** (`SendChatEvent`): every CHAT_MSG_* has 13 arguments:
