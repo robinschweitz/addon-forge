@@ -47,8 +47,20 @@ local function split(text)
     return fields
 end
 
+-- An item the client has never seen has no name yet: GetItemInfo answers only
+-- from the client's cache and 3.3.5a has no event when an item arrives. A
+-- hidden tooltip asks the server; the ticker redraws once the names are there.
+local itemScan = CreateFrame("GameTooltip", "RaidWishlistItemScan", UIParent, "GameTooltipTemplate")
+local askedItems = {}      -- itemID -> GetTime() of the last request, until it arrived
 local function itemLink(itemID)
-    return (itemID and select(2, GetItemInfo(itemID))) or ("item:" .. tostring(itemID or 0))
+    local link = itemID and select(2, GetItemInfo(itemID))
+    if link then return link end
+    if itemID and (not askedItems[itemID] or GetTime() - askedItems[itemID] > 30) then
+        askedItems[itemID] = GetTime()
+        itemScan:SetOwner(UIParent, "ANCHOR_NONE")
+        itemScan:SetHyperlink("item:" .. itemID)
+    end
+    return string.format(L["[Item %d]"], itemID or 0)
 end
 
 local function isToken(link)
@@ -1330,6 +1342,17 @@ ticker:SetScript("OnUpdate", function(_, elapsed)
         syncAt = nil
         requestSync()
         shareWishlist()
+    end
+    -- Items asked from the server: redraw once one arrived (no event tells us).
+    if next(askedItems) then
+        local arrived = false
+        for itemID in pairs(askedItems) do
+            if GetItemInfo(itemID) then askedItems[itemID] = nil; arrived = true end
+        end
+        if arrived then
+            refresh()
+            if prompt then promptItem:SetText(itemLink(prompt.entry.itemID)) end
+        end
     end
     if shareAt and now >= shareAt then
         shareAt = nil
