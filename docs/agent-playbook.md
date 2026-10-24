@@ -534,4 +534,9 @@ Not changed (checked, or unclear):
   lines up. Solo, the attendance EXPORT only says "Noch niemand im Raid
   gesehen" (the first run's check expected a roster and was wrong). Dragging
   the grip is verified offline only (`forge.drag`); plans have no drag step.
+- RaidWishlist 2.1.0 (resizable, scalable window: grip and - / + in the
+  bottom bar, `/wish scale`, `/wish reset`) passed live in run `3d2fe31cc17d`
+  (`RaidWishlist-window-acceptance.json`, no fixtures). The first run
+  `f048f689a0a9` failed: it saved `GetScale()`, the client's 32-bit float.
+  Dragging the grip is verified offline only.
 - `projects/` is git-ignored: new addons there are local only until moved to `examples/` or their own repo.

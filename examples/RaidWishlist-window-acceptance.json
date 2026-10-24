@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "addon": "RaidWishlist",
+  "character": "Test",
+  "peers": 0,
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/wish reset"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistImportOpen"
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidWishlistImportText",
+        "WL2;Test;1792130000;20\n20513;ms;1;1;Fenster-Test\n20514;os;0;2;zweiter Wunsch"
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistImportButton"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistTabwish"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "screenshot",
+      "value": "wish_window_default"
+    },
+    {
+      "type": "slash",
+      "value": "/wish scale 70"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "screenshot",
+      "value": "wish_scale_70"
+    },
+    {
+      "type": "slash",
+      "value": "/wish scale 130"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "screenshot",
+      "value": "wish_scale_130"
+    }
+  ],
+  "checks": [
+    {
+      "type": "global_equals",
+      "path": "RaidWishlistDB.window.scale",
+      "value": 1.3
+    },
+    {
+      "type": "chat_contains",
+      "value": "RaidWishlist: Fensterskalierung: 70%."
+    },
+    {
+      "type": "chat_contains",
+      "value": "RaidWishlist: Fensterskalierung: 130%."
+    },
+    {
+      "type": "frame_visible",
+      "value": "RaidWishlistResize"
+    },
+    {
+      "type": "frame_visible",
+      "value": "RaidWishlistWish1"
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidWishlistWish1",
+      "value": "1. "
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}
