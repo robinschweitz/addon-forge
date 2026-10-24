@@ -21,6 +21,8 @@ end)
 
 local TABS = { awards = "RaidLedgerTabButtonAwards", tally = "RaidLedgerTabButtonTally",
     raid = "RaidLedgerRaidButton", settings = "RaidLedgerSettingsButton" }
+-- The client keeps the scale as a 32-bit float (0.8 reads back as 0.80000001192093).
+local function scale() return math.floor(RaidLedgerFrame:GetScale() * 100 + 0.5) / 100 end
 local function shown(name) local f = forge.frame(name); return f ~= nil and f:IsVisible() end
 local function size() return RaidLedgerFrame:GetWidth(), RaidLedgerFrame:GetHeight() end
 
@@ -50,7 +52,7 @@ test("the window starts at 760x480 and scale 100%, and fits the screen", functio
     local w, h = size()
     expect(w).toBe(760)
     expect(h).toBe(480)
-    expect(RaidLedgerFrame:GetScale()).toBe(1)
+    expect(scale()).toBe(1)
     expect(shown("RaidLedgerItemRow19")).toBe(true)
     expect(forge.frame("RaidLedgerItemRow20")).toBeNil()
 end)
@@ -113,10 +115,11 @@ end)
 test("/ledger scale sets the scale; out of range is refused", function()
     forge.slash("/ledger reset")
     forge.slash("/ledger scale 80")
-    expect(RaidLedgerFrame:GetScale()).toBe(0.8)
-    expect(forge.rect("RaidLedgerFrame").width).toBe(608)
+    expect(scale()).toBe(0.8)
+    expect(forge.saved("RaidLedgerDB").window.scale).toBe(0.8)   -- not the client's float32 read-back
+    expect(math.floor(forge.rect("RaidLedgerFrame").width + 0.5)).toBe(608)
     forge.slash("/ledger scale 300")
-    expect(RaidLedgerFrame:GetScale()).toBe(0.8)
+    expect(scale()).toBe(0.8)
     expect(forge.lastChat()).toContain("/ledger scale")
 end)
 
@@ -124,7 +127,7 @@ test("SETTINGS changes the scale in steps of 10% and shows it", function()
     forge.click(TABS.settings)
     expect(forge.text("RaidLedgerScaleValue")).toBe("80%")
     forge.click("RaidLedgerScaleUp")
-    expect(RaidLedgerFrame:GetScale()).toBe(0.9)
+    expect(scale()).toBe(0.9)
     expect(forge.text("RaidLedgerScaleValue")).toBe("90%")
     forge.click("RaidLedgerScaleDown")
     forge.click("RaidLedgerScaleDown")
@@ -146,9 +149,10 @@ test("size and scale stay after /reload", function()
     forge.slash("/ledger scale 90")
     forge.drag("RaidLedgerResize", 90, -45)
     local w, h = size()
+    w, h = math.floor(w + 0.5), math.floor(h + 0.5)   -- saved in whole pixels
     forge.reload()
     forge.advance(0.1)
-    expect(RaidLedgerFrame:GetScale()).toBe(0.9)
+    expect(scale()).toBe(0.9)
     local w2, h2 = size()
     expect(w2).toBe(w)
     expect(h2).toBe(h)
@@ -160,7 +164,7 @@ test("/ledger reset brings back the default size, scale and place", function()
     local w, h = size()
     expect(w).toBe(760)
     expect(h).toBe(480)
-    expect(RaidLedgerFrame:GetScale()).toBe(1)
+    expect(scale()).toBe(1)
     expect(forge.frame("RaidLedgerItemRow20"):IsShown()).toBe(false)
     expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
     expect(#forge.errors()).toBe(0)
