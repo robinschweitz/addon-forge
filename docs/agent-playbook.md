@@ -62,6 +62,25 @@ Without standing permission, give the human the exact command and read their
 terminal when they say "check". The agent can only read the desktop app's own
 Terminal tab; a run started in another window must be pasted.
 
+## Releasing an addon
+
+Edit addons only in this repository; `forge release` carries them to the
+guild (README "Releasing an addon", REQUIREMENTS.md FR-15):
+
+1. Raise `## Version` in the `.toc` (a version already on wow-addons main is
+   refused) and merge the addon's PR here first.
+2. Preview: `forge --config forge.local.toml release examples/<Addon>`.
+3. Announce it, then run it with `--approve-fixtures`. It is a series of live
+   sessions on the human's desktop: 5 plans for RaidWishlist, 19 for
+   RaidLedger. Each session closes the previous one's client (FR-7.6).
+4. On `released`, push the two branches it names, update the website pages
+   and the changelog it lists (`web/src/release.ts`, German entry) on the
+   website branch, and open both PRs (wow-addons first). Pushing needs the
+   human's OK.
+5. Merge both PRs of one release before releasing the other addon: the
+   website's `sync-addons` rewrites every bundled addon, and the release
+   refuses a sync that would change another addon's bundle.
+
 ## WoW 3.3.5a client facts (verified live)
 
 - **Widget methods differ from later expansions.** 3.3.5a `Button` has no

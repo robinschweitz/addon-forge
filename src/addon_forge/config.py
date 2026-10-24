@@ -15,6 +15,8 @@ class Config:
     wowcontrol_injector: Path | None = None
     wowcontrol_dll: Path | None = None
     wowcontrol_realm: str = ""
+    release_addons_repo: Path | None = None    # wow-addons checkout (FR-15.1)
+    release_website_repo: Path | None = None   # raid-website checkout (FR-15.5)
 
 
 def load_config(path: Path) -> Config:
@@ -22,6 +24,7 @@ def load_config(path: Path) -> Config:
         obj = tomllib.load(fh)
     client = obj.get("client", {})
     realm = obj.get("realm", {})
+    release = obj.get("release", {})
     wow = client.get("wow_dir")
     if not wow:
         raise ValueError("Set [client] wow_dir in forge.toml")
@@ -43,4 +46,6 @@ def load_config(path: Path) -> Config:
         wowcontrol_injector=optional_path("wowcontrol_injector"),
         wowcontrol_dll=optional_path("wowcontrol_dll"),
         wowcontrol_realm=client.get("wowcontrol_realm", ""),
+        release_addons_repo=Path(release["addons_repo"]).expanduser().resolve() if release.get("addons_repo") else None,
+        release_website_repo=Path(release["website_repo"]).expanduser().resolve() if release.get("website_repo") else None,
     )
