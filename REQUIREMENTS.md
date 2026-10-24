@@ -216,7 +216,8 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   a tooltip shows `RETRIEVING_ITEM_INFO` and caches it on a later frame; a
   looted item is cached. No event announces it (3.3.5a has none).
   *IMPLEMENTED: `headless/wow.lua`; `tests/emulation/ClientFidelity/tests/items.spec.lua`
-  (the tooltip query is an ASSUMPTION until a live run shows it)*
+  (live: RaidWishlist's hidden tooltip fetched never-seen item 20514,
+  run `1e0dd41331cf`)*
 - **FR-4.12** `forge spec` MUST run every spec file once in a deDE and once in
   an enUS world, and a spec passes only when it passes in both. Specs MUST NOT
   assert exact locale-specific words; they compare against the addon's own

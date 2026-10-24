@@ -310,8 +310,9 @@ Fixed in the emulator:
   probe spec `items`): `GetItemInfo` answers only for items the client has
   cached and never asks the server (it looks the item up without a
   callback). An item a raider's client never saw has no name or link until
-  something asks, for example a tooltip (`SetHyperlink`, ASSUMPTION: the
-  tooltip code is not in the decompilation), and the answer arrives later
+  something asks, for example a hidden tooltip (`SetHyperlink`; verified
+  live in RaidWishlist run `1e0dd41331cf`: item 20514 arrived as
+  "Abyssisches Siegel"), and the answer arrives later
   with no event (`GET_ITEM_INFO_RECEIVED` is 4.x). Offline,
   `forge.item(id, { cached = false })` declares such an item.
 

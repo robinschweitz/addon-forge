@@ -1,7 +1,7 @@
 -- The client's item cache (g_itemDBCache, GameUI_Scripts Script_GetItemInfo):
 -- GetItemInfo answers only for cached items and never asks the server. Showing
--- the item in a tooltip asks (ASSUMPTION: tooltip code is not in the
--- decompilation; verified live with RaidWishlist), and the answer arrives later.
+-- the item in a tooltip asks (tooltip code is not in the decompilation; seen
+-- live, RaidWishlist run 1e0dd41331cf), and the answer arrives later.
 -- 3.3.5a has no event for it (GET_ITEM_INFO_RECEIVED is 4.x).
 local LINK = "|cffa335ee|Hitem:20514:0:0:0:0:0:0:0:60|h[Abyssal Boots]|h|r"
 

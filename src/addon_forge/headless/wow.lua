@@ -797,8 +797,8 @@ function GameTooltip:NumLines() return #(state[self].lines or {}) end
 -- Line 1 is the link; forge.item(id, { tooltip = { ITEM_BIND_ON_EQUIP, ... } })
 -- adds the item's further tooltip lines. An item the client has not cached
 -- (forge.item(id, { cached = false })) shows RETRIEVING_ITEM_INFO, and the
--- tooltip asks the server: the item is cached on the next frame (ASSUMPTION,
--- the tooltip code is not in the decompilation; seen live with RaidWishlist).
+-- tooltip asks the server: the item is cached on a later frame (the tooltip
+-- code is not in the decompilation; seen live, RaidWishlist run 1e0dd41331cf).
 function GameTooltip:SetHyperlink(link)
     local def = W.items[tonumber(string.match(tostring(link), "item:(%d+)") or "")]
     if def and def.cached == false then
