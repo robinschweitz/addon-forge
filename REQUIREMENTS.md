@@ -203,7 +203,8 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   resizable; `forge.drag(frame, dx, dy)` moves the frame that started moving,
   or sizes the one that started sizing within its `Min/MaxResize`;
   `OnSizeChanged` runs on the next frame, only when the size changed (also
-  after `SetScale`); a frame without its own size reports the size of its
+  after `SetScale`; the scale reads back as a 32-bit float); a frame
+  without its own size reports the size of its
   anchors; and `SetScale` scales a frame and its children on screen, so
   `forge.layoutIssues` sees a scaled window that leaves the screen.
   *IMPLEMENTED: `headless/wow.lua`;

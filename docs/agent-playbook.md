@@ -283,7 +283,9 @@ Fixed in the emulator:
   `StartMoving` "is not movable". `SetScale` used to be ignored offline; now
   rects are screen pixels, `GetLeft`/`GetWidth` stay in the frame's own
   units. `forge.drag(grip, dx, dy)` plays a mouse drag on a resize grip or a
-  movable frame.
+  movable frame. The scale is a 32-bit float: `SetScale(1.3)` reads back as
+  `1.2999999523163`, so save the scale you computed, never `GetScale()`
+  (RaidWishlist's live run `f048f689a0a9` failed on exactly that).
 
 Second pass (2026-10-20, the APIs the project addons use; probe specs
 `chat`, `group`, `world`, `calendar`):

@@ -574,7 +574,14 @@ function Frame:SetFrameLevel(v) state[self].level = v end
 function Frame:GetFrameLevel() return state[self].level or 1 end
 -- A new scale lays the frame out again, so OnSizeChanged runs once more
 -- (client CLayoutFrame::SetLayoutScale clears the rect).
-function Frame:SetScale(v) state[self].scale = v; state[self].lastSize = nil end
+-- The client keeps the scale as a 32-bit float: SetScale(1.3) reads back as
+-- 1.2999999523163 (CLayoutFrame::m_layoutScale).
+local function float32(v)
+    if v == 0 then return 0 end
+    local m, e = math.frexp(v)
+    return math.ldexp(math.floor(m * 2 ^ 24 + 0.5) / 2 ^ 24, e)
+end
+function Frame:SetScale(v) state[self].scale = float32(v); state[self].lastSize = nil end
 function Frame:GetScale() return state[self].scale end
 function Frame:GetEffectiveScale() return effectiveScale(self) end
 function Frame:EnableMouse(v) state[self].mouse = v and true or false end
