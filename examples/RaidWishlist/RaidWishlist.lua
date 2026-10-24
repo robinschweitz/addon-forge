@@ -944,6 +944,11 @@ end)
 local function onRollStart(f)
     local itemID, seconds, round = tonumber(f[5]), tonumber(f[6]), tonumber(f[7]) or 1
     if not itemID or not seconds or f[4] == "" then return end
+    -- The first roll of a new raid can be its first message: switch to that
+    -- raid before asking what was received (last raid's awards do not count).
+    local before = ensureDatabase().raid.session
+    if not followSession(f[2] or "") then return end
+    if ensureDatabase().raid.session ~= before then refresh() end
     local entry = findWish(itemID)
     if not entry or entry.received then return end
     if round > 1 then
