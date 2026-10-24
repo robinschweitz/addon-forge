@@ -273,6 +273,20 @@ Fixed in the emulator:
   passed only because the stub bypassed the rule. It now uses a hardware click
   (as its live plan's `hardware_click` does) and a typed `/ledger calendar`.
 
+- **Size and scale** (`CLayoutFrame::SetWidth`/`Resize`/`OnFrameResize`,
+  `SetLayoutScale`, `Script_StartSizing`, 2026-10-24; probe spec `size`):
+  `OnSizeChanged` runs in the next layout pass, not inside `SetWidth`, and
+  only when the size changed (the first time when the rect first resolves,
+  and again after `SetScale`). `GetWidth` of a frame sized only by two
+  anchors is the anchored width (the emulator used to say 0). `StartSizing`
+  errors "Frame X is not resizable" without `SetResizable(true)`, and
+  `StartMoving` "is not movable". `SetScale` used to be ignored offline; now
+  rects are screen pixels, `GetLeft`/`GetWidth` stay in the frame's own
+  units. `forge.drag(grip, dx, dy)` plays a mouse drag on a resize grip or a
+  movable frame. The scale is a 32-bit float: `SetScale(1.3)` reads back as
+  `1.2999999523163`, so save the scale you computed, never `GetScale()`
+  (RaidWishlist's live run `f048f689a0a9` failed on exactly that).
+
 Second pass (2026-10-20, the APIs the project addons use; probe specs
 `chat`, `group`, `world`, `calendar`):
 - **Chat event payload** (`SendChatEvent`): every CHAT_MSG_* has 13 arguments:
