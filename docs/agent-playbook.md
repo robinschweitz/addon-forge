@@ -558,4 +558,12 @@ Not changed (checked, or unclear):
   (`RaidWishlist-window-acceptance.json`, no fixtures). The first run
   `f048f689a0a9` failed: it saved `GetScale()`, the client's 32-bit float.
   Dragging the grip is verified offline only.
+- Back-to-back sessions now carry SavedVariables over: since sessions close
+  the previous client with WM_CLOSE (FR-7.6), WoW writes them; a killed client
+  never did. The first `forge release` of RaidWishlist failed its main plan
+  twice for this reason, and it was a real addon bug: an award from the
+  previous raid still counted as "received" when the next raid's first roll
+  started, so no prompt (`tests/next_raid.spec.lua`). Fixed; the plan passed
+  live twice in a row (`1286f48346ac`, then `9960bcad8057`). Plans that
+  depend on a fresh state must create it in their first steps.
 - `projects/` is git-ignored: new addons there are local only until moved to `examples/` or their own repo.
