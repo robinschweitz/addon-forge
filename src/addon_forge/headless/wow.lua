@@ -777,7 +777,7 @@ local function syncTooltipLines(self)
     local lines = s.lines or {}
     for i = 1, math.max(#lines, s.synced or 0) do
         local key = s.name .. "TextLeft" .. i
-        local fs = W.env[key]
+        local fs = rawget(W.env, key)   -- no unknown-global warning for the first lookup
         if not fs then fs = newObject("FontString", key, self); state[fs].ownFont = true end
         state[fs].text = lines[i]
     end
