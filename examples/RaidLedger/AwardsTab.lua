@@ -6,10 +6,8 @@ local _, ns = ...
 local L = ns.L
 local core, ui = ns.core, ns.ui
 local roster = core.roster
-local AWARD_ROWS, LOG_ROWS = 18, 8
 local LEFT_WIDTH = 420
-local RIGHT_X = LEFT_WIDTH + 12
-local RIGHT_WIDTH = ns.CONTENT_WIDTH - RIGHT_X
+local LOG_TOP = 204
 
 local panel = CreateFrame("Frame", "RaidLedgerAwardsTab")
 local awardOffset, logOffset = 0, 0
@@ -33,7 +31,7 @@ end
 ---------------------------------------------------------------------------
 -- Award list
 ---------------------------------------------------------------------------
-local list = ns.pane(panel, 0, 0, LEFT_WIDTH, ns.CONTENT_HEIGHT, "RaidLedgerHistoryPane")
+local list = ns.pane(panel, 0, 0, LEFT_WIDTH, nil, "RaidLedgerHistoryPane")
 local exportButton = ns.flatButton(list, L["EXPORT"], 70, "RaidLedgerExport")
 exportButton:SetHeight(18)
 exportButton:SetPoint("TOPRIGHT", list, "TOPRIGHT", -8, -6)
@@ -44,21 +42,22 @@ local emptyText = ns.label(list, "GameFontNormalSmall", 11, {0.42, 0.61, 0.70})
 emptyText:SetPoint("CENTER", list, "CENTER", 0, 10)
 emptyText:SetText(L["No awards recorded in this ledger."])
 
-local awardRows = {}
-for i = 1, AWARD_ROWS do
-    local row = ns.listRow(list, LEFT_WIDTH - 20, { 64, 86 }, "RaidLedgerAwardLine" .. i)
+local awardRows = ns.rowList(function(i)
+    local row = ns.listRow(list, 0, { 64, 86 }, "RaidLedgerAwardLine" .. i)
     row:SetPoint("TOPLEFT", list, "TOPLEFT", 10, -28 - (i - 1) * ns.ROW_HEIGHT)
-    awardRows[i] = row
-end
+    row:SetPoint("RIGHT", list, "RIGHT", -10, 0)
+    return row
+end)
 
 ---------------------------------------------------------------------------
 -- The selected award
 ---------------------------------------------------------------------------
-local detail = ns.pane(panel, RIGHT_X, 0, RIGHT_WIDTH, ns.CONTENT_HEIGHT, "RaidLedgerAwardDetail")
+local detail = ns.pane(panel, 0, 0, nil, nil, "RaidLedgerAwardDetail")
+ns.sideBySide(list, detail, LEFT_WIDTH)
 detail.heading:SetText(L["SELECTED AWARD"])
 local titleButton = CreateFrame("Button", nil, detail)
 titleButton:SetPoint("TOPLEFT", detail, "TOPLEFT", 12, -28)
-titleButton:SetWidth(RIGHT_WIDTH - 24)
+titleButton:SetPoint("RIGHT", detail, "RIGHT", -12, 0)
 titleButton:SetHeight(18)
 local awardTitle = ns.label(titleButton, "GameFontHighlight", 12, {0.94, 0.97, 1.00})
 awardTitle:SetAllPoints(titleButton)
@@ -66,7 +65,7 @@ awardTitle:SetJustifyH("LEFT")
 awardTitle:SetWordWrap(false)
 local nowLine = ns.label(detail, "GameFontNormalSmall", 10, {0.45, 0.68, 0.80})
 nowLine:SetPoint("TOPLEFT", titleButton, "BOTTOMLEFT", 0, -4)
-nowLine:SetWidth(RIGHT_WIDTH - 24)
+nowLine:SetPoint("RIGHT", titleButton, "RIGHT", 0, 0)
 nowLine:SetHeight(14)
 nowLine:SetJustifyH("LEFT")
 nowLine:SetWordWrap(false)
@@ -110,16 +109,16 @@ ns.makeBackdrop(removeButton, 0.28, 0.10, 0.10, 0.98)
 
 local logHeading = ns.label(detail, "GameFontNormal", 10, {1.00, 0.80, 0.32})
 logHeading:SetPoint("TOPLEFT", detail, "TOPLEFT", 12, -188)
-local logRows = {}
-for i = 1, LOG_ROWS do
+local logRows = ns.rowList(function(i)
     -- RaidLedgerRoll1..: the names the live test plans use for the roll log.
-    local row = ns.listRow(detail, RIGHT_WIDTH - 20, { 30 }, "RaidLedgerRoll" .. i)
-    row:SetPoint("TOPLEFT", detail, "TOPLEFT", 10, -204 - (i - 1) * ns.ROW_HEIGHT)
-    logRows[i] = row
-end
+    local row = ns.listRow(detail, 0, { 30 }, "RaidLedgerRoll" .. i)
+    row:SetPoint("TOPLEFT", detail, "TOPLEFT", 10, -LOG_TOP - (i - 1) * ns.ROW_HEIGHT)
+    row:SetPoint("RIGHT", detail, "RIGHT", -10, 0)
+    return row
+end)
 local noLog = ns.label(detail, "GameFontNormalSmall", 10, {0.42, 0.61, 0.70})
-noLog:SetPoint("TOPLEFT", detail, "TOPLEFT", 16, -208)
-noLog:SetWidth(RIGHT_WIDTH - 32)
+noLog:SetPoint("TOPLEFT", detail, "TOPLEFT", 16, -LOG_TOP - 4)
+noLog:SetPoint("RIGHT", detail, "RIGHT", -16, 0)
 noLog:SetJustifyH("LEFT")
 
 ---------------------------------------------------------------------------
@@ -157,9 +156,15 @@ local exportText = CreateFrame("EditBox", "RaidLedgerExportText", exportScroll)
 exportText:SetMultiLine(true)
 exportText:SetAutoFocus(false)
 exportText:SetFontObject(ChatFontNormal)
-exportText:SetWidth(ns.CONTENT_WIDTH - 36)
-exportText:SetHeight(280)
 exportScroll:SetScrollChild(exportText)
+
+-- A larger window: more award and roll rows, a wider export field.
+ns.onResize(function(width, height)
+    awardRows.fit(ns.rowsFit(height, 28, 24))
+    logRows.fit(ns.rowsFit(height, LOG_TOP, 28))
+    exportText:SetWidth(width - 36)
+    exportText:SetHeight(height - 96)
+end)
 exportScroll:SetScript("OnMouseWheel", function(self, delta)
     local range = self:GetVerticalScrollRange() or 0
     self:SetVerticalScroll(math.max(0, math.min(range, self:GetVerticalScroll() - delta * 28)))
@@ -197,13 +202,13 @@ end
 local function drawList()
     local history = core.history()
     local total = table.getn(history)
-    awardOffset = math.max(0, math.min(awardOffset, total - AWARD_ROWS))
+    awardOffset = math.max(0, math.min(awardOffset, total - table.getn(awardRows)))
     local held = 0
     for _, record in ipairs(history) do
         if record.state == "held" and ns.isPlayer(record.recipient) then held = held + 1 end
     end
     -- Items you still hold for their winners: they wait for a trade.
-    list.heading:SetText((total > AWARD_ROWS and string.format(L["AWARDS (%d, SCROLL)"], total) or string.format(L["AWARDS (%d)"], total))
+    list.heading:SetText((total > table.getn(awardRows) and string.format(L["AWARDS (%d, SCROLL)"], total) or string.format(L["AWARDS (%d)"], total))
         .. (held > 0 and ("  |  " .. string.format(L["%d HELD BY YOU"], held)) or ""))
     local selected = selectedRecord()
     for i, row in ipairs(awardRows) do
@@ -230,8 +235,8 @@ end
 local function drawLog(record)
     local log = record and record.rollLog
     local count = log and table.getn(log) or 0
-    logOffset = math.max(0, math.min(logOffset, count - LOG_ROWS))
-    logHeading:SetText(count > LOG_ROWS and string.format(L["ROLLS (%d, SCROLL)"], count) or string.format(L["ROLLS (%d)"], count))
+    logOffset = math.max(0, math.min(logOffset, count - table.getn(logRows)))
+    logHeading:SetText(count > table.getn(logRows) and string.format(L["ROLLS (%d, SCROLL)"], count) or string.format(L["ROLLS (%d)"], count))
     local winner = log and core.winningRoll(log)
     for i, row in ipairs(logRows) do
         local r = log and log[i + logOffset]
@@ -344,7 +349,7 @@ function ns.showAward(record)
     recipientBox:SetText(record and record.recipient or "")
     logOffset = 0
     for i, r in ipairs(core.history()) do
-        if r == record then awardOffset = math.max(0, i - math.floor(AWARD_ROWS / 2)) end
+        if r == record then awardOffset = math.max(0, i - math.floor(table.getn(awardRows) / 2)) end
     end
     ui.show("awards")
     showView(nil)

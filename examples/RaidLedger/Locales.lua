@@ -189,8 +189,8 @@ L["/ledger export - show the website export"] = "/ledger export - Export für di
 L["/ledger sync - ask the group's other ledgers for this raid's awards"] = "/ledger sync - andere Bücher der Gruppe nach den Vergaben fragen"
 L["/ledger newraid (or CLEAR) - empty the award ledger for the next raid; add confirm to skip the question"] =
     "/ledger newraid (oder LEEREN) - Buch für den nächsten Raid leeren; mit confirm ohne Rückfrage"
-L["/ledger clear - drop all active rolls;  /ledger reset - recenter the window"] =
-    "/ledger clear - alle offenen Würfe verwerfen;  /ledger reset - Fenster zentrieren"
+L["/ledger clear - drop all active rolls;  /ledger reset - the window back to the middle, normal size and scale"] =
+    "/ledger clear - alle offenen Würfe verwerfen;  /ledger reset - Fenster mittig, in normaler Größe und Skalierung"
 
 -- Disenchant and guild bank
 L["DE"] = "DE"
@@ -461,7 +461,8 @@ L["APPLY"] = "ÜBERNEHMEN"
 L["WINDOW"] = "FENSTER"
 L["MINIMAP: ON"] = "MINIMAP: AN"
 L["MINIMAP: OFF"] = "MINIMAP: AUS"
-L["CENTER WINDOW"] = "FENSTER MITTIG"
+L["RESET WINDOW"] = "FENSTER ZURÜCKSETZEN"
+L["Scale"] = "Skalierung"
 L["SYNC AWARDS"] = "VERGABEN ABGLEICHEN"
 L["How long a roll runs; reminders come at half and a quarter of it"] =
     "Wie lange ein Wurf läuft; Erinnerungen kommen nach der Hälfte und einem Viertel"
@@ -469,7 +470,15 @@ L["How long a tie-break runs"] = "Wie lange ein Gleichstand-Wurf läuft"
 L["Use these lengths for the next rolls (a running roll keeps its time)"] =
     "Diese Längen für die nächsten Würfe nehmen (ein laufender Wurf behält seine Zeit)"
 L["Show or hide the minimap button"] = "Den Minimap-Knopf zeigen oder verstecken"
-L["Move this window back to the middle of the screen"] = "Dieses Fenster wieder in die Bildschirmmitte setzen"
+L["Move this window back to the middle of the screen, at its normal size and scale"] =
+    "Dieses Fenster wieder in die Bildschirmmitte setzen, in normaler Größe und Skalierung"
+L["Make the window larger (up to 150%)"] = "Das Fenster größer machen (bis 150%)"
+L["Make the window smaller (down to 60%)"] = "Das Fenster kleiner machen (bis 60%)"
+L["Drag to resize the window"] = "Ziehen, um die Fenstergröße zu ändern"
+L["window scale: %d%%."] = "Fensterskalierung: %d%%."
+L["usage: /ledger scale <%d-%d> (percent)"] = "Aufruf: /ledger scale <%d-%d> (Prozent)"
+L["/ledger scale <percent> - make the window smaller or larger; drag its lower right corner to resize it"] =
+    "/ledger scale <Prozent> - Fenster kleiner oder größer; die rechte untere Ecke ziehen ändert die Größe"
 L["Ask the group's other ledgers for this raid's awards (e.g. after a crash)"] =
     "Die anderen Ledger der Gruppe nach den Vergaben dieses Raids fragen (z. B. nach einem Absturz)"
 L["RESULT"] = "WURF"

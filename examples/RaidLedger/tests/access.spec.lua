@@ -44,14 +44,14 @@ test("after login the ledger says hello and asks who runs the addons", function(
     forge.advance(10, 0.25)
     local sent = table.concat(sentSince(0), "\n")
     expect(sent).toContain("HQ;Tester")
-    expect(sent).toContain("H;2.5.1;1")
+    expect(sent).toContain("H;2.6.0;1")
 end)
 
 test("a hello query is answered with this ledger's version", function()
     local before = #forge.addonMessages()
     receive("HQ;Alice")
     forge.advance(2, 0.25)
-    expect(table.concat(sentSince(before), "\n")).toContain("H;2.5.1;1")
+    expect(table.concat(sentSince(before), "\n")).toContain("H;2.6.0;1")
 end)
 
 test("the settings list raid members with their addons", function()

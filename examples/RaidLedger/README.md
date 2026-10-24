@@ -28,7 +28,15 @@ none is needed.
 | **VERGABEN** (awards) | Every award; the selected one: **COUNTS AS** main spec / off spec / nothing, change or restore its recipient, park / DE / BANK / **REMOVE**, its roll log; **EXPORT** and **NEW RAID** |
 | **SPIELER** (players' tally) | Every raid member with items and tokens per spec, the numbers the fewest-items rule ranks by; - / + corrections per player, and their awards |
 | **RAID** | Invites, raid groups, attendance, calendar event |
-| **EINSTELLUNGEN** (settings) | Editors, who runs which addon, roll lengths, minimap button, window position, sync |
+| **EINSTELLUNGEN** (settings) | Editors, who runs which addon, roll lengths, minimap button, window scale and reset, sync |
+
+**Size and scale** (2.6.0, for high- and low-resolution clients): drag the
+grip in the lower right corner to make the window larger, up to the screen's
+edges (760 x 480 is the smallest). Every list then shows more rows, and the
+panes share the extra width. **Scale** in EINSTELLUNGEN (- / +, 60-150%) or
+`/ledger scale <percent>` makes the whole window smaller or larger. Size and
+scale are saved; **RESET WINDOW** or `/ledger reset` brings back the middle of
+the screen, 760 x 480 and 100%.
 
 The source is split accordingly: `RaidLedger.lua` keeps all rules and state,
 `UI.lua` the window and shared widgets, `LootTab.lua`, `AwardsTab.lua`,
@@ -40,7 +48,8 @@ The source is split accordingly: `RaidLedger.lua` keeps all rules and state,
 (`Raid.lua`):
 
 1. Paste the website's invite list (raid page, Aufstellung, „Einladungen für
-   Addon“) and click **READ**. The list shows each character's role and status;
+   Addon“) and click **READ**. The list fills the right side of the tab and
+   shows each character's role, class and status;
    the website raid ID is also used for the loot export.
 2. **INVITE ALL** invites the list in the website's order (about 0.3 s apart).
    A party turns into a raid once someone joined. Offline guild members (per the
