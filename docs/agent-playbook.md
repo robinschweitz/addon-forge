@@ -77,6 +77,12 @@ guild (README "Releasing an addon", REQUIREMENTS.md FR-15):
    and the changelog it lists (`web/src/release.ts`, German entry) on the
    website branch, and open both PRs (wow-addons first). Pushing needs the
    human's OK.
+   First live release: RaidWishlist 2.1.0 on 2026-10-24 (plans
+   `96b1384d02ca`, `7a5dae9e8cb3`, `f68d591e2778`, `eebc1843080e`,
+   `3a606e9f2f3a`; robinschweitz/wow-addons#7, robinschweitz/raid-website#153).
+   Two earlier attempts refused correctly: a plan failed on a real addon bug
+   (#70). The website files it lists include ones that only name the addon
+   (types, guide); only the addon page and `release.ts` needed text.
 5. Merge both PRs of one release before releasing the other addon: the
    website's `sync-addons` rewrites every bundled addon, and the release
    refuses a sync that would change another addon's bundle.

@@ -106,7 +106,7 @@ UI rules are in [DESIGN.md](DESIGN.md), and security controls are in
 | Realm fixtures (`loot_scenario.py`, `peer_scenario.py`, `agent_realm.py`, `agent_scenarios/*.go`) | Start Go fixtures; command-file handshake with the bot; cleanup | fixture logs | FR-10.x | PARTIAL (combat, full party) |
 | Realm setup (`local_realm.py`, `db_guard.py`, `local_account.py`) | Clone and configure AzerothCore; loopback-only compose; test copy; accounts | `.env`, `forge.local.toml`, test WoW copy | FR-11.1, FR-11.2, FR-10.7 | SUPPORTED |
 | SDK build (`wowcontrol_build.py`, `tools/wowcontrol-sdk/`) | Build the pinned external SDK with the Forge patch | `.forge-tools/wowcontrol-sdk` | FR-11.5 | SUPPORTED |
-| Release (`release.py`, `forge release`) | Run every plan of the addon as a live session; copy and commit into `wow-addons` on a release branch; sync the website bundle on its own branch; never push | release branches (made in temporary git worktrees) | FR-15.x | SUPPORTED (no live release yet) |
+| Release (`release.py`, `forge release`) | Run every plan of the addon as a live session; copy and commit into `wow-addons` on a release branch; sync the website bundle on its own branch; never push | release branches (made in temporary git worktrees) | FR-15.x | SUPPORTED (live: RaidWishlist 2.1.0) |
 | Removal set (`realm_connect.py` CLI commands, `cloud/`, `scripts/cloud/`, `nix/hosts`, `nix/disko`, `nix/modules`, `agent capabilities`) | — | — | FR-11.7, FR-13.1, FR-13.2, FR-10.10 | TO BE REMOVED |
 
 ### Main data flow: an approved live run
