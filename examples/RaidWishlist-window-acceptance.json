@@ -16,7 +16,7 @@
       "type": "paste",
       "value": [
         "RaidWishlistImportText",
-        "WL2;Test;1792130000;20\n20513;ms;1;1;Fenster-Test\n20514;os;0;2;zweiter Wunsch"
+        "WL2;Test;1792130000;20\n20514;os;0;1;nie gesehen\n20513;ms;1;2;Fenster-Test"
       ]
     },
     {
@@ -86,6 +86,11 @@
       "type": "frame_text_contains",
       "frame": "RaidWishlistWish1",
       "value": "1. "
+    },
+    {
+      "type": "frame_text_contains",
+      "frame": "RaidWishlistWish1",
+      "value": "|Hitem:20514:"
     },
     {
       "type": "no_lua_errors",

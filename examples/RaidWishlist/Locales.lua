@@ -112,3 +112,6 @@ L["/wish reset - the window back to the middle, normal size and scale"] =
 L["Drag to resize the window"] = "Ziehen, um die Fenstergröße zu ändern"
 L["Make the window larger (up to 150%)"] = "Das Fenster größer machen (bis 150%)"
 L["Make the window smaller (down to 60%)"] = "Das Fenster kleiner machen (bis 60%)"
+
+-- Items the client has not seen yet (the name arrives from the server)
+L["[Item %d]"] = "[Gegenstand %d]"
