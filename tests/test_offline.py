@@ -288,3 +288,17 @@ test("bad names are not written", function() forge.sketch("../evil", "ProbeFrame
     assert 'fill="#0000ff" fill-opacity="0.50" stroke=' in svg
     assert '>Tom &amp; &lt;Jerry&gt;</text>' in svg and 'fill="#ffffff"' in svg
     assert "HIDDEN" not in svg
+
+
+def test_sketches_taken_before_a_reload_are_still_saved(tmp_path):
+    root = addon(tmp_path, """
+local f = CreateFrame("Frame", "ProbeFrame", UIParent)
+f:SetWidth(200) f:SetHeight(100) f:SetPoint("CENTER")
+""", spec="""
+test("before", function() forge.sketch("before-reload", "ProbeFrame") end)
+test("reload", function() forge.reload() forge.sketch("after-reload", "ProbeFrame") end)
+""")
+    result = run_specs(root)
+    assert result["status"] == "passed", result["runs"][1]
+    names = sorted(Path(p).name for p in result["runs"][1]["sketches"])
+    assert names == ["Probe-after-reload.svg", "Probe-before-reload.svg"]

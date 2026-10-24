@@ -358,8 +358,20 @@ function effectiveScale(obj)
     return scale
 end
 
-local resolving = {}
+-- layoutIssues and sketch resolve each rect once (rectCache); nothing changes
+-- while they run.
+local resolving, rectCache = {}, nil
+local resolveRect
 function rectOf(obj)
+    if not rectCache then return resolveRect(obj) end
+    local r = rectCache[obj]
+    if r == nil then
+        r = resolveRect(obj) or false
+        rectCache[obj] = r
+    end
+    return r or nil
+end
+function resolveRect(obj)
     local s = state[obj]
     if not s then return nil end
     if obj == W.env.UIParent then return { l = 0, t = 720, r = 1280, b = 0 } end
@@ -1804,7 +1816,16 @@ end
 -- Layout problems under `root`: visible siblings that overlap, and visible
 -- children that stick out of their parent (inside a backdrop's insets).
 -- Textures are backgrounds by nature and are ignored.
-function forge.layoutIssues(root, tolerance)
+local function withRectCache(fn, ...)
+    rectCache = {}
+    local ok, result = pcall(fn, ...)
+    rectCache = nil
+    if not ok then error(result, 0) end
+    return result
+end
+local layoutIssues
+function forge.layoutIssues(root, tolerance) return withRectCache(layoutIssues, root, tolerance) end
+function layoutIssues(root, tolerance)
     tolerance = tolerance or 1
     local issues = {}
     local function visibleKids(frame)
@@ -1823,7 +1844,7 @@ function forge.layoutIssues(root, tolerance)
         local pr = rectOf(frame)
         local inset = 0
         local bd = state[frame].backdrop
-        if type(bd) == "table" and type(bd.insets) == "table" then inset = tonumber(bd.insets.left) or 0 end
+        if type(bd) == "table" and type(bd.insets) == "table" then inset = (tonumber(bd.insets.left) or 0) * effectiveScale(frame) end
         local kids = visibleKids(frame)
         for i, a in ipairs(kids) do
             if pr then
@@ -1914,7 +1935,7 @@ function forge.sketch(name, root)
             end
         end
     end
-    walk(root)
+    withRectCache(walk, root)
     W.sketches = W.sketches or {}
     tinsert(W.sketches, { name = tostring(name), width = rr.r - rr.l, height = rr.t - rr.b, items = items })
 end
@@ -2159,7 +2180,9 @@ function forge.reload()
     fire("PLAYER_LOGOUT")
     local persisted = {}
     for _, name in ipairs(W.savedNames) do persisted[name] = deepcopy(rawget(W.env, name)) end
+    local sketches = W.sketches   -- drawings from before the reload are still saved
     loadAddon(persisted, true)
+    W.sketches = sketches
 end
 
 function H.run(configJson, fileList, specSource, specName)
