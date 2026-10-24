@@ -351,8 +351,13 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **FR-7.6** When the marked test client is already running, the session MUST
   close it before deploying, and MUST NOT close any other WoW process (the
   process path decides).
-  *NOT IMPLEMENTED: decided 2026-10-20. Today the session refuses to start
-  ("Close test WoW before starting the session")*
+  *IMPLEMENTED (live: a second session closed the first one's client, run
+  `eb2de9a7d59b`): `windows_client.close_test_clients` (WM_CLOSE, then end the
+  process after re-checking its executable), called by `agent_session.run_session`;
+  `test_agent_prepare.py::test_close_test_clients_closes_only_the_marked_copy`,
+  `::test_close_test_clients_terminates_a_client_that_ignores_close`,
+  `::test_close_test_clients_never_terminates_a_process_that_changed_executable`,
+  `::test_session_closes_a_running_test_client_before_deploying`*
 - **FR-7.7** A session MUST stop after 10 minutes with `infrastructure_error`
   and release the desktop.
   *NOT IMPLEMENTED: decided 2026-10-20*

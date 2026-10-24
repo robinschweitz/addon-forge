@@ -351,13 +351,16 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
   ignored.
 
 **SC-021 - Close only the marked client; bound the session**
-- **Status:** PLANNED
+- **Status:** ACTIVE for closing; PLANNED for the 10-minute limit (FR-7.7)
 - **Rule:** A session MAY close a running WoW process only when its
-  executable is the marked test copy's, and MUST stop after 10 minutes.
-- **Enforcement:** `agent_session.run_session` (not built).
+  executable is the marked test copy's, checked again on the process handle
+  right before it is ended, and MUST stop after 10 minutes.
+- **Enforcement:** `windows_client.close_test_clients`, `WindowsAPI.terminate`,
+  called by `agent_session.run_session`; the time limit is not built.
 - **Evidence:** FR-7.6, FR-7.7.
-- **Verification:** unit tests with a second, unmarked WoW process that must
-  survive.
+- **Verification:** `test_agent_prepare.py::test_close_test_clients_closes_only_the_marked_copy`
+  (a second, unmarked WoW process survives),
+  `::test_close_test_clients_never_terminates_a_process_that_changed_executable`.
 
 **SC-022 - MCP session tool behind the human flag**
 - **Status:** PLANNED

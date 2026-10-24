@@ -519,3 +519,90 @@ def test_member_client_starts_next_to_main_with_member_credentials(tmp_path, mon
         wowcontrol.launch_and_enter(cfg, "Raidmember", rpc=rpc, role="member")
     assert clients.pid_of("member") == 2000 and slots == ["member"] and len(pings) == 2
     clients.clear()
+
+
+class FakeClients:
+    """Test-client windows and processes for close_test_clients (FR-7.6, SC-021)."""
+
+    def __init__(self, processes, exits_on_close=True):
+        self.processes = dict(processes)      # pid -> executable path
+        self.windows = {pid * 10: pid for pid in processes}
+        self.exits_on_close = exits_on_close
+        self.closed, self.terminated = [], []
+
+    def find_windows(self, title, binary):
+        from addon_forge.windows_client import _same_executable
+        return [(hwnd, pid) for hwnd, pid in self.windows.items()
+                if pid in self.processes and _same_executable(self.processes[pid], binary)]
+
+    def _process_path(self, pid):
+        return self.processes.get(pid)
+
+    def close_window(self, hwnd):
+        self.closed.append(hwnd)
+        if self.exits_on_close:
+            self.processes.pop(self.windows[hwnd], None)
+
+    def wait_exit(self, pid, timeout):
+        return pid not in self.processes
+
+    def terminate(self, pid, binary):
+        self.terminated.append(pid)
+        self.processes.pop(pid, None)
+
+
+MARKED = Path("F:/Wow/wow_second/Wow.exe")
+
+
+def test_close_test_clients_closes_only_the_marked_copy():
+    from addon_forge.windows_client import close_test_clients
+    api = FakeClients({7: str(MARKED), 8: str(MARKED), 9: "F:/Wow/RisingGods/Wow.exe"})
+    assert close_test_clients(api, "World of Warcraft", MARKED) == [7, 8]
+    assert api.closed == [70, 80]
+    assert api.terminated == []
+    assert 9 in api.processes          # another installation keeps running
+
+
+def test_close_test_clients_terminates_a_client_that_ignores_close():
+    from addon_forge.windows_client import close_test_clients
+    api = FakeClients({7: str(MARKED)}, exits_on_close=False)
+    assert close_test_clients(api, "World of Warcraft", MARKED, timeout=0) == [7]
+    assert api.terminated == [7]
+
+
+def test_close_test_clients_never_terminates_a_process_that_changed_executable():
+    from addon_forge.windows_client import close_test_clients
+    api = FakeClients({7: str(MARKED)}, exits_on_close=False)
+    real_wait = api.wait_exit
+    def swap(pid, timeout):
+        api.processes[7] = "C:/Windows/explorer.exe"   # the pid was reused meanwhile
+        return real_wait(pid, timeout)
+    api.wait_exit = swap
+    with pytest.raises(RuntimeError, match="no longer"):
+        close_test_clients(api, "World of Warcraft", MARKED, timeout=0)
+    assert api.terminated == []
+
+
+def test_session_closes_a_running_test_client_before_deploying(tmp_path, monkeypatch):
+    import json
+    from addon_forge import agent_session, windows_client, win_login, validate
+    wow = tmp_path / "WoW"
+    wow.mkdir()
+    (wow / "Wow.exe").write_bytes(b"")
+    (tmp_path / "Demo").mkdir()
+    plan = tmp_path / "Demo-acceptance.json"
+    plan.write_text(json.dumps({"version": 1, "addon": "Demo", "character": "Test", "peers": 0,
+                                "checks": [{"type": "player_in_world", "value": True}]}))
+    monkeypatch.setattr("sys.platform", "win32")
+    monkeypatch.setattr(win_login, "_test_copy", lambda p: p)
+    monkeypatch.setattr(windows_client, "WindowsAPI", lambda: Mock())
+    events = []
+    monkeypatch.setattr(windows_client, "close_test_clients",
+                        lambda api, title, binary, **kw: events.append(("close", binary.name)) or [7])
+    def stop(addon):
+        events.append(("check", addon.name))
+        raise RuntimeError("stop here")
+    monkeypatch.setattr(validate, "check_addon", stop)
+    with pytest.raises(RuntimeError, match="stop here"):
+        agent_session.run_session(config(tmp_path), plan, approve=True)
+    assert events == [("close", "Wow.exe"), ("check", "Demo")]
