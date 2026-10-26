@@ -32,8 +32,17 @@ test("FR-RL-014 master loot opens a compact assignment popup and records its act
     expect("RaidLedgerMasterLootRoll").toBeShown()
     expect("RaidLedgerMasterLootGive").toBeShown()
     expect("RaidLedgerMasterLootLater").toBeShown()
-    expect("RaidLedgerMasterLootDisenchant").toBeShown()
-    expect("RaidLedgerMasterLootBank").toBeShown()
+    expect(forge.text("RaidLedgerMasterLootGive")).toBe("ZUWEISEN")
+    expect(forge.frame("RaidLedgerMasterLootDisenchant")).toBeNil()
+    expect(forge.frame("RaidLedgerMasterLootBank")).toBeNil()
+    expect(forge.frame("RaidLedgerPark")).toBeNil()
+    local before = forge.rect("RaidLedgerMasterLoot")
+    forge.drag("RaidLedgerMasterLootDrag", 37, -22)
+    forge.advance(0.1)
+    local after = forge.rect("RaidLedgerMasterLoot")
+    expect(after.left).toBe(before.left + 37)
+    expect(after.top).toBe(before.top - 22)
+    forge.sketch("master-loot-popup", "RaidLedgerMasterLoot")
 
     forge.click("RaidLedgerMasterLootLater")
     expect("RaidLedgerMasterLootMembers").toBeShown()
@@ -45,18 +54,6 @@ test("FR-RL-014 master loot opens a compact assignment popup and records its act
 
     forge.closeLoot()
     expect("RaidLedgerMasterLoot").toBeHidden()
-
-    forge.openLoot({ { id = 21281 } })
-    forge.click("RaidLedgerMasterLootDisenchant")
-    forge.advance(0.1)
-    expect(latestAward().state).toBe("disenchanted")
-    forge.closeLoot()
-
-    forge.openLoot({ { id = 20514 } })
-    forge.click("RaidLedgerMasterLootBank")
-    forge.advance(0.1)
-    expect(latestAward().state).toBe("bank")
-    forge.closeLoot()
 
     forge.openLoot({ { id = 20515 } })
     forge.click("RaidLedgerMasterLootRoll")

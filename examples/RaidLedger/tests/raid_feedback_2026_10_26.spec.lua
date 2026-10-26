@@ -26,14 +26,13 @@ local function died(guid)
     forge.fire("COMBAT_LOG_EVENT_UNFILTERED", 0, "UNIT_DIED", "0x0", "", 0, guid, "Creature", 0)
 end
 
--- SPÄTER WÜRFELN asks who keeps the item (FR-RL-012): the name in the box,
--- else the player, picked from the raid list.
+-- The corpse popup alone offers SPÄTER WÜRFELN (FR-RL-012).
 local function laterTo(name)
-    forge.click("RaidLedgerPark")
+    forge.click("RaidLedgerMasterLootLater")
     name = (name and name ~= "") and name or UnitName("player")
     for g = 1, 5 do
         for r = 1, 5 do
-            local cell = forge.frame("RaidLedgerMember" .. g .. "_" .. r)
+            local cell = forge.frame("RaidLedgerMasterLootMember" .. g .. "_" .. r)
             if cell and cell:IsShown() and cell.fullName == name then return forge.click(cell) end
         end
     end

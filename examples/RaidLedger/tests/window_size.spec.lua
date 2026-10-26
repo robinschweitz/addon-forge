@@ -26,14 +26,13 @@ local function scale() return math.floor(RaidLedgerFrame:GetScale() * 100 + 0.5)
 local function shown(name) local f = forge.frame(name); return f ~= nil and f:IsVisible() end
 local function size() return RaidLedgerFrame:GetWidth(), RaidLedgerFrame:GetHeight() end
 
--- SPÄTER WÜRFELN asks who keeps the item (FR-RL-012): the name in the box,
--- else the player, picked from the raid list.
+-- The corpse popup alone offers SPÄTER WÜRFELN (FR-RL-012).
 local function laterTo(name)
-    forge.click("RaidLedgerPark")
+    forge.click("RaidLedgerMasterLootLater")
     name = (name and name ~= "") and name or UnitName("player")
     for g = 1, 5 do
         for r = 1, 5 do
-            local cell = forge.frame("RaidLedgerMember" .. g .. "_" .. r)
+            local cell = forge.frame("RaidLedgerMasterLootMember" .. g .. "_" .. r)
             if cell and cell:IsShown() and cell.fullName == name then return forge.click(cell) end
         end
     end

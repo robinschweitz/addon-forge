@@ -2,7 +2,7 @@
 -- items held until they are rolled) with the raid's disenchanter below it;
 -- the selected item on the right in two steps (FR-RL-006): 1 WÜRFELN (roll,
 -- free BoE roll, every roll with what the roller has so far) and 2 VERGEBEN
--- (give to a name, disenchant, guild bank, park). The button for the next
+-- (give to a name, disenchant or guild bank). The button for the next
 -- step is highlighted. Click a roll to make its player the recipient,
 -- right-click it to pass or count it differently.
 local _, ns = ...
@@ -62,16 +62,14 @@ local function stepLabel(text, ...)
     return step
 end
 
--- Step 1: roll now, roll later (SPÄTER WÜRFELN, FR-RL-012), or a free BoE
+-- Step 1: roll now, or a free BoE
 -- roll. Both steps share one grid: their rows start and end at the same x
 -- (FR-RL-013); layoutButtons sizes it to the pane.
 stepLabel(L["1  ROLL"], "TOPLEFT", detail, "TOPLEFT", PAD, -68)
 local startButton = ns.flatButton(detail, L["ROLL"], 130, "RaidLedgerStart")
 startButton:SetPoint("TOPLEFT", detail, "TOPLEFT", PAD, -82)
-local parkButton = ns.flatButton(detail, L["LATER ROLL"], 130, "RaidLedgerPark")
-parkButton:SetPoint("LEFT", startButton, "RIGHT", GAP, 0)
 local freeButton = ns.flatButton(detail, L["FREE BOE ROLL"], 130, "RaidLedgerFreeRoll")
-freeButton:SetPoint("LEFT", parkButton, "RIGHT", GAP, 0)
+freeButton:SetPoint("LEFT", startButton, "RIGHT", GAP, 0)
 
 local rollHeading = ns.label(detail, "GameFontNormalSmall", 9, {0.55, 0.72, 0.80})
 rollHeading:SetPoint("TOPLEFT", detail, "TOPLEFT", PAD + 2, -114)
@@ -116,22 +114,25 @@ local deButton = ns.flatButton(detail, L["DISENCHANT"], 130, "RaidLedgerDisencha
 deButton:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", PAD, 40)
 local bankButton = ns.flatButton(detail, L["GUILD BANK"], 130, "RaidLedgerBank")
 bankButton:SetPoint("LEFT", deButton, "RIGHT", GAP, 0)
-for _, button in ipairs({ deButton, bankButton, parkButton }) do
+for _, button in ipairs({ deButton, bankButton }) do
     ns.makeBackdrop(button, 0.16, 0.12, 0.24, 0.98)
     button.baseColor = { 0.16, 0.12, 0.24 }
 end
 
--- layoutButtons: step 1 in three equal columns, step 2 in a row that ends at
+-- layoutButtons: step 1 in one or two columns, step 2 in a row that ends at
 -- the same right edge (box, ALL, give) and two equal columns below it.
 local inner = 404
--- sizeStepOne: three columns with the free BoE roll, else two.
+-- sizeStepOne: the normal roll spans the pane unless the free BoE roll appears.
 local function sizeStepOne(withFree)
-    local columns = withFree and 3 or 2
-    local each = math.floor((inner - (columns - 1) * GAP) / columns)
-    startButton:SetWidth(each)
-    parkButton:SetWidth(withFree and each or inner - each - GAP)
-    freeButton:SetWidth(inner - 2 * each - 2 * GAP)
-    if withFree then freeButton:Show() else freeButton:Hide() end
+    if withFree then
+        local each = math.floor((inner - GAP) / 2)
+        startButton:SetWidth(each)
+        freeButton:SetWidth(inner - each - GAP)
+        freeButton:Show()
+    else
+        startButton:SetWidth(inner)
+        freeButton:Hide()
+    end
 end
 
 local function layoutButtons(width)
@@ -182,11 +183,9 @@ ns.makeBackdrop(picker, 0.025, 0.052, 0.078, 0.99)
 picker:EnableMouse(true)
 picker:Hide()
 picker.headings, picker.cells = {}, {}
--- What a click on a name does: "recipient" (the name box), "later" (who keeps
--- the item until it is rolled) or "disenchanter".
+-- What a click on a name does: "recipient" (the name box) or "disenchanter".
 picker.mode = "recipient"
-local PICKER_CAPTIONS = { recipient = L["Who gets the item?"], later = L["Who keeps it until the roll?"],
-    disenchanter = L["Who disenchants this raid?"] }
+local PICKER_CAPTIONS = { recipient = L["Who gets the item?"], disenchanter = L["Who disenchants this raid?"] }
 picker.caption = ns.label(picker, "GameFontNormalSmall", 10, {0.94, 0.97, 1.00}, "RaidLedgerMembersCaption")
 picker.caption:SetPoint("TOPLEFT", picker, "TOPLEFT", 13, -8)
 for g = 1, 5 do
@@ -200,7 +199,6 @@ for g = 1, 5 do
             picker:Hide()
             if not self.fullName then return end
             if picker.mode == "disenchanter" then roster.setDisenchanter(self.fullName)
-            elseif picker.mode == "later" then picker.onLater(self.fullName)
             else recipientBox:SetText(self.fullName) end
         end)
         picker.cells[g][row] = cell
@@ -475,7 +473,7 @@ local function drawHandOut(enabled, primary)
     local name = boxName()
     giveButton:SetText(name ~= "" and string.format(L["GIVE TO %s"], string.upper(name)) or L["GIVE TO ..."])
     ns.setEnabled(giveButton, enabled and name ~= "")
-    for _, button in ipairs({ deButton, bankButton, parkButton }) do ns.setEnabled(button, enabled) end
+    for _, button in ipairs({ deButton, bankButton }) do ns.setEnabled(button, enabled) end
     ns.setPrimary(giveButton, enabled and primary == "give")
     ns.setPrimary(deButton, enabled and primary == "de")
 end
@@ -572,6 +570,7 @@ for _, row in ipairs(itemRows) do
         if line.entry then
             if core.selectedEntry() ~= line.entry then rollOffset = 0 end
             core.select(line.entry)
+            if ui.selectMasterLoot then ui.selectMasterLoot(line.entry) end
             openRecord = nil
             recipientBox:SetText(line.entry.winner and line.entry.winner.name or "")
         else
@@ -694,13 +693,6 @@ local function togglePicker(mode)
 end
 allButton:SetScript("OnClick", function() togglePicker("recipient") end)
 chooseDE:SetScript("OnClick", function() togglePicker("disenchanter") end)
-parkButton:SetScript("OnClick", function() togglePicker("later") end)
--- SPÄTER WÜRFELN asks who keeps the item: a unique item the master looter
--- already has goes straight from the corpse to that raider (FR-RL-012).
-picker.onLater = function(name)
-    recipientBox:SetText(name)
-    afterAction(handOut("parked"))
-end
 clearLoot:SetScript("OnClick", function() roster.clearActive() end)
 recipientBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
 recipientBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
@@ -717,7 +709,6 @@ ns.tip(giveButton, function()
     if core.lootSlotOf(core.selectedEntry()) then return L["Give the selected item to the name in the box and record it"] end
     return L["Record the selected item for the name in the box (the loot window is closed)"]
 end)
-ns.tip(parkButton, L["Roll it later: pick who keeps it until then. A unique item you already have goes straight from the corpse to them."])
 ns.tip(chooseDE, L["Choose the raid's disenchanter from the raid, without a roll"])
 ns.tip(deButton, function()
     local name = roster.disenchanter()
@@ -741,12 +732,20 @@ masterLoot:SetFrameStrata("FULLSCREEN_DIALOG")
 masterLoot:SetToplevel(true)
 masterLoot:SetClampedToScreen(true)
 masterLoot:EnableMouse(true)
+masterLoot:SetMovable(true)
 ns.makeBackdrop(masterLoot, 0.018, 0.031, 0.055, 0.98)
 masterLoot:Hide()
 
 local masterTitle = ns.label(masterLoot, "GameFontNormal", 12, {1.00, 0.80, 0.32})
 masterTitle:SetPoint("TOPLEFT", masterLoot, "TOPLEFT", 12, -10)
 masterTitle:SetText(L["MASTER LOOT ITEMS"])
+local masterDrag = CreateFrame("Button", "RaidLedgerMasterLootDrag", masterLoot)
+masterDrag:SetPoint("TOPLEFT", masterLoot, "TOPLEFT", 8, -4)
+masterDrag:SetPoint("TOPRIGHT", masterLoot, "TOPRIGHT", -38, -4)
+masterDrag:SetHeight(22)
+masterDrag:RegisterForDrag("LeftButton")
+masterDrag:SetScript("OnDragStart", function() masterLoot:StartMoving() end)
+masterDrag:SetScript("OnDragStop", function() masterLoot:StopMovingOrSizing() end)
 local masterClose = ns.flatButton(masterLoot, "X", 22, "RaidLedgerMasterLootClose")
 masterClose:SetHeight(18)
 masterClose:SetPoint("TOPRIGHT", masterLoot, "TOPRIGHT", -10, -8)
@@ -770,15 +769,11 @@ end
 
 local masterRoll = ns.flatButton(masterLoot, L["ROLL"], 138, "RaidLedgerMasterLootRoll")
 masterRoll:SetPoint("BOTTOMLEFT", masterLoot, "BOTTOMLEFT", 12, 52)
-local masterGive = ns.flatButton(masterLoot, L["GIVE TO ..."], 138, "RaidLedgerMasterLootGive")
+local masterGive = ns.flatButton(masterLoot, L["ASSIGN"], 138, "RaidLedgerMasterLootGive")
 masterGive:SetPoint("LEFT", masterRoll, "RIGHT", 11, 0)
 local masterLater = ns.flatButton(masterLoot, L["LATER ROLL"], 138, "RaidLedgerMasterLootLater")
 masterLater:SetPoint("LEFT", masterGive, "RIGHT", 11, 0)
-local masterDE = ns.flatButton(masterLoot, L["DISENCHANT"], 213, "RaidLedgerMasterLootDisenchant")
-masterDE:SetPoint("BOTTOMLEFT", masterLoot, "BOTTOMLEFT", 12, 18)
-local masterBank = ns.flatButton(masterLoot, L["GUILD BANK"], 213, "RaidLedgerMasterLootBank")
-masterBank:SetPoint("LEFT", masterDE, "RIGHT", 11, 0)
-local masterControls = { masterTitle, masterClose, masterRoll, masterGive, masterLater, masterDE, masterBank }
+local masterControls = { masterTitle, masterDrag, masterClose, masterRoll, masterGive, masterLater }
 for _, row in ipairs(masterRows) do table.insert(masterControls, row) end
 
 local masterMembers = CreateFrame("Frame", "RaidLedgerMasterLootMembers", masterLoot)
@@ -858,7 +853,13 @@ local function drawMasterLoot()
     local entries = masterEntries()
     local found = false
     for _, entry in ipairs(entries) do if entry == masterLoot.entry then found = true end end
-    if not found then masterLoot.entry = entries[1] end
+    if not found then
+        local selected = core.selectedEntry()
+        for _, entry in ipairs(entries) do
+            if entry == selected then masterLoot.entry, found = entry, true end
+        end
+        if not found then masterLoot.entry = entries[1] end
+    end
     for index, row in ipairs(masterRows) do
         row.entry = entries[index]
         if row.entry then
@@ -878,8 +879,13 @@ local function drawMasterLoot()
     ns.setEnabled(masterRoll, mayEdit)
     ns.setEnabled(masterGive, mayEdit)
     ns.setEnabled(masterLater, mayEdit)
-    ns.setEnabled(masterDE, mayEdit)
-    ns.setEnabled(masterBank, mayEdit)
+end
+
+ui.selectMasterLoot = function(entry)
+    if masterLoot:IsShown() then
+        masterLoot.entry = entry
+        drawMasterLoot()
+    end
 end
 
 local function chooseMasterRecipient(mode)
@@ -901,12 +907,6 @@ masterGive:SetScript("OnClick", function()
     else chooseMasterRecipient("give") end
 end)
 masterLater:SetScript("OnClick", function() chooseMasterRecipient("later") end)
-masterDE:SetScript("OnClick", function()
-    if masterLoot.entry then core.select(masterLoot.entry); roster.giveAwaySelected("disenchanted") end
-end)
-masterBank:SetScript("OnClick", function()
-    if masterLoot.entry then core.select(masterLoot.entry); roster.giveAwaySelected("bank") end
-end)
 
 ui.refreshMasterLoot = function()
     if masterLoot:IsShown() then drawMasterLoot() end
@@ -930,8 +930,7 @@ events:SetScript("OnEvent", function()
         ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootRoll", masterRoll)
         ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootGive", masterGive)
         ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootLater", masterLater)
-        ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootDisenchant", masterDE)
-        ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootBank", masterBank)
+        ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootDrag", masterDrag)
         for row = 1, 4 do ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootItem" .. row, masterRows[row]) end
         for row = 1, 5 do ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootMember1_" .. row, masterMembers.cells[1][row]) end
         ForgeTestBridge:RegisterFrame("RaidLedgerItem", itemTitle)
@@ -939,7 +938,6 @@ events:SetScript("OnEvent", function()
         ForgeTestBridge:RegisterFrame("RaidLedgerRollHeading", itemPane.heading)
         ForgeTestBridge:RegisterFrame("RaidLedgerAward", giveButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerRecipient", recipientBox)
-        ForgeTestBridge:RegisterFrame("RaidLedgerPark", parkButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerStart", startButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerFreeRoll", freeButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerDisenchant", deButton)

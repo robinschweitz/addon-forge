@@ -22,14 +22,13 @@ end
 
 local function enabled(name) return forge.frame(name):IsEnabled() and true or false end
 
--- SPÄTER WÜRFELN asks who keeps the item (FR-RL-012): the name in the box,
--- else the player, picked from the raid list.
+-- The corpse popup alone offers SPÄTER WÜRFELN (FR-RL-012).
 local function laterTo(name)
-    forge.click("RaidLedgerPark")
+    forge.click("RaidLedgerMasterLootLater")
     name = (name and name ~= "") and name or UnitName("player")
     for g = 1, 5 do
         for r = 1, 5 do
-            local cell = forge.frame("RaidLedgerMember" .. g .. "_" .. r)
+            local cell = forge.frame("RaidLedgerMasterLootMember" .. g .. "_" .. r)
             if cell and cell:IsShown() and cell.fullName == name then return forge.click(cell) end
         end
     end
@@ -87,7 +86,6 @@ test("FR-RL-007 an open item nobody rolled on is disenchanted from BEUTE", funct
     expect(enabled("RaidLedgerDisenchant")).toBe(true)
     expect(primary("RaidLedgerDisenchant")).toBe(true)
     expect(enabled("RaidLedgerBank")).toBe(true)
-    expect(enabled("RaidLedgerPark")).toBe(true)
     expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
     forge.sketch("steps-nobody", "RaidLedgerFrame")
     forge.click("RaidLedgerDisenchant")
@@ -183,15 +181,15 @@ end)
 test("FR-RL-012 SPÄTER WÜRFELN asks who keeps the item and gives it from the corpse", function()
     forge.unit("target", { name = "Templer", guid = "0xF130003B69000106", dead = true, isPlayer = false })
     forge.openLoot({ { id = 21281 } })
-    expect(forge.text("RaidLedgerPark")).toBe("SPÄTER WÜRFELN")
-    expect(forge.rect("RaidLedgerPark").top).toBe(forge.rect("RaidLedgerStart").top)
+    expect(forge.frame("RaidLedgerPark")).toBeNil()
+    expect(forge.text("RaidLedgerMasterLootLater")).toBe("SPÄTER WÜRFELN")
     local before = table.getn(db().history)
-    forge.click("RaidLedgerPark")
-    expect("RaidLedgerMembers").toBeShown()
+    forge.click("RaidLedgerMasterLootLater")
+    expect("RaidLedgerMasterLootMembers").toBeShown()
     expect(forge.findText("Wer behält es bis zum Würfeln?")).toBeTruthy()
     expect(table.getn(db().history)).toBe(before)          -- nothing handed out yet
-    expect(forge.layoutIssues("RaidLedgerMembers")).toEqual({})   -- the list lies over the panes
-    forge.sketch("later-picker", "RaidLedgerFrame")
+    expect(forge.layoutIssues("RaidLedgerMasterLoot")).toEqual({})
+    forge.sketch("later-picker", "RaidLedgerMasterLoot")
     forge.click(forge.findText("Runenwächterin"))
     expect(forge.awards()[table.getn(forge.awards())].candidate).toBe("Runenwächterin")
     forge.advance(0.1)
@@ -204,7 +202,7 @@ end)
 local function aligned()
     local start, de, bank, give = forge.rect("RaidLedgerStart"), forge.rect("RaidLedgerDisenchant"),
         forge.rect("RaidLedgerBank"), forge.rect("RaidLedgerAward")
-    local right = forge.rect(forge.shown("RaidLedgerFreeRoll") and "RaidLedgerFreeRoll" or "RaidLedgerPark").right
+    local right = forge.rect(forge.shown("RaidLedgerFreeRoll") and "RaidLedgerFreeRoll" or "RaidLedgerStart").right
     expect(de.left).toBe(start.left)
     expect(give.right).toBe(right)
     expect(bank.right).toBe(right)
