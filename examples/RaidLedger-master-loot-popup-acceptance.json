@@ -12,32 +12,24 @@
       "value": "/ledger newraid confirm"
     },
     {
-      "type": "hardware_click",
-      "value": "RaidLedgerLootMenuClick"
-    },
-    {
-      "type": "wait",
-      "value": 1
+      "type": "slash",
+      "value": "/ledger"
     },
     {
       "type": "screenshot",
-      "value": "master_loot_root"
+      "value": "master_loot_popup"
     },
     {
       "type": "click",
       "value": "RaidLedgerMasterLootLater"
     },
     {
-      "type": "wait",
-      "value": 1
-    },
-    {
       "type": "screenshot",
-      "value": "master_loot_later"
+      "value": "master_loot_recipients"
     },
     {
       "type": "click",
-      "value": "RaidLedgerMasterLootLaterSelf"
+      "value": "RaidLedgerMasterLootMember1_1"
     },
     {
       "type": "wait",

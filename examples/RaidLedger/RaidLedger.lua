@@ -7,7 +7,8 @@ local L = ns.L
 local Ledger = CreateFrame("Frame")   -- events and timers; the window is UI.lua's
 -- The window (UI.lua and the tab files) fills these in; the core only calls them.
 local ui = { status = function() end, refresh = function() end, suggest = function() end,
-    show = function() end, shown = function() return false end }
+    show = function() end, shown = function() return false end,
+    showMasterLoot = function() end, hideMasterLoot = function() end, refreshMasterLoot = function() end }
 ns.ui = ui
 local MAX_HISTORY = 250
 local MAX_ACTIVE = 10
@@ -788,6 +789,7 @@ local function onGiveMasterLoot(slot, candidate)
     end
     ui.status(string.format(L["Gave #%d to %s; waiting for the loot message."], record.id, name))
     ui.refresh()
+    ui.refreshMasterLoot()
 end
 hooksecurefunc("GiveMasterLoot", onGiveMasterLoot)
 
@@ -814,6 +816,7 @@ local function onLootMessage(message)
             ui.status(string.format(L["Award #%d confirmed: %s received the item."], record.id, record.recipient))
             announceAward(record)
             ui.refresh()
+            ui.refreshMasterLoot()
             return
         end
     end
@@ -1973,7 +1976,6 @@ end
 
 Ledger:RegisterEvent("PLAYER_LOGIN")
 Ledger:RegisterEvent("LOOT_OPENED")
-Ledger:RegisterEvent("LOOT_READY")
 Ledger:RegisterEvent("LOOT_CLOSED")
 Ledger:RegisterEvent("CHAT_MSG_SYSTEM")
 Ledger:RegisterEvent("CHAT_MSG_LOOT")
@@ -1992,12 +1994,14 @@ Ledger:SetScript("OnEvent", function(self, event, ...)
         ensureDatabase()
         syncAt = GetTime() + 8
         ui.refresh()
-    elseif event == "LOOT_OPENED" or event == "LOOT_READY" then
+    elseif event == "LOOT_OPENED" then
         captureMasterLoot()
         ui.refresh()
+        ui.showMasterLoot()
     elseif event == "LOOT_CLOSED" then
         lootSlots, handedSlots = {}, {}
         windowKey, windowNpc = nil, nil
+        ui.hideMasterLoot()
         ui.refresh()
     elseif event == "CHAT_MSG_SYSTEM" then
         recordRoll(...)
@@ -2092,6 +2096,10 @@ ns.core = {
     select = function(entry) selected = entry end,
     edit = function(record) editing = record end,
     openRecords = openRecords, lootSlotOf = lootSlotOf, activeRollCount = activeRollCount,
+    isMasterLooter = function()
+        local method, partyLooter = GetLootMethod()
+        return method == "master" and partyLooter == 0
+    end,
     sortedRollLog = sortedRollLog, tallies = tallies, tallyOf = tallyOf, isToken = isToken,
     rollLabel = rollLabel, itemCount = itemCount, ranksAbove = ranksAbove, winningRoll = winningRoll,
     wishersOf = wishersOf, wishOf = wishOf, knowsWishlists = knowsWishlists, summaryLine = summaryLine,
@@ -2125,90 +2133,6 @@ ns.core = {
         return buildExport(db.raidID, playerName(), db.startedAt, time(), db.history)
     end,
 }
-
--- GroupLootDropDown is the 3.3.5a master-loot menu opened from LootButtonN.
--- Blizzard sets LootFrame.selectedSlot before it initializes the menu; append
--- our actions afterwards and leave every Blizzard entry untouched.
-local function groupLootSlot()
-    local slot = LootFrame and LootFrame.selectedSlot
-    if type(slot) ~= "number" or slot < 1 or not lootSlots[slot] then return nil end
-    return slot
-end
-
-local function selectGroupLootSlot(slot)
-    local info = lootSlots[slot]
-    if not info then return false end
-    selected, editing = info.entry, nil
-    return true
-end
-
-local function registerGroupLootButton(level, testName)
-    if not ForgeTestBridge or not ForgeTestBridge.RegisterFrame then return end
-    local list = _G["DropDownList" .. level]
-    local index = list and list.numButtons
-    local button = index and _G["DropDownList" .. level .. "Button" .. index]
-    if button and button:GetName() then
-        ForgeTestBridge:RegisterFrame(button:GetName(), button)
-        if testName then ForgeTestBridge:RegisterFrame(testName, button) end
-    end
-end
-
-local function addGroupLootButton(info, level, testName)
-    UIDropDownMenu_AddButton(info, level)
-    registerGroupLootButton(level, testName)
-end
-
--- The headless client does not model this FrameXML dropdown; its dedicated
--- spec supplies it with forge.stub, while the live client always has it.
-if GroupLootDropDown_Initialize then hooksecurefunc("GroupLootDropDown_Initialize", function(_, level, menuList)
-    level = level or UIDROPDOWNMENU_MENU_LEVEL
-    local slot = groupLootSlot()
-    if not slot then return end
-    if level == 1 then
-        local info = UIDropDownMenu_CreateInfo()
-        info.text, info.notCheckable = L["START ROLL"], true
-        info.func = function()
-            if selectGroupLootSlot(slot) then ns.core.startRoll(false) end
-        end
-        addGroupLootButton(info, level)
-
-        info = UIDropDownMenu_CreateInfo()
-        info.text, info.notCheckable, info.hasArrow, info.menuList = L["LATER ROLL AT ..."], true, true, "RAIDLEDGER_LATER"
-        addGroupLootButton(info, level, "RaidLedgerMasterLootLater")
-
-        local disenchanter = roster.disenchanter() or playerName()
-        info = UIDropDownMenu_CreateInfo()
-        info.text, info.notCheckable = string.format(L["DISENCHANT (%s)"], disenchanter), true
-        info.func = function()
-            if selectGroupLootSlot(slot) then roster.giveAwaySelected("disenchanted", disenchanter) end
-        end
-        addGroupLootButton(info, level)
-
-        info = UIDropDownMenu_CreateInfo()
-        info.text, info.notCheckable = L["GUILD BANK"], true
-        info.func = function()
-            if selectGroupLootSlot(slot) then roster.giveAwaySelected("bank") end
-        end
-        addGroupLootButton(info, level)
-    elseif level == 2 and menuList == "RAIDLEDGER_LATER" then
-        local group
-        for _, member in ipairs(roster.members()) do
-            if member.group ~= group then
-                group = member.group
-                local title = UIDropDownMenu_CreateInfo()
-                title.text, title.isTitle, title.notCheckable = string.format(L["GROUP %d"], group), true, true
-                addGroupLootButton(title, level)
-            end
-            local name = member.name
-            local info = UIDropDownMenu_CreateInfo()
-            info.text, info.notCheckable = name, true
-            info.func = function()
-                if selectGroupLootSlot(slot) then roster.parkSelected(name) end
-            end
-            addGroupLootButton(info, level, lower(name) == lower(playerName()) and "RaidLedgerMasterLootLaterSelf" or nil)
-        end
-    end
-end) end
 
 local HELP = {
     L["/ledger - show or hide the ledger"],

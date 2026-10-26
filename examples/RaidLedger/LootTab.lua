@@ -728,22 +728,212 @@ ns.tip(bankButton, L["Guild bank: give it to the name in the box (or keep it); c
 ns.tip(deRollButton, L["Roll the raid's disenchanter: everyone may /rnd 100, the winner gets every DE item"])
 ns.tip(clearLoot, L["Empty the loot list (the awards stay)"])
 
+---------------------------------------------------------------------------
+-- Compact master-loot assignment popup (FR-RL-014)
+---------------------------------------------------------------------------
+-- The corpse needs immediate actions, but the 760 px main window should not
+-- cover the game every time it opens. This popup owns only the current corpse.
+local masterLoot = CreateFrame("Frame", "RaidLedgerMasterLoot", UIParent)
+masterLoot:SetWidth(460)
+masterLoot:SetHeight(210)
+masterLoot:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 20, -120)
+masterLoot:SetFrameStrata("FULLSCREEN_DIALOG")
+masterLoot:SetToplevel(true)
+masterLoot:SetClampedToScreen(true)
+masterLoot:EnableMouse(true)
+ns.makeBackdrop(masterLoot, 0.018, 0.031, 0.055, 0.98)
+masterLoot:Hide()
+
+local masterTitle = ns.label(masterLoot, "GameFontNormal", 12, {1.00, 0.80, 0.32})
+masterTitle:SetPoint("TOPLEFT", masterLoot, "TOPLEFT", 12, -10)
+masterTitle:SetText(L["MASTER LOOT ITEMS"])
+local masterClose = ns.flatButton(masterLoot, "X", 22, "RaidLedgerMasterLootClose")
+masterClose:SetHeight(18)
+masterClose:SetPoint("TOPRIGHT", masterLoot, "TOPRIGHT", -10, -8)
+masterClose:SetScript("OnClick", function() masterLoot:Hide() end)
+ns.tip(masterClose, L["Close the ledger (/ledger opens it again)"])
+
+local masterRows = {}
+for i = 1, 4 do
+    local row = ns.listRow(masterLoot, 436, nil, "RaidLedgerMasterLootItem" .. i)
+    row:SetPoint("TOPLEFT", masterLoot, "TOPLEFT", 12, -30 - (i - 1) * 19)
+    row:SetPoint("RIGHT", masterLoot, "RIGHT", -12, 0)
+    row:SetScript("OnClick", function(self)
+        if self.entry then masterLoot.entry = self.entry; ui.refresh() end
+    end)
+    row:SetScript("OnEnter", function(self)
+        if self.entry then ns.itemTooltip(self, self.entry.item); GameTooltip:Show() end
+    end)
+    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    masterRows[i] = row
+end
+
+local masterRoll = ns.flatButton(masterLoot, L["ROLL"], 138, "RaidLedgerMasterLootRoll")
+masterRoll:SetPoint("BOTTOMLEFT", masterLoot, "BOTTOMLEFT", 12, 52)
+local masterGive = ns.flatButton(masterLoot, L["GIVE TO ..."], 138, "RaidLedgerMasterLootGive")
+masterGive:SetPoint("LEFT", masterRoll, "RIGHT", 11, 0)
+local masterLater = ns.flatButton(masterLoot, L["LATER ROLL"], 138, "RaidLedgerMasterLootLater")
+masterLater:SetPoint("LEFT", masterGive, "RIGHT", 11, 0)
+local masterDE = ns.flatButton(masterLoot, L["DISENCHANT"], 213, "RaidLedgerMasterLootDisenchant")
+masterDE:SetPoint("BOTTOMLEFT", masterLoot, "BOTTOMLEFT", 12, 18)
+local masterBank = ns.flatButton(masterLoot, L["GUILD BANK"], 213, "RaidLedgerMasterLootBank")
+masterBank:SetPoint("LEFT", masterDE, "RIGHT", 11, 0)
+local masterControls = { masterTitle, masterClose, masterRoll, masterGive, masterLater, masterDE, masterBank }
+for _, row in ipairs(masterRows) do table.insert(masterControls, row) end
+
+local masterMembers = CreateFrame("Frame", "RaidLedgerMasterLootMembers", masterLoot)
+masterMembers:SetPoint("TOPLEFT", masterLoot, "TOPLEFT", 3, -3)
+masterMembers:SetPoint("BOTTOMRIGHT", masterLoot, "BOTTOMRIGHT", -3, 3)
+masterMembers:SetFrameStrata("FULLSCREEN_DIALOG")
+ns.makeBackdrop(masterMembers, 0.025, 0.052, 0.078, 1)
+masterMembers:EnableMouse(true)
+masterMembers:Hide()
+local hideMasterMembers
+masterMembers.caption = ns.label(masterMembers, "GameFontNormalSmall", 10, {0.94, 0.97, 1.00})
+masterMembers.caption:SetPoint("TOPLEFT", masterMembers, "TOPLEFT", 12, -10)
+masterMembers.cells = {}
+for group = 1, 5 do
+    local heading = ns.label(masterMembers, "GameFontNormalSmall", 9, {1.00, 0.80, 0.32})
+    heading:SetPoint("TOPLEFT", masterMembers, "TOPLEFT", 10 + (group - 1) * 90, -30)
+    heading:SetText(string.format(L["GROUP %d"], group))
+    masterMembers.cells[group] = {}
+    for row = 1, 5 do
+        local cell = ns.listRow(masterMembers, 84, nil, "RaidLedgerMasterLootMember" .. group .. "_" .. row)
+        cell:SetPoint("TOPLEFT", masterMembers, "TOPLEFT", 8 + (group - 1) * 90, -44 - (row - 1) * 18)
+        cell:SetScript("OnClick", function(self)
+            if not self.fullName or not masterLoot.entry then return end
+            core.select(masterLoot.entry)
+            hideMasterMembers()
+            if masterMembers.mode == "later" then roster.parkSelected(self.fullName)
+            else roster.giveSelected(self.fullName) end
+        end)
+        cell:SetScript("OnEnter", function(self)
+            if self.fullName then
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:SetText(self.fullName)
+                ns.addPlayerLines(self.fullName)
+                GameTooltip:Show()
+            end
+        end)
+        cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        masterMembers.cells[group][row] = cell
+    end
+end
+local masterCancel = ns.flatButton(masterMembers, L["CLOSE"], 96, "RaidLedgerMasterLootMembersClose")
+masterCancel:SetHeight(18)
+masterCancel:SetPoint("BOTTOMRIGHT", masterMembers, "BOTTOMRIGHT", -12, 12)
+hideMasterMembers = function()
+    masterMembers:Hide()
+    for _, control in ipairs(masterControls) do control:Show() end
+end
+masterCancel:SetScript("OnClick", hideMasterMembers)
+
+local function masterEntries()
+    local entries = {}
+    for _, entry in ipairs(core.active()) do
+        if core.lootSlotOf(entry) then table.insert(entries, entry) end
+    end
+    return entries
+end
+
+local function drawMasterMembers()
+    local rows = { 0, 0, 0, 0, 0 }
+    for group = 1, 5 do
+        for row = 1, 5 do masterMembers.cells[group][row]:Hide() end
+    end
+    for _, member in ipairs(roster.members()) do
+        local group = math.min(math.max(tonumber(member.group) or 1, 1), 5)
+        if rows[group] < 5 then
+            rows[group] = rows[group] + 1
+            local cell = masterMembers.cells[group][rows[group]]
+            cell.fullName = member.name
+            cell:SetText(member.name)
+            ns.classColor(cell.text, member.name)
+            cell:Show()
+        end
+    end
+end
+
+local function drawMasterLoot()
+    local entries = masterEntries()
+    local found = false
+    for _, entry in ipairs(entries) do if entry == masterLoot.entry then found = true end end
+    if not found then masterLoot.entry = entries[1] end
+    for index, row in ipairs(masterRows) do
+        row.entry = entries[index]
+        if row.entry then
+            row:SetText(row.entry.item)
+            ns.highlight(row, row.entry == masterLoot.entry and "selected" or nil)
+            row:Show()
+        else
+            row:Hide()
+        end
+    end
+    if not masterLoot.entry then
+        hideMasterMembers()
+        masterLoot:Hide()
+        return
+    end
+    local mayEdit = (not ns.mayEdit or ns.mayEdit()) and true or false
+    ns.setEnabled(masterRoll, mayEdit)
+    ns.setEnabled(masterGive, mayEdit)
+    ns.setEnabled(masterLater, mayEdit)
+    ns.setEnabled(masterDE, mayEdit)
+    ns.setEnabled(masterBank, mayEdit)
+end
+
+local function chooseMasterRecipient(mode)
+    if not masterLoot.entry then return end
+    masterMembers.mode = mode
+    masterMembers.caption:SetText(mode == "later" and L["Who keeps it until the roll?"] or L["Who gets the item?"])
+    drawMasterMembers()
+    for _, control in ipairs(masterControls) do control:Hide() end
+    masterMembers:Show()
+end
+
+masterRoll:SetScript("OnClick", function()
+    if masterLoot.entry then core.select(masterLoot.entry); core.startRoll(false) end
+end)
+masterGive:SetScript("OnClick", function()
+    if not masterLoot.entry then return end
+    core.select(masterLoot.entry)
+    if masterLoot.entry.winner then roster.giveSelected(masterLoot.entry.winner.name)
+    else chooseMasterRecipient("give") end
+end)
+masterLater:SetScript("OnClick", function() chooseMasterRecipient("later") end)
+masterDE:SetScript("OnClick", function()
+    if masterLoot.entry then core.select(masterLoot.entry); roster.giveAwaySelected("disenchanted") end
+end)
+masterBank:SetScript("OnClick", function()
+    if masterLoot.entry then core.select(masterLoot.entry); roster.giveAwaySelected("bank") end
+end)
+
+ui.refreshMasterLoot = function()
+    if masterLoot:IsShown() then drawMasterLoot() end
+end
+ui.showMasterLoot = function()
+    if not core.isMasterLooter() then return end
+    drawMasterLoot()
+    if masterLoot.entry then masterLoot:Show() end
+end
+ui.hideMasterLoot = function()
+    hideMasterMembers()
+    masterLoot:Hide()
+end
+
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 events:SetScript("OnEvent", function()
     if ForgeTestBridge and ForgeTestBridge.RegisterFrame then
-        -- The standard master-loot menu opens on a right click. Plan `click`
-        -- steps have no mouse-button argument, so this bridge-only control
-        -- sends that exact click without changing normal player interaction.
-        local lootMenuClick = CreateFrame("Button", "RaidLedgerLootMenuClick", UIParent)
-        lootMenuClick:SetSize(1, 1)
-        lootMenuClick:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
-        lootMenuClick:SetAlpha(0)
-        lootMenuClick:SetScript("OnClick", function()
-            if LootButton1 and LootButton_OnClick then LootButton_OnClick(LootButton1, "LeftButton") end
-        end)
-        ForgeTestBridge:RegisterFrame("LootButton1", lootMenuClick)
-        ForgeTestBridge:RegisterFrame("RaidLedgerLootMenuClick", lootMenuClick)
+        ForgeTestBridge:RegisterFrame("RaidLedgerMasterLoot", masterLoot)
+        ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootMembers", masterMembers)
+        ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootRoll", masterRoll)
+        ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootGive", masterGive)
+        ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootLater", masterLater)
+        ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootDisenchant", masterDE)
+        ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootBank", masterBank)
+        for row = 1, 4 do ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootItem" .. row, masterRows[row]) end
+        for row = 1, 5 do ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootMember1_" .. row, masterMembers.cells[1][row]) end
         ForgeTestBridge:RegisterFrame("RaidLedgerItem", itemTitle)
         ForgeTestBridge:RegisterFrame("RaidLedgerRollDetail", stateLine)
         ForgeTestBridge:RegisterFrame("RaidLedgerRollHeading", itemPane.heading)
