@@ -436,6 +436,15 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   remove the creature and the party.
   *IMPLEMENTED (live): `loot_scenario.py`, `agent_scenarios/loot_roll_test.go`;
   `test_loot_scenario.py` (20 tests)*
+- **FR-10.15** The corpse that `master_loot` (and `boe_loot`) hands to the plan
+  MUST hold no item at or above the master-loot threshold (uncommon) other
+  than the fixture's item, so a plan's roll always lands on that item. The
+  fixture's bot opens the corpse's loot before the client does; a corpse with
+  another such drop is removed and a new creature killed, at most 8 times,
+  after which the fixture fails as an infrastructure error.
+  *NOT IMPLEMENTED: decided 2026-10-26 (release of RaidWishlist 2.3.0 refused
+  when Crimson Templar also dropped Essence of Fire, 7078, and RaidLedger
+  rolled that instead)*
 - **FR-10.2** `master_loot` MUST revive the graphical and member characters
   before and after the kill, and confirm that the corpse is gone from the
   world.

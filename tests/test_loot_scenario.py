@@ -259,3 +259,12 @@ def test_fixture_peer_says_only_safe_text(tmp_path):
         with pytest.raises(ValueError):
             peer.say(bad)
     assert not (tmp_path / "cmd-002.json").exists()
+
+
+def test_fixture_plan_says_the_corpse_holds_only_the_fixture_item():
+    # FR-10.15: the preview names the re-kill, and no limitation still promises
+    # a random uncommon extra.
+    for plan in (loot_scenario.fixture_plan(), loot_scenario.fixture_plan(boe=True)):
+        text = " ".join(plan["changes"])
+        assert "at most 8 kills" in text
+        assert "uncommon or better" not in " ".join(plan["limitations"])
