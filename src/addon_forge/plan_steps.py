@@ -176,7 +176,7 @@ def run_steps(steps: list[dict], pid: int, *, rpc=None, sleep=time.sleep, peer=N
               screenshot=None, pids: dict | None = None, press_click=None) -> list[dict]:
     """Run steps in order; stop at the first one the client did not perform.
 
-    `peer` is the master_loot fixture's bot (peer_roll, peer_trade); `screenshot`
+    `peer` is the master_loot fixture's bot (peer_roll, peer_trade, peer_say); `screenshot`
     saves a client window under a name and returns the file path; `press_click`
     sends the hardware_click chord to a client's window. In a
     two-player plan `pids` maps "member" to the second client's process, and a
@@ -221,11 +221,13 @@ def run_steps(steps: list[dict], pid: int, *, rpc=None, sleep=time.sleep, peer=N
                     result = _hardware_click(value, lua, press, sleep)
                 except (OSError, RuntimeError) as exc:
                     result = f"key_press_failed:{exc}"
-        elif kind in ("peer_roll", "peer_trade"):
+        elif kind in ("peer_roll", "peer_trade", "peer_say"):
             if peer is None:
                 result = "no_fixture_peer"
             elif kind == "peer_roll":
                 result = peer.roll(*value)
+            elif kind == "peer_say":
+                result = peer.say(*value)
             else:
                 result = _trade_to_peer(value, peer, lua, sleep)
         else:

@@ -247,16 +247,19 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **FR-5.3** The system MUST support at most 20 steps with at most 180 s of
   waiting in total: `slash`, `roll` and `peer_roll` (1 <= low <= high <= 10000),
   `wait` (0-60 s), `click`, `hardware_click`, `paste` (registered edit box,
-  1-1000 printable ASCII characters without `|`), `screenshot` and
-  `peer_trade` (item ID).
-  *IMPLEMENTED: `test_agent_workflow.py::test_steps_are_strictly_validated`,
+  1-1000 printable ASCII characters without `|`), `screenshot`,
+  `peer_trade` (item ID) and `peer_say` (`[text]` or `[text, item ID]`; the
+  text is 1-60 characters, starts with a letter and holds only letters,
+  digits, spaces and `, . : ! ? ' -`).
+  *IMPLEMENTED except `peer_say` (NOT IMPLEMENTED, decided 2026-10-26):
+  `test_agent_workflow.py::test_steps_are_strictly_validated`,
   `::test_peer_and_screenshot_steps_are_validated`,
   `::test_companions_and_paste_steps_are_validated`,
   `::test_hardware_click_steps_are_validated`*
 - **FR-5.4** The system MUST support the fixtures `master_loot`, `raid_lead`
   and `boe_loot`. `raid_lead` and `boe_loot` MUST require `master_loot`.
   Fixtures and steps MUST require the bridge observer, and fixtures MUST
-  require `peers` = 0, except the planned `party` fixture (FR-10.11). `peer_roll` and `peer_trade` MUST require
+  require `peers` = 0, except the planned `party` fixture (FR-10.11). `peer_roll`, `peer_trade` and `peer_say` MUST require
   `master_loot`.
   *IMPLEMENTED: `test_agent_workflow.py::test_raid_lead_fixture_extends_master_loot`,
   `::test_boe_loot_fixture_extends_master_loot`*
@@ -447,6 +450,13 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   *IMPLEMENTED (live, runs `b2b299f6e36e`, `b1b2079d8755`):
   `test_agent_workflow.py::test_peer_trade_runs_the_trade_handshake_in_order`,
   `test_loot_scenario.py::test_fixture_peer_waits_until_the_bot_listens`*
+- **FR-10.14** `peer_say` MUST make the fixture bot say the step's text in
+  party chat, followed by a link to the item when the step names one. The bot
+  builds the link from the realm's item data (fixed read-only query) and
+  reports `unknown_item` for an item the realm lacks. The text never reaches
+  the server as a command (SECURITY.md SC-014), so addons can be tested
+  against roll announcements in chat (RaidWishlist FR-RW-002).
+  *NOT IMPLEMENTED: decided 2026-10-26*
 - **FR-10.5** A plan with `peers` = 1-4 MUST run that many AzerothGhost
   protocol peers only while the client suite runs. `agent party-lifecycle`
   MUST check the client before and after the peers leave.

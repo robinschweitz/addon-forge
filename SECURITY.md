@@ -254,7 +254,12 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
 - **Rule:** Realm changes MUST come only from the named, reviewed Go tests in
   `agent_scenarios/` or the upstream smoke tests (FR-10.6). GM commands and
   SQL live in those tests, never in plans or agent input. The bot obeys only
-  the fixed command-file actions (`roll`, `open_trade`, `accept_trade`).
+  the fixed command-file actions (`roll`, `open_trade`, `accept_trade`,
+  `say`). `say` text MUST start with a letter and hold only letters, digits,
+  spaces and `, . : ! ? ' -` (1-60 characters), checked by the plan schema and
+  again by the bot, and MUST go only to party chat, so it can never be a GM
+  command (`.` or `!`), a slash command or an escape sequence (T-026); the
+  item link is built by the bot, never taken from the plan.
   Fixture logs MUST redact passwords; soft passes MUST be disabled.
   Fixtures use the MySQL `root` account of the loopback realm (accepted risk,
   OD-003). Plans MUST

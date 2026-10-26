@@ -170,6 +170,14 @@ evidence, and the gaps. Controls are in [SECURITY.md](SECURITY.md) (`SC-`,
 - Controls: planned SC-023 (digest pins).
 - Status: PARTIAL (not built).
 
+**T-026 - Plan text spoken by the GM bot runs as a command** (Elevation of privilege, Tampering)
+- Threat: the fixture bot has GM rights. A `peer_say` text that the server
+  read as a command (`.`/`!` prefix) would let a plan change the realm, and a
+  `|` escape could forge links or textures in the client.
+- Controls: SC-014 (text starts with a letter, fixed character set and
+  length, checked twice; party chat only; the bot builds item links).
+- Status: PLANNED (FR-10.14 not built).
+
 ### TB-7 Human approval
 
 See T-001.
@@ -238,7 +246,7 @@ See T-001.
 | TB-3 Forge -> client | - | T-007, T-008 | - | T-007 | - | - |
 | TB-4 SDK -> Forge | T-010 | T-009, T-010 | - | - | - | T-009 |
 | TB-5 Report -> Forge | - | T-011, T-012, T-013 | T-013 | - | T-011 | - |
-| TB-6 Forge -> realm | - | T-015, T-016, T-018, T-019 | - | T-014 | T-015 | T-014, T-017, T-018 |
+| TB-6 Forge -> realm | - | T-015, T-016, T-018, T-019, T-026 | - | T-014 | T-015 | T-014, T-017, T-018, T-026 |
 | TB-7 Approval | T-001 | - | - | - | - | T-001 |
 | TB-8 Other addons | - | T-020 | - | - | - | - |
 | Raid runtime | T-021, T-022 | T-021, T-022 | - | - | - | - |
