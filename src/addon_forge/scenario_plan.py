@@ -51,7 +51,10 @@ MAX_COMPANIONS = 3
 # data, not code: each type maps to one fixed, validated SDK action.
 SLASH = re.compile(r"/[a-z][a-z0-9]{1,19}(?: [A-Za-z0-9 _-]{1,60})?\Z")
 MAX_STEPS, MAX_WAIT_TOTAL = 20, 180
-PEER_STEPS = {"peer_roll", "peer_trade"}
+PEER_STEPS = {"peer_roll", "peer_trade", "peer_say"}
+# peer_say text is spoken by a GM bot (SC-014, T-026): it starts with a letter,
+# so it is never a GM (. !) or slash command, and holds no '|' escape.
+SAY_TEXT = re.compile(r"[A-Za-z][A-Za-z0-9 ,.:!?'-]{0,59}\Z")
 
 
 def _step(item: dict) -> dict:
@@ -68,6 +71,13 @@ def _step(item: dict) -> dict:
     elif kind == "peer_trade":
         if type(value) is not int or not 1 <= value <= 999999:
             raise ValueError("peer_trade step value must be the item ID to trade to the fixture's bot")
+    elif kind == "peer_say":
+        if (not isinstance(value, list) or not 1 <= len(value) <= 2 or not isinstance(value[0], str)
+                or not SAY_TEXT.fullmatch(value[0])
+                or len(value) == 2 and (type(value[1]) is not int or not 1 <= value[1] <= 999999)):
+            raise ValueError("peer_say step value must be [\"text\"] or [\"text\", itemID]; the text is "
+                             "1-60 characters, starts with a letter and holds only letters, digits, spaces "
+                             "and , . : ! ? ' -")
     elif kind == "paste":
         if (not isinstance(value, list) or len(value) != 2 or not isinstance(value[0], str)
                 or not NAME.fullmatch(value[0]) or not isinstance(value[1], str)):
@@ -87,7 +97,7 @@ def _step(item: dict) -> dict:
             raise ValueError(f"{kind} step value must be a frame name registered with ForgeTestBridge")
     else:
         raise ValueError(f"Unsupported step {kind!r}; use slash, roll, wait, click, hardware_click, paste, "
-                         "screenshot, peer_roll or peer_trade")
+                         "screenshot, peer_roll, peer_trade or peer_say")
     return {"type": kind, "value": value}
 
 
@@ -183,7 +193,7 @@ def validate_plan(data: dict) -> dict:
         step = _step(item)
         if client == "member":
             if step["type"] in PEER_STEPS:
-                raise ValueError("peer_roll and peer_trade act for the main client only")
+                raise ValueError("peer_roll, peer_trade and peer_say act for the main client only")
             step["client"] = "member"
         parsed.append(step)
     steps = parsed
@@ -192,7 +202,7 @@ def validate_plan(data: dict) -> dict:
     if steps and observer != "bridge":
         raise ValueError("Steps run with the bridge observer")
     if any(s["type"] in PEER_STEPS for s in steps) and "master_loot" not in fixtures:
-        raise ValueError("peer_roll and peer_trade steps drive the master_loot fixture's bot; "
+        raise ValueError("peer_roll, peer_trade and peer_say steps drive the master_loot fixture's bot; "
                          "add \"fixtures\": [\"master_loot\"]")
     companions = data.get("companions", [])
     if (not isinstance(companions, list) or len(companions) > MAX_COMPANIONS

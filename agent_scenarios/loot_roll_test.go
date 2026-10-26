@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -195,6 +196,51 @@ type peerCommand struct {
 	Action string `json:"action"`
 	Min    uint32 `json:"min"`
 	Max    uint32 `json:"max"`
+	Text   string `json:"text"`
+	Item   uint32 `json:"item"`
+}
+
+// sayText is the only text the GM bot may speak for peer_say (SC-014, T-026):
+// it starts with a letter, so it is never a GM (. !) or slash command, and it
+// holds no '|' escape. Forge checks the same rule before it writes the command.
+var sayText = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9 ,.:!?'-]{0,59}$`)
+
+// qualityColors are the 3.3.5a item quality colors (ITEM_QUALITY_COLORS).
+var qualityColors = []string{"9d9d9d", "ffffff", "1eff00", "0070dd", "a335ee", "ff8000", "e6cc80", "e6cc80"}
+
+// itemLink builds a client item link from realm item data, or "" when the
+// data could break the link.
+func itemLink(entry uint32, name string, quality int) string {
+	if entry == 0 || name == "" || strings.ContainsAny(name, "|[]") || quality < 0 || quality >= len(qualityColors) {
+		return ""
+	}
+	return fmt.Sprintf("|cff%s|Hitem:%d:0:0:0:0:0:0:0:0|h[%s]|h|r", qualityColors[quality], entry, name)
+}
+
+// sayMessage checks the plan's text and appends the bot-built link.
+func sayMessage(text, link string) (string, error) {
+	if !sayText.MatchString(text) {
+		return "", fmt.Errorf("text not allowed")
+	}
+	if link == "" {
+		return text, nil
+	}
+	return text + " " + link, nil
+}
+
+// linkForItem reads the item's name and quality with a fixed read-only query.
+func linkForItem(entry uint32) string {
+	db, err := e2eharness.OpenWorldDB()
+	if err != nil {
+		return ""
+	}
+	defer db.Close()
+	var name string
+	var quality int
+	if err := db.QueryRow("SELECT name, Quality FROM item_template WHERE entry = ?", entry).Scan(&name, &quality); err != nil {
+		return ""
+	}
+	return itemLink(entry, name, quality)
 }
 
 // runPeerCommand performs one fixed bot action and returns "ok" or a short
@@ -231,6 +277,23 @@ func runPeerCommand(bot *e2eharness.ScenarioBot, data []byte, armed func()) stri
 		}
 		if !waitStatus(statuses, client.TradeStatusOpenWindow, 5*time.Second) {
 			return "no_open_window"
+		}
+		return "ok"
+	case "say":
+		link := ""
+		if cmd.Item != 0 {
+			if link = linkForItem(cmd.Item); link == "" {
+				return "unknown_item"
+			}
+		}
+		message, err := sayMessage(cmd.Text, link)
+		if err != nil {
+			return "bad_text"
+		}
+		// The fixture's bot is a Human (RaceHuman above), so it speaks Common;
+		// party chat only, never say, yell or a channel.
+		if err := bot.World.SendChatMessage(client.ChatMsgParty, client.LangCommon, message); err != nil {
+			return "send_failed"
 		}
 		return "ok"
 	case "accept_trade":
