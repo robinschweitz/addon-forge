@@ -630,8 +630,9 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   `forge.local.toml`, and commit it there, and MUST NOT push. The commit goes
   on a new branch `release/<Addon>-<version>` cut from `origin/main`, in a
   separate worktree, so the user's checkout is left as it is. The copy is the
-  `.toc`, the files it lists and the addon's `README.md`; files of the old
-  version that the new `.toc` no longer lists are removed.
+  `.toc`, the files it lists, the addon's `README.md` and its `LICENSE`
+  (license text must travel with a GPL addon; added 2026-10-26); files of
+  the old version that the new `.toc` no longer lists are removed.
   *IMPLEMENTED (live: RaidWishlist 2.1.0, 2026-10-24, five plans passed, robinschweitz/wow-addons#7 and robinschweitz/raid-website#153): `release.py::release`; `test_release.py::test_every_plan_passes_then_both_repositories_get_a_branch_and_a_commit`*
 - **FR-15.2** `forge release` MUST run every acceptance plan of the addon
   itself, as live sessions on exactly the files being released (it needs

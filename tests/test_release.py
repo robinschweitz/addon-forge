@@ -109,6 +109,13 @@ def test_released_files_are_the_toc_its_files_and_the_readme(tmp_path):
     assert release.release_files(addon) == ["Core.lua", "Demo.toc", "README.md"]
 
 
+def test_a_license_file_is_released_with_the_addon(tmp_path):
+    # FR-15.1: a GPL addon's license text travels with every released copy.
+    addon = make_addon(tmp_path)
+    (addon / "LICENSE").write_text("GPL-2.0-only", encoding="utf-8")
+    assert release.release_files(addon) == ["Core.lua", "Demo.toc", "LICENSE", "README.md"]
+
+
 def test_preview_changes_nothing_and_starts_no_client(tmp_path):
     addon, addons, website = setup(tmp_path)
     sessions = Sessions()
