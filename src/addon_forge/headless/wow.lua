@@ -481,8 +481,20 @@ function FontString:SetFontObject(obj) state[self].fontObject = obj end
 function FontString:GetFontObject() return state[self].fontObject end
 function FontString:SetTextColor(r, g, b, a) state[self].color = { r, g, b, a or 1 } end
 function FontString:GetTextColor() local c = state[self].color or { 1, 1, 1, 1 }; return c[1], c[2], c[3], c[4] end
-function FontString:SetJustifyH(v) state[self].justifyH = v end
-function FontString:SetJustifyV(v) state[self].justifyV = v end
+-- Client StringToJustify: names match case-insensitively; a new string is
+-- CENTER/MIDDLE (style flags 0x212). Script_SetJustifyH/V error on others.
+local justifyNames = { LEFT = "H", CENTER = "H", RIGHT = "H", TOP = "V", MIDDLE = "V", BOTTOM = "V" }
+local function setJustify(self, axis, v)
+    local name = type(v) == "string" and v:upper()
+    if not (name and justifyNames[name]) then
+        error(("Usage: %s:SetJustify%s(\"justify\")"):format(state[self].name or "<unnamed>", axis), 3)
+    end
+    state[self]["justify" .. axis] = justifyNames[name] == axis and name or "UNKNOWN"
+end
+function FontString:SetJustifyH(v) setJustify(self, "H", v) end
+function FontString:SetJustifyV(v) setJustify(self, "V", v) end
+function FontString:GetJustifyH() return state[self].justifyH or "CENTER" end
+function FontString:GetJustifyV() return state[self].justifyV or "MIDDLE" end
 function FontString:SetShadowColor() end
 function FontString:SetShadowOffset() end
 function FontString:SetNonSpaceWrap() end

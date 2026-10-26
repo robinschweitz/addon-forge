@@ -252,6 +252,12 @@ Fixed in the emulator:
   `CreateFontString(nil, "OVERLAY")` with no template or `SetFontObject`). A
   plain `Button` has no font string until its first non-empty `SetText`
   (`GetFontString()` is nil); `EditBox:SetText(nil)` is a usage error.
+- **Justification** (`Script_GetJustifyH`/`V`, `StringToJustify`): a new
+  FontString reads `CENTER`/`MIDDLE` (style flags 0x212); `SetJustifyH("left")`
+  reads back `"LEFT"`; an unknown name is a usage error. A FontString anchored
+  on both sides centers its text unless `SetJustifyH("LEFT")`, so a spec can
+  now assert `fs:GetJustifyH()`. Not modelled: justification inherited from a
+  font object.
 - **Event dispatch** (`FrameScript_SignalEvent`): listeners run in registration
   order; a frame registered during a dispatch waits for the next signal (this
   already matched); a frame **unregistered** during the dispatch is skipped for
