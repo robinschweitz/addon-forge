@@ -176,7 +176,7 @@ deRollButton:SetPoint("BOTTOMRIGHT", raidBar, "BOTTOMRIGHT", -8, 6)
 local picker = CreateFrame("Frame", "RaidLedgerMembers", panel)
 picker:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 0, 146)
 picker:SetPoint("RIGHT", panel, "RIGHT", 0, 0)
-picker:SetHeight(148)
+picker:SetHeight(118)
 picker:SetFrameLevel(panel:GetFrameLevel() + 20)
 ns.makeBackdrop(picker, 0.025, 0.052, 0.078, 0.99)
 picker:EnableMouse(true)
@@ -217,11 +217,12 @@ ns.onResize(function(width, height)
     for g = 1, 5 do
         local x = 11 + (g - 1) * (cellWidth + 4)
         picker.headings[g]:ClearAllPoints()
-        picker.headings[g]:SetPoint("TOPLEFT", picker, "TOPLEFT", x + 2, -26)
+        picker.headings[g]:SetPoint("TOPLEFT", picker, "TOPLEFT", x + 2, -22)
         for row, cell in ipairs(picker.cells[g]) do
             cell:SetWidth(cellWidth)
+            cell:SetHeight(15)
             cell:ClearAllPoints()
-            cell:SetPoint("TOPLEFT", picker, "TOPLEFT", x, -39 - (row - 1) * 20)
+            cell:SetPoint("TOPLEFT", picker, "TOPLEFT", x, -34 - (row - 1) * 16)
         end
     end
 end)
@@ -731,6 +732,18 @@ local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 events:SetScript("OnEvent", function()
     if ForgeTestBridge and ForgeTestBridge.RegisterFrame then
+        -- The standard master-loot menu opens on a right click. Plan `click`
+        -- steps have no mouse-button argument, so this bridge-only control
+        -- sends that exact click without changing normal player interaction.
+        local lootMenuClick = CreateFrame("Button", "RaidLedgerLootMenuClick", UIParent)
+        lootMenuClick:SetSize(1, 1)
+        lootMenuClick:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
+        lootMenuClick:SetAlpha(0)
+        lootMenuClick:SetScript("OnClick", function()
+            if LootButton1 and LootButton_OnClick then LootButton_OnClick(LootButton1, "LeftButton") end
+        end)
+        ForgeTestBridge:RegisterFrame("LootButton1", lootMenuClick)
+        ForgeTestBridge:RegisterFrame("RaidLedgerLootMenuClick", lootMenuClick)
         ForgeTestBridge:RegisterFrame("RaidLedgerItem", itemTitle)
         ForgeTestBridge:RegisterFrame("RaidLedgerRollDetail", stateLine)
         ForgeTestBridge:RegisterFrame("RaidLedgerRollHeading", itemPane.heading)

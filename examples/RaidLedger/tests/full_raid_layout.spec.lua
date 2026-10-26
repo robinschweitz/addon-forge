@@ -80,6 +80,7 @@ test("ALLE shows every member in five raid-group columns; a click picks the reci
     expect("RaidLedgerMembers").toBeShown()
     for g = 1, 5 do expect(forge.findText("GRUPPE " .. g)).toBeTruthy() end
     for _, name in ipairs(NAMES) do expect(forge.findText(name)).toBeTruthy() end
+    expect(forge.rect("RaidLedgerMembers").height).toBe(118) -- FR-RL-014: compact overlay
     -- Column of group 3 holds members 11-15, top to bottom.
     local top = forge.rect(forge.findText(NAMES[11])).top
     expect(forge.rect(forge.findText(NAMES[15])).top < top).toBe(true)
