@@ -3,24 +3,88 @@
   "addon": "RaidWishlist",
   "character": "Test",
   "peers": 0,
-  "fixtures": ["master_loot"],
+  "fixtures": [
+    "master_loot"
+  ],
   "steps": [
-    { "type": "slash", "value": "/wish" },
-    { "type": "click", "value": "RaidWishlistImportOpen" },
-    { "type": "paste", "value": ["RaidWishlistImportText", "WL2;Test;1792130003;0\n40347;ms;0;1;Chat test"] },
-    { "type": "click", "value": "RaidWishlistImportButton" },
-    { "type": "slash", "value": "/wish auto off" },
-    { "type": "slash", "value": "/wish remind all" },
-    { "type": "peer_say", "value": ["roll", 40347] },
-    { "type": "wait", "value": 2 },
-    { "type": "screenshot", "value": "chat_prompt" }
+    {
+      "type": "slash",
+      "value": "/wish"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistImportOpen"
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidWishlistImportText",
+        "WL2;Test;1792130003;0\n40347;ms;0;1;Chat test"
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistImportButton"
+    },
+    {
+      "type": "slash",
+      "value": "/wish auto off"
+    },
+    {
+      "type": "slash",
+      "value": "/wish remind on"
+    },
+    {
+      "type": "slash",
+      "value": "/wish remind all"
+    },
+    {
+      "type": "peer_say",
+      "value": [
+        "roll",
+        40347
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 2
+    },
+    {
+      "type": "screenshot",
+      "value": "chat_prompt"
+    }
   ],
   "checks": [
-    { "type": "event_fired", "value": "CHAT_MSG_PARTY" },
-    { "type": "chat_contains", "value": "item:40347" },
-    { "type": "global_equals", "path": "RaidWishlistDB.chars.Test.items.1.itemID", "value": 40347 },
-    { "type": "global_equals", "path": "RaidWishlistDB.chars.Test.reminderAll", "value": true },
-    { "type": "frame_visible", "value": "RaidWishlistPrompt" },
-    { "type": "no_lua_errors", "value": true }
+    {
+      "type": "event_fired",
+      "value": "CHAT_MSG_PARTY"
+    },
+    {
+      "type": "chat_contains",
+      "value": "item:40347"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidWishlistDB.chars.Test.items.1.itemID",
+      "value": 40347
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidWishlistDB.chars.Test.reminderOn",
+      "value": true
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidWishlistDB.chars.Test.reminderAll",
+      "value": true
+    },
+    {
+      "type": "frame_visible",
+      "value": "RaidWishlistPrompt"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
   ]
 }

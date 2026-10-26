@@ -828,8 +828,12 @@ reminderHint:SetPoint("RIGHT", settingsPanel, "RIGHT", -12, 0)
 reminderHint:SetWordWrap(true)
 reminderHint:SetJustifyH("LEFT")
 reminderHint:SetText(L["A reminder needs a wishlisted item link and a keyword."])
+-- Off by default (user decision 2026-10-26): chat only opens prompts once
+-- the player switches the reminder on.
+local reminderOn = flatButton(settingsPanel, "RaidWishlistReminderOn", "", 180, 24)
+reminderOn:SetPoint("TOPLEFT", settingsPanel, "TOPLEFT", 12, -184)
 local reminderAll = flatButton(settingsPanel, "RaidWishlistReminderAll", "", 180, 24)
-reminderAll:SetPoint("TOPLEFT", settingsPanel, "TOPLEFT", 12, -184)
+reminderAll:SetPoint("LEFT", reminderOn, "RIGHT", 8, 0)
 local reminderKeywordsLabel = label(settingsPanel, "GameFontNormalSmall", 10, "soft")
 reminderKeywordsLabel:SetPoint("TOPLEFT", settingsPanel, "TOPLEFT", 12, -222)
 reminderKeywordsLabel:SetText(L["Keywords (comma-separated)"])
@@ -962,7 +966,7 @@ end
 -- Roll prompt: one click rolls the wishlisted spec and points.
 local Prompt = CreateFrame("Frame", "RaidWishlistPrompt", UIParent)
 Prompt:SetWidth(340)
-Prompt:SetHeight(104)
+Prompt:SetHeight(106)
 -- At the top of the screen, above the raid lead's RaidLedger window
 -- (live run 638949e7b728 showed the prompt covering its panes).
 Prompt:SetPoint("TOP", UIParent, "TOP", 0, -20)
@@ -991,10 +995,13 @@ promptNote:SetPoint("TOPRIGHT", promptItem, "BOTTOMRIGHT", 0, -4)
 promptNote:SetJustifyH("LEFT")
 promptNote:SetWordWrap(false)
 
-local rollButton = flatButton(Prompt, "RaidWishlistRoll", L["ROLL"], 170, 26)
-rollButton:SetPoint("BOTTOMLEFT", Prompt, "BOTTOMLEFT", 12, 10)
+-- The buttons fill the row with the same 12 px margin on the left, right and
+-- bottom (raider screenshot 2026-10-26: they sat left with empty space right).
 local skipButton = flatButton(Prompt, "RaidWishlistSkip", L["SKIP"], 80, 26)
-skipButton:SetPoint("LEFT", rollButton, "RIGHT", 8, 0)
+skipButton:SetPoint("BOTTOMRIGHT", Prompt, "BOTTOMRIGHT", -12, 12)
+local rollButton = flatButton(Prompt, "RaidWishlistRoll", L["ROLL"], 170, 26)
+rollButton:SetPoint("BOTTOMLEFT", Prompt, "BOTTOMLEFT", 12, 12)
+rollButton:SetPoint("RIGHT", skipButton, "LEFT", -8, 0)
 
 ---------------------------------------------------------------------------
 -- Refresh
@@ -1331,8 +1338,11 @@ local function deleteEditor()
 end
 
 function settings.updateReminderButton()
+    reminderOn:SetText(settings.draft.reminderOn and L["CHAT REMINDER: ON"] or L["CHAT REMINDER: OFF"])
+    local color = settings.draft.reminderOn and palette.buttonOn or palette.button
+    reminderOn:SetBackdropColor(color[1], color[2], color[3], 0.98)
     reminderAll:SetText(settings.draft.reminderAll and L["All group members"] or L["Only the master looter"])
-    local color = settings.draft.reminderAll and palette.buttonOn or palette.button
+    color = settings.draft.reminderAll and palette.buttonOn or palette.button
     reminderAll:SetBackdropColor(color[1], color[2], color[3], 0.98)
 end
 
@@ -1342,6 +1352,7 @@ function settings.show()
     -- never lowers it.
     settings.draft.points = tostring(currentBalance(char))
     settings.draft.reminderAll = char.reminderAll
+    settings.draft.reminderOn = char.reminderOn
     editorPoints:SetText(settings.draft.points)
     reminderKeywordsBox:SetText(reminderKeywords(char))
     settingsStatus:SetText("")
@@ -1378,6 +1389,7 @@ function settings.save()
     -- Unchanged points keep the wins counted since the last balance.
     if tostring(points) ~= settings.draft.points then settings.setBalance(char, points) end
     char.reminderAll = settings.draft.reminderAll
+    char.reminderOn = settings.draft.reminderOn
     char.reminderKeywords = table.concat(words, ",")
     settings.close()
     refresh()
@@ -1559,7 +1571,7 @@ local function onChatReminder(message, sender)
     -- (parked items, BoE winners, counted rolls) are no roll to join.
     if string.find(message, "^%[Loot%]") then return end
     local _, char = ensureDatabase()
-    if not matchingReminderKeyword(message, char) then return end
+    if not char.reminderOn or not matchingReminderKeyword(message, char) then return end
     if not char.reminderAll and not isMasterLooter(sender) then return end
     for id in string.gmatch(message, "|Hitem:(%d+):") do
         local entry = findWish(tonumber(id))
@@ -1743,6 +1755,10 @@ editorCancel:SetScript("OnClick", function()
 end)
 settingsOpen:SetScript("OnClick", settings.show)
 editorSettingsOpen:SetScript("OnClick", settings.show)
+reminderOn:SetScript("OnClick", function()
+    settings.draft.reminderOn = not settings.draft.reminderOn or nil
+    settings.updateReminderButton()
+end)
 reminderAll:SetScript("OnClick", function()
     settings.draft.reminderAll = not settings.draft.reminderAll or nil
     settings.updateReminderButton()
@@ -1930,6 +1946,7 @@ Wishlist:SetScript("OnEvent", function(self, event, ...)
             ForgeTestBridge:RegisterFrame("RaidWishlistEditorDelete", editorDelete)
             ForgeTestBridge:RegisterFrame("RaidWishlistSettingsFromEditor", editorSettingsOpen)
             ForgeTestBridge:RegisterFrame("RaidWishlistReminderKeywords", reminderKeywordsBox)
+            ForgeTestBridge:RegisterFrame("RaidWishlistReminderOn", reminderOn)
             ForgeTestBridge:RegisterFrame("RaidWishlistReminderAll", reminderAll)
             ForgeTestBridge:RegisterFrame("RaidWishlistReminderSave", reminderSave)
             ForgeTestBridge:RegisterFrame("RaidWishlistReminderCancel", reminderCancel)
@@ -2007,6 +2024,7 @@ local HELP = {
     L["/wish minimap on|off - show or hide the minimap button"],
     L["/wish color [reset] - pick the window color, or go back to the default"],
     L["/wish share on|off - show your wishlist to the raid lead's ledger (on by default)"],
+    L["/wish remind on|off - open the roll prompt for chat announcements (off by default)"],
     L["/wish remind all|master - chat roll reminders from all group members or only the master looter"],
     L["/wish scale <percent> - make the window smaller or larger; drag its lower right corner to resize it"],
     L["/wish reset - the window back to the middle, normal size and scale"],
@@ -2031,6 +2049,10 @@ SlashCmdList["RAIDWISHLIST"] = function(message)
         say(rest == "on" and L["your wishlist is shared with the raid lead's ledger."]
             or L["your wishlist is no longer shared."])
         if rest == "on" then shareAt = GetTime() + 1 end
+    elseif command == "remind" and (rest == "on" or rest == "off") then
+        local _, char = ensureDatabase()
+        char.reminderOn = rest == "on" or nil
+        say(rest == "on" and L["chat roll reminders are on."] or L["chat roll reminders are off."])
     elseif command == "remind" and (rest == "all" or rest == "master") then
         -- Sets, never toggles: a repeated command (or plan step) keeps the state.
         local _, char = ensureDatabase()
