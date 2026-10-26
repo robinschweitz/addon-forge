@@ -171,6 +171,7 @@ private. `/wish share off` stops sharing; `/wish share on` starts it again.
 | `/wish auto on` / `off` | Roll automatically / show the roll prompt |
 | `/wish sync` | Ask the raid lead's ledger for this raid's awards |
 | `/wish share on` / `off` | Share your wishlist with the raid lead's ledger (on by default) |
+| `/wish remind all` / `master` | Chat roll reminders from all group members / only the master looter (default) |
 | `/wish minimap on` / `off` | Show / hide the minimap button |
 | `/wish color` / `color reset` | Pick the window color / back to the default |
 | `/wish scale <percent>` | Window scale, 60-150% |

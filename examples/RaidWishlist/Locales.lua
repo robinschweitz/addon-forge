@@ -166,6 +166,10 @@ L["minimap button hidden; /wish minimap on brings it back."] = "Minimap-Knopf au
 -- Sharing the wishlist
 L["/wish share on|off - show your wishlist to the raid lead's ledger (on by default)"] =
     "/wish share on|off - Wunschliste der Raidleitung zeigen (Standard: an)"
+L["/wish remind all|master - chat roll reminders from all group members or only the master looter"] =
+    "/wish remind all|master - Chat-Würfel-Erinnerung von allen Gruppenmitgliedern oder nur vom Plündermeister"
+L["chat roll reminders: all group members."] = "Chat-Würfel-Erinnerung: alle Gruppenmitglieder."
+L["chat roll reminders: only the master looter."] = "Chat-Würfel-Erinnerung: nur der Plündermeister."
 L["your wishlist is shared with the raid lead's ledger."] = "deine Wunschliste wird mit dem Buch der Raidleitung geteilt."
 L["your wishlist is no longer shared."] = "deine Wunschliste wird nicht mehr geteilt."
 L["window scale: %d%%."] = "Fensterskalierung: %d%%."

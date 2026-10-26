@@ -89,3 +89,13 @@ test("changing an entry's item ID replaces it; an ID already listed is refused",
     expect(db().chars.Tester.items[1].itemID).toBe(20515)
     expect(forge.layoutIssues("RaidWishlistEditorPanel")).toEqual({})
 end)
+
+test("/wish remind all|master sets the sender mode, also when repeated", function()
+    forge.slash("/wish remind all")
+    forge.slash("/wish remind all")
+    expect(db().chars.Tester.reminderAll).toBe(true)
+    forge.slash("/wish remind master")
+    forge.slash("/wish remind master")
+    expect(db().chars.Tester.reminderAll).toBe(nil)
+    expect(forge.chat()).toContain("RaidWishlist: chat roll reminders: only the master looter.")
+end)

@@ -14,7 +14,7 @@
 ### FR-RW-002 - Chat roll reminder
 - **Status:** Implemented
 - **Source:** User decision, 2026-10-24.
-- **Statement:** RaidWishlist MUST optionally show its existing roll prompt when a raid or party chat message from the master looter contains both a wishlisted item link and one configured reminder keyword. The default keywords are `roll` and `würfel`; players MAY change them and MAY allow all group senders instead of only the master looter.
+- **Statement:** RaidWishlist MUST optionally show its existing roll prompt when a raid or party chat message from the master looter contains both a wishlisted item link and one configured reminder keyword. The default keywords are `roll` and `würfel`; players MAY change them and MAY allow all group senders instead of only the master looter. `/wish remind all` and `/wish remind master` MUST set the sender mode directly (the same setting as the settings page), so a repeated command or plan step leaves the same state.
 - **Rationale:** A raid can announce rolls through chat or a different loot addon instead of RaidLedger.
 - **Assumptions:** An external addon announces the item in a normal raid or party chat message. RaidWishlist cannot infer a roll window from an item link without a configured keyword.
 - **Out of scope:** Parsing proprietary messages from other loot addons, deciding winners, and detecting a roll without an item link.

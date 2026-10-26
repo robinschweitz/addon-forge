@@ -2007,6 +2007,7 @@ local HELP = {
     L["/wish minimap on|off - show or hide the minimap button"],
     L["/wish color [reset] - pick the window color, or go back to the default"],
     L["/wish share on|off - show your wishlist to the raid lead's ledger (on by default)"],
+    L["/wish remind all|master - chat roll reminders from all group members or only the master looter"],
     L["/wish scale <percent> - make the window smaller or larger; drag its lower right corner to resize it"],
     L["/wish reset - the window back to the middle, normal size and scale"],
 }
@@ -2030,6 +2031,12 @@ SlashCmdList["RAIDWISHLIST"] = function(message)
         say(rest == "on" and L["your wishlist is shared with the raid lead's ledger."]
             or L["your wishlist is no longer shared."])
         if rest == "on" then shareAt = GetTime() + 1 end
+    elseif command == "remind" and (rest == "all" or rest == "master") then
+        -- Sets, never toggles: a repeated command (or plan step) keeps the state.
+        local _, char = ensureDatabase()
+        char.reminderAll = rest == "all" or nil
+        say(rest == "all" and L["chat roll reminders: all group members."]
+            or L["chat roll reminders: only the master looter."])
     elseif command == "minimap" and (rest == "on" or rest == "off") then
         setMinimapButton(rest == "on")
     elseif command == "color" or command == "colour" then
