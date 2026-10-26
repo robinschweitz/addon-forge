@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "addon": "RaidWishlist",
+  "character": "Test",
+  "peers": 0,
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/wish import"
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidWishlistImportText",
+        "WL2;Test;1792130001;0"
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistImportButton"
+    },
+    {
+      "type": "slash",
+      "value": "/wish edit"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistSettingsFromEditor"
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidWishlistEditorPoints",
+        "37"
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistEditorPointsSave"
+    },
+    {
+      "type": "slash",
+      "value": "/wish edit"
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidWishlistCatalogueSearch",
+        "Cuffs of Dark"
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistCatalogueFilter"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistCatalogueR2"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistCatalogueQuality"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistCatalogueQ2"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistCatalogueGo"
+    },
+    {
+      "type": "screenshot",
+      "value": "catalogue_results"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistCatalogue1"
+    },
+    {
+      "type": "screenshot",
+      "value": "catalogue_selected"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistEditorOS"
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidWishlistEditorNote",
+        "catalogue"
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistEditorSave"
+    }
+  ],
+  "checks": [
+    {
+      "type": "global_equals",
+      "path": "RaidWishlistDB.chars.Test.items.1.itemID",
+      "value": 39247
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidWishlistDB.chars.Test.items.1.spec",
+      "value": "os"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidWishlistDB.chars.Test.items.1.note",
+      "value": "catalogue"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidWishlistDB.chars.Test.balance",
+      "value": 37
+    },
+    {
+      "type": "frame_visible",
+      "value": "RaidWishlistWish1"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "addon": "RaidWishlist",
+  "character": "Test",
+  "peers": 0,
+  "steps": [
+    { "type": "slash", "value": "/wish import" },
+    { "type": "paste", "value": ["RaidWishlistImportText", "WL2;Test;1792130002;70"] },
+    { "type": "click", "value": "RaidWishlistImportButton" },
+    { "type": "slash", "value": "/wish edit" },
+    { "type": "paste", "value": ["RaidWishlistEditorItem", "20513"] },
+    { "type": "click", "value": "RaidWishlistEditorSave" },
+    { "type": "slash", "value": "/wish edit" },
+    { "type": "paste", "value": ["RaidWishlistEditorItem", "39247"] },
+    { "type": "click", "value": "RaidWishlistEditorSave" },
+    { "type": "click", "value": "RaidWishlistWish1" },
+    { "type": "paste", "value": ["RaidWishlistEditorItem", "40347"] },
+    { "type": "click", "value": "RaidWishlistEditorSave" },
+    { "type": "screenshot", "value": "edited_list" },
+    { "type": "click", "value": "RaidWishlistSettingsOpen" },
+    { "type": "screenshot", "value": "settings_balance_70" },
+    { "type": "click", "value": "RaidWishlistReminderSave" }
+  ],
+  "checks": [
+    { "type": "global_equals", "path": "RaidWishlistDB.chars.Test.items.1.itemID", "value": 40347 },
+    { "type": "global_equals", "path": "RaidWishlistDB.chars.Test.items.2.itemID", "value": 39247 },
+    { "type": "global_equals", "path": "RaidWishlistDB.chars.Test.items.3.itemID", "value": null },
+    { "type": "global_equals", "path": "RaidWishlistDB.chars.Test.balance", "value": 70 },
+    { "type": "frame_visible", "value": "RaidWishlistWish1" },
+    { "type": "no_lua_errors", "value": true }
+  ]
+}

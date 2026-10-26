@@ -64,3 +64,31 @@ test("a deleted award gives the points back; a new export resets the count", fun
     expect(forge.findText("MS 31-130")).toBeTruthy()
     expect(#forge.errors()).toBe(0)
 end)
+
+-- awardAt shares an award with its own time (the emulator's clock is 2010).
+local function awardAt(id, rev, at, low, high)
+    receive(table.concat({ "A", "Lead-1792131000", "Lead", id, rev, at, 30000, "",
+        "Tester", "given", 1, "ms", low + 40, low, high, "Tester", 1, "", "21:0" .. id }, ";"))
+end
+
+test("editing an item refunds nothing; set points are not charged for older wins", function()
+    import("WL2;Tester;1281000000;70\n20513;ms;1;1;")
+    awardAt(10, 1, 1281010000, 51, 150)
+    expect(forge.findText("MS 21-120")).toBeTruthy()      -- 70 - 50 = 20 left
+
+    -- A wishlist edit is a new list version, not a new balance.
+    forge.click("RaidWishlistWish1")
+    forge.click("RaidWishlistEditorSave")
+    awardAt(10, 2, 1281010000, 51, 150)
+    expect(forge.findText("MS 21-120")).toBeTruthy()
+
+    -- Typed points are the balance from now on; older wins are already in it.
+    forge.click("RaidWishlistSettingsOpen")
+    forge.frame("RaidWishlistEditorPoints"):SetText("40")
+    forge.click("RaidWishlistEditorPointsSave")
+    forge.click("RaidWishlistReminderCancel")
+    expect(forge.findText("MS 41-140")).toBeTruthy()
+    awardAt(10, 3, 1281010000, 51, 150)
+    expect(forge.findText("MS 41-140")).toBeTruthy()
+    expect(#forge.errors()).toBe(0)
+end)
