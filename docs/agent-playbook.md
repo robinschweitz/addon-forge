@@ -443,8 +443,8 @@ Not changed (checked, or unclear):
   otherwise satisfy the checks. Two more plans cover the bot:
   `RaidLedger-peer-acceptance.json` (the bot wins; run `b2b299f6e36e`) and
   `RaidLedger-trade-acceptance.json` (held item traded to the bot; run
-  `b1b2079d8755`). Still offline only: ties, CLEAR, trades between other
-  players. RS2 uses `;` because `|` starts EditBox escapes (`|T`, `|c`); the
+  `b1b2079d8755`; removed on 2026-10-26 with trade tracking, RaidLedger
+  FR-RL-003). Still offline only: ties, CLEAR. RS2 uses `;` because `|` starts EditBox escapes (`|T`, `|c`); the
   `;` export renders cleanly in the live screenshot.
 - RaidLedger 1.2 (MS/OS rolls, points, item tally, announcements,
   tooltips, shared ledger) passed all three plans live on 2026-10-16: main

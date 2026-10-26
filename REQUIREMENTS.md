@@ -643,7 +643,9 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **FR-14.5** RaidLedger and RaidWishlist MUST be the first addons with
   requirements files, holding every loot rule the user chose, each covered by
   an offline spec.
-  *NOT IMPLEMENTED: decided 2026-10-20*
+  *NOT IMPLEMENTED: decided 2026-10-20. `examples/RaidWishlist-requirements.md`
+  exists; `examples/RaidLedger-requirements.md` was started on 2026-10-26 with
+  the raid-feedback rules only (FR-RL-001 to FR-RL-005)*
 - **FR-14.6** An addon's requirements file MUST list each addon message kind
   and import format the addon accepts. `forge check` MUST fail when one of
   them lacks an offline spec for a malformed input or one for an unauthorized
