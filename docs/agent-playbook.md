@@ -95,6 +95,13 @@ guild (README "Releasing an addon", REQUIREMENTS.md FR-15):
   and truncates long single-line text. `SetMaxLines` does not exist.
   With `forge api dump` taken, the offline emulator fails exactly like the
   client on a missing method.
+- **`InputBoxTemplate` draws its left border 5 px left of the edit box.** A
+  box anchored at a label's x sticks out to the left (RaidWishlist settings
+  screenshot, 2026-10-26); place it 5 px further in. A `FontString` anchored
+  on both sides centers its text unless `SetJustifyH("LEFT")`. The offline
+  emulator models neither the template's border textures nor
+  `FontString:GetJustifyH`, so `forge.layoutIssues` cannot see either: look
+  at the live screenshot.
 - **Localized GlobalStrings use positional specifiers.** deDE
   `RANDOM_ROLL_RESULT` is `%1$s würfelt. Ergebnis: %2$d (%3$d-%4$d)`. Strip
   `%n$` before turning a format string into a Lua pattern, or `%1` becomes an
