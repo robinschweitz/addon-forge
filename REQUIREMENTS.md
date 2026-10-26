@@ -251,8 +251,9 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   `peer_trade` (item ID) and `peer_say` (`[text]` or `[text, item ID]`; the
   text is 1-60 characters, starts with a letter and holds only letters,
   digits, spaces and `, . : ! ? ' -`).
-  *IMPLEMENTED except `peer_say` (NOT IMPLEMENTED, decided 2026-10-26):
+  *IMPLEMENTED (`peer_say` live: session `d26c83592992`, bridge run `4b80e79fb9ad`, 2026-10-26):
   `test_agent_workflow.py::test_steps_are_strictly_validated`,
+  `::test_peer_say_steps_are_validated`,
   `::test_peer_and_screenshot_steps_are_validated`,
   `::test_companions_and_paste_steps_are_validated`,
   `::test_hardware_click_steps_are_validated`*
@@ -456,7 +457,11 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   reports `unknown_item` for an item the realm lacks. The text never reaches
   the server as a command (SECURITY.md SC-014), so addons can be tested
   against roll announcements in chat (RaidWishlist FR-RW-002).
-  *NOT IMPLEMENTED: decided 2026-10-26*
+  *IMPLEMENTED (live, session `d26c83592992`, bridge run `4b80e79fb9ad`, 2026-10-26: the bot's party line arrived as
+  `roll |cffa335ee|Hitem:40347:...` and opened RaidWishlist's prompt):
+  `test_agent_workflow.py::test_peer_say_makes_the_fixture_bot_speak`,
+  `test_loot_scenario.py::test_fixture_peer_says_only_safe_text`,
+  `agent_scenarios/say_test.go::TestSayTextIsNeverACommand`*
 - **FR-10.5** A plan with `peers` = 1-4 MUST run that many AzerothGhost
   protocol peers only while the client suite runs. `agent party-lifecycle`
   MUST check the client before and after the peers leave.

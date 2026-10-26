@@ -176,7 +176,9 @@ evidence, and the gaps. Controls are in [SECURITY.md](SECURITY.md) (`SC-`,
   `|` escape could forge links or textures in the client.
 - Controls: SC-014 (text starts with a letter, fixed character set and
   length, checked twice; party chat only; the bot builds item links).
-- Status: PLANNED (FR-10.14 not built).
+- Status: MITIGATED (FR-10.14; `test_agent_workflow.py::test_peer_say_steps_are_validated`,
+  `test_loot_scenario.py::test_fixture_peer_says_only_safe_text`,
+  `agent_scenarios/say_test.go::TestSayTextIsNeverACommand`).
 
 ### TB-7 Human approval
 
