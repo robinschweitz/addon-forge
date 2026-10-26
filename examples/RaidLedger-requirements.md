@@ -70,3 +70,31 @@ them here is open work (REQUIREMENTS.md FR-14.5).
 - **Statement:** VERGABEN MUST NOT offer PARK, DE or BANK. A selected award offers: counts as main spec / off spec / nothing, change recipient, ZURÜCK IN BEUTE (the award becomes an open item with its current holder, to be rolled or handed out again in BEUTE), and remove or restore.
 - **Acceptance criteria:** Given a recorded award, when ZURÜCK IN BEUTE is pressed, then it leaves VERGABEN and BEUTE lists it under OPEN ITEMS with its holder. VERGABEN has no PARK, DE or BANK button.
 - **Evidence:** `examples/RaidLedger/tests/loot_steps_deDE.spec.lua::FR-RL-009 VERGABEN only corrects: no park, DE or bank button`; `examples/RaidLedger/tests/open_items.spec.lua::a recorded award goes back to BEUTE with whoever holds it`; sketch `RaidLedger-awards-corrections.svg` checked. Live sessions `9573c7100628` and `40ee72c1dd54` (bridge run `7e19ef65f757`, plan `RaidWishlist-open`): ZURÜCK IN BEUTE made the award open again and the item was rolled or handed out from BEUTE, with no Lua errors.
+
+### FR-RL-010 - Rolls are announced as raid warnings
+- **Status:** Implemented (offline)
+- **Source:** User decision, 2026-10-26 ("die Rolls immer über Raidwarnung, damit die Leute es besser mitbekommen").
+- **Statement:** In a raid where the player is leader or assistant, the start of every roll (item roll, free BoE roll, later roll, disenchanter roll) and every tie-break MUST be sent as a raid warning (`RAID_WARNING`). Reminders, winners and awards stay in raid chat. Without the right to send raid warnings, or in a party, the announcement goes to raid or party chat as before.
+- **Acceptance criteria:** Given a raid assistant, when a roll starts, then its announcement is sent as `RAID_WARNING`. Given a plain raid member who may start rolls (editor list), then it is sent to `RAID`. Given a party, then to `PARTY`.
+- **Evidence:** `examples/RaidLedger/tests/loot_steps_deDE.spec.lua::FR-RL-010 an assistant announces roll starts and tie-breaks as raid warnings`, `::FR-RL-010 a raid member without rank announces in raid chat`. Offline only: the live fixture forms a party, not a raid.
+
+### FR-RL-011 - The disenchanter can be chosen by hand
+- **Status:** Implemented (offline)
+- **Source:** User decision, 2026-10-26.
+- **Statement:** Besides the roll (FR-RL-005), an editor MUST be able to set the raid's disenchanter by hand: WÄHLEN in the raid bar opens the raid list, and a click on a name makes that player the disenchanter (also `/ledger de <name>`). It is announced and shared like a rolled disenchanter.
+- **Acceptance criteria:** Given the raid bar, when WÄHLEN is pressed and Bob is clicked, then Bob is the disenchanter, the bar says so, the raid hears it, and DE gives items to Bob.
+- **Evidence:** `examples/RaidLedger/tests/loot_steps_deDE.spec.lua::FR-RL-011 WÄHLEN makes a raid member the disenchanter without a roll` (also `/ledger de`). Offline only.
+
+### FR-RL-012 - SPÄTER WÜRFELN instead of PARKEN
+- **Status:** Verified Live
+- **Source:** User decision, 2026-10-26 ("Parken ist verwirrend und steht manchmal mehr im Weg"). Both uses stay: items such as crafting materials are given straight from the boss without a roll, and unique items are handed to a raider to be rolled later.
+- **Statement:** PARKEN MUST be renamed SPÄTER WÜRFELN and sit in step 1 (beside WÜRFELN), since it postpones the roll; step 2 holds only hand-outs (give to a name, ENTZAUBERN, GILDENBANK). SPÄTER WÜRFELN hands the item to the name in the box, or keeps it with the master looter. Giving an item without a roll stays possible with the give button.
+- **Acceptance criteria:** Given an item, then step 1 shows WÜRFELN and SPÄTER WÜRFELN, and step 2 shows no park button. Given a name in the box, when SPÄTER WÜRFELN is pressed, then the item becomes an open item held by that player.
+- **Evidence:** `examples/RaidLedger/tests/loot_steps_deDE.spec.lua::FR-RL-012 SPÄTER WÜRFELN sits in step 1 and hands the item to the name in the box`. Live session `c8feceeb768e` (bridge run `65fabb3603e5`, plan `RaidLedger-open-in-loot`): SPÄTER WÜRFELN (`RaidLedgerPark`) made the item open with Test; `step-open_selected.png` shows it in step 1 beside WÜRFELN.
+
+### FR-RL-013 - A tidy window
+- **Status:** Verified Live
+- **Source:** User feedback, 2026-10-26 (screenshots after the raid: texts running over boxes, misaligned boxes, large gaps, cut texts).
+- **Statement:** In every tab, controls in one column MUST share their left and right edges (rows of buttons and boxes end at the same x), section headings of a pane MUST start at the same x, and help texts MUST wrap instead of being cut. This holds at the default size and when the window grows. DESIGN.md readability rules apply.
+- **Acceptance criteria:** Given BEUTE at 760x480 and wider, then both rows of step 2 end at the same x, and step 1's buttons start where step 2's do. Given SPIELER, then the correction help text is shown in full. Given EINSTELLUNGEN and RAID, then their section headings start at the same x. `forge.layoutIssues` finds nothing on a German client with full data.
+- **Evidence:** `examples/RaidLedger/tests/loot_steps_deDE.spec.lua::FR-RL-013 the steps share one grid, at the default size and wider` (edges compared with `forge.rect`, sketches `RaidLedger-steps-grid.svg` and `-steps-grid-wide.svg` checked). The headings of EINSTELLUNGEN and RAID start at x = 12 in the code; the sketches draw labels without a fixed width centred in an over-estimated box, which looked like misalignment. The SPIELER hint wraps in the client (two lines); sketches do not wrap. ASSUMPTION until a live screenshot of those tabs. Live: `step-open_selected.png` of session `c8feceeb768e` shows both steps starting and ending at the same x in the client.

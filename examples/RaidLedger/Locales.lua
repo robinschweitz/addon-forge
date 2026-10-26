@@ -518,3 +518,14 @@ L["Open: %s holds it. Next: roll it, or hand it out below."] = "Offen: %s hat es
 L["BACK TO LOOT"] = "ZURÜCK IN BEUTE"
 L["Back to BEUTE as an open item with whoever holds it: roll it again or hand it out there"] =
     "Zurück in BEUTE als offenes Item bei dem, der es hat: dort neu würfeln oder anders vergeben"
+
+-- Raid feedback 2026-10-26, second pass: later roll, chosen disenchanter
+L["LATER ROLL"] = "SPÄTER WÜRFELN"
+L["CHOOSE"] = "WÄHLEN"
+L["Roll it later: the name in the box (or you) keeps it until then, e.g. a unique item"] =
+    "Später würfeln: der Name im Feld (oder du) behält es bis dahin, z. B. ein Unique-Item"
+L["Choose the raid's disenchanter from the raid, without a roll"] = "Den Entzauberer des Raids aus dem Raid wählen, ohne Wurf"
+L["[Loot] %s is the disenchanter for this raid."] = "[Loot] %s ist der Entzauberer dieses Raids."
+L["usage: /ledger de <name>"] = "Aufruf: /ledger de <Name>"
+L["/ledger de <name> - make <name> the raid's disenchanter without a roll"] =
+    "/ledger de <Name> - <Name> ohne Wurf zum Entzauberer des Raids machen"

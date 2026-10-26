@@ -93,9 +93,11 @@ local function say(text)
 end
 
 -- announce goes to raid chat in a raid, party chat in a party, else local chat.
-local function announce(text)
+-- announce sends to raid or party chat; with `warning` (the start of a roll
+-- or tie-break, FR-RL-010) as a raid warning when the player may send one.
+local function announce(text, warning)
     if GetNumRaidMembers() and GetNumRaidMembers() > 0 then
-        SendChatMessage(text, "RAID")
+        SendChatMessage(text, (warning and (IsRaidLeader() or IsRaidOfficer())) and "RAID_WARNING" or "RAID")
     elseif GetNumPartyMembers() and GetNumPartyMembers() > 0 then
         SendChatMessage(text, "PARTY")
     else
@@ -1199,15 +1201,15 @@ local function startSelectedRoll(free)
     entry.reminders = reminders(seconds)
     entry.rollKey = nil
     if entry.disenchanter then
-        announce(string.format(L["[Loot] Disenchanter roll: /rnd 100 now, %d seconds. The winner disenchants this raid's unwanted items."], seconds))
+        announce(string.format(L["[Loot] Disenchanter roll: /rnd 100 now, %d seconds. The winner disenchants this raid's unwanted items."], seconds), true)
         ui.status(string.format(L["%d-second disenchanter roll started."], seconds))
     elseif free then
         -- Not shared: wishlists only prompt for main- and off-spec rolls.
-        announce(string.format(L["[Loot] %s - free BoE roll for any character! /rnd 100, %d seconds."], entry.item, seconds))
+        announce(string.format(L["[Loot] %s - free BoE roll for any character! /rnd 100, %d seconds."], entry.item, seconds), true)
         ui.status(string.format(L["%d-second free BoE roll started."], seconds))
     else
         announce(string.format(L["[Loot] %s - /rnd now! %d seconds. /rnd 100 main spec (enhanced: 1+X to 100+X, X up to 50), /rnd 99 off spec."],
-            entry.item, seconds))
+            entry.item, seconds), true)
         shareRollStart(entry, seconds)
         ui.status(string.format(L["%d-second raid roll started."], seconds))
     end
@@ -1312,7 +1314,7 @@ function roster.tieBreak(entry, tied, value)
     entry.startedAt = GetTime()
     entry.reminders = reminders(seconds)
     announce(string.format(L["[Loot] %s - tie between %s (%d)! %s: /rnd again, %d seconds."],
-        entry.item, joinNames(tied), value, table.concat(tied, ", "), seconds))
+        entry.item, joinNames(tied), value, table.concat(tied, ", "), seconds), true)
     shareRollStart(entry, seconds, tied)
 end
 
@@ -1645,6 +1647,22 @@ function roster.endDisenchanterRoll(entry, best)
     ui.status(string.format(L["%s disenchants this raid: DE gives items to them."], best.name))
     if groupChannel() then queue(table.concat({ "D", currentSession(), field(best.name) }, ";")) end
     ui.refresh()
+end
+
+-- roster.setDisenchanter chooses the raid's disenchanter by hand (FR-RL-011).
+function roster.setDisenchanter(name)
+    if roster.denied() then return false end
+    name = trim(name)
+    if name == "" or string.find(name, "[%s;|]") or string.len(name) > 24 then
+        say(L["usage: /ledger de <name>"])
+        return false
+    end
+    ensureDatabase().disenchanter = field(name)
+    announce(string.format(L["[Loot] %s is the disenchanter for this raid."], name))
+    ui.status(string.format(L["%s disenchants this raid: DE gives items to them."], name))
+    if groupChannel() then queue(table.concat({ "D", currentSession(), field(name) }, ";")) end
+    ui.refresh()
+    return true
 end
 
 function roster.applyDisenchanter(f, sender)
@@ -2120,6 +2138,7 @@ local HELP = {
     L["/ledger count <name> ms|os|none|enh <0-50> - change how a roll on the selected item counts"],
     L["/ledger tally - items per player this raid (main spec / off spec)"],
     L["/ledger deroll - roll the raid's disenchanter (/rnd 100); DE then gives items to them"],
+    L["/ledger de <name> - make <name> the raid's disenchanter without a roll"],
     L["/ledger raid <id> - set the website raid ID"],
     L["/ledger export - show the website export"],
     L["/ledger sync - ask the group's other ledgers for this raid's awards"],
@@ -2144,6 +2163,8 @@ SlashCmdList["RAIDLEDGER"] = function(message)
         startFreeRoll()
     elseif command == "deroll" then
         roster.startDisenchanterRoll()
+    elseif command == "de" then
+        roster.setDisenchanter(rest)
     elseif command == "pass" then
         local name = rest:match("^(%S+)$")
         if name then roster.apply(name, "pass") else say(L["usage: /ledger pass <name>"]) end

@@ -11,7 +11,8 @@ local core, ui = ns.core, ns.ui
 local roster = core.roster
 local LEFT_WIDTH = 288
 local ROLLS_TOP, ROLLS_BELOW = 128, 116   -- the roll list sits between step 1 and step 2
-local RAID_BAR = 34                          -- the disenchanter bar below the loot list
+local RAID_BAR = 56                          -- the disenchanter bar below the loot list
+local PAD, GAP = 12, 6                       -- the detail pane's inner margin and button gap
 
 local panel = CreateFrame("Frame", "RaidLedgerLootTab")
 local itemOffset, rollOffset = 0, 0
@@ -61,15 +62,19 @@ local function stepLabel(text, ...)
     return step
 end
 
--- Step 1: roll.
-stepLabel(L["1  ROLL"], "TOPLEFT", detail, "TOPLEFT", 12, -66)
+-- Step 1: roll now, roll later (SPÄTER WÜRFELN, FR-RL-012), or a free BoE
+-- roll. Both steps share one grid: their rows start and end at the same x
+-- (FR-RL-013); layoutButtons sizes it to the pane.
+stepLabel(L["1  ROLL"], "TOPLEFT", detail, "TOPLEFT", PAD, -68)
 local startButton = ns.flatButton(detail, L["ROLL"], 130, "RaidLedgerStart")
-startButton:SetPoint("TOPLEFT", detail, "TOPLEFT", 12, -80)
+startButton:SetPoint("TOPLEFT", detail, "TOPLEFT", PAD, -82)
+local parkButton = ns.flatButton(detail, L["LATER ROLL"], 130, "RaidLedgerPark")
+parkButton:SetPoint("LEFT", startButton, "RIGHT", GAP, 0)
 local freeButton = ns.flatButton(detail, L["FREE BOE ROLL"], 130, "RaidLedgerFreeRoll")
-freeButton:SetPoint("LEFT", startButton, "RIGHT", 6, 0)
+freeButton:SetPoint("LEFT", parkButton, "RIGHT", GAP, 0)
 
 local rollHeading = ns.label(detail, "GameFontNormalSmall", 9, {0.55, 0.72, 0.80})
-rollHeading:SetPoint("TOPLEFT", detail, "TOPLEFT", 14, -114)
+rollHeading:SetPoint("TOPLEFT", detail, "TOPLEFT", PAD + 2, -114)
 local soFarHeading = ns.label(detail, "GameFontNormalSmall", 9, {0.55, 0.72, 0.80})
 soFarHeading:SetPoint("TOPRIGHT", detail, "TOPRIGHT", -54, -114)
 soFarHeading:SetText(L["SO FAR"])
@@ -79,20 +84,23 @@ rollValueHeading:SetText(L["RESULT"])
 
 local rollRows = ns.rowList(function(i)
     local row = ns.listRow(detail, 0, { 30, 40 }, "RaidLedgerRollLine" .. i)
-    row:SetPoint("TOPLEFT", detail, "TOPLEFT", 10, -ROLLS_TOP - (i - 1) * ns.ROW_HEIGHT)
-    row:SetPoint("RIGHT", detail, "RIGHT", -10, 0)
+    row:SetPoint("TOPLEFT", detail, "TOPLEFT", PAD, -ROLLS_TOP - (i - 1) * ns.ROW_HEIGHT)
+    row:SetPoint("RIGHT", detail, "RIGHT", -PAD, 0)
     return row
 end)
 local noRolls = ns.label(detail, "GameFontNormalSmall", 10, {0.42, 0.61, 0.70})
-noRolls:SetPoint("TOPLEFT", detail, "TOPLEFT", 16, -ROLLS_TOP - 4)
+noRolls:SetPoint("TOPLEFT", detail, "TOPLEFT", PAD + 4, -ROLLS_TOP - 4)
 
 -- Step 2: hand out. The give button names the recipient.
-stepLabel(L["2  HAND OUT"], "TOPLEFT", detail, "BOTTOMLEFT", 12, 104)
+stepLabel(L["2  HAND OUT"], "TOPLEFT", detail, "BOTTOMLEFT", PAD, 104)
 local recipientHint = ns.label(detail, "GameFontNormalSmall", 9, {0.45, 0.60, 0.68})
 recipientHint:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", 110, 102)
+recipientHint:SetPoint("RIGHT", detail, "RIGHT", -PAD, 0)
+recipientHint:SetJustifyH("LEFT")
 recipientHint:SetText(L["click a roll or ALL, or type a name"])
+-- The edit box template draws its border 6 px left of the frame.
 local recipientBox = CreateFrame("EditBox", "RaidLedgerRecipient", detail, "InputBoxTemplate")
-recipientBox:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", 18, 84)
+recipientBox:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", PAD + 6, 84)
 recipientBox:SetWidth(132)
 recipientBox:SetHeight(22)
 recipientBox:SetAutoFocus(false)
@@ -101,34 +109,65 @@ local allButton = ns.flatButton(detail, L["ALL (%d)"], 70, "RaidLedgerAllMembers
 allButton:SetHeight(22)
 allButton:SetPoint("LEFT", recipientBox, "RIGHT", 8, 0)
 local giveButton = ns.flatButton(detail, L["GIVE TO ..."], 186, "RaidLedgerAward")
-giveButton:SetPoint("LEFT", allButton, "RIGHT", 6, 0)
+giveButton:SetHeight(22)
+giveButton:SetPoint("LEFT", allButton, "RIGHT", GAP, 0)
 
 local deButton = ns.flatButton(detail, L["DISENCHANT"], 130, "RaidLedgerDisenchant")
-deButton:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", 12, 40)
-local bankButton = ns.flatButton(detail, L["GUILD BANK"], 116, "RaidLedgerBank")
-bankButton:SetPoint("LEFT", deButton, "RIGHT", 6, 0)
-local parkButton = ns.flatButton(detail, L["PARK"], 116, "RaidLedgerPark")
-parkButton:SetPoint("LEFT", bankButton, "RIGHT", 6, 0)
+deButton:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", PAD, 40)
+local bankButton = ns.flatButton(detail, L["GUILD BANK"], 130, "RaidLedgerBank")
+bankButton:SetPoint("LEFT", deButton, "RIGHT", GAP, 0)
 for _, button in ipairs({ deButton, bankButton, parkButton }) do
     ns.makeBackdrop(button, 0.16, 0.12, 0.24, 0.98)
     button.baseColor = { 0.16, 0.12, 0.24 }
 end
 
--- The raid's disenchanter, below the loot list: rolled once per raid, not per
--- item (FR-RL-008).
+-- layoutButtons: step 1 in three equal columns, step 2 in a row that ends at
+-- the same right edge (box, ALL, give) and two equal columns below it.
+local inner = 404
+-- sizeStepOne: three columns with the free BoE roll, else two.
+local function sizeStepOne(withFree)
+    local columns = withFree and 3 or 2
+    local each = math.floor((inner - (columns - 1) * GAP) / columns)
+    startButton:SetWidth(each)
+    parkButton:SetWidth(withFree and each or inner - each - GAP)
+    freeButton:SetWidth(inner - 2 * each - 2 * GAP)
+    if withFree then freeButton:Show() else freeButton:Hide() end
+end
+
+local function layoutButtons(width)
+    -- The loot list takes 40% of any extra width (ns.sideBySide).
+    local left = LEFT_WIDTH + math.floor((width - ns.CONTENT_WIDTH) * 0.4)
+    inner = width - left - 12 - 2 * PAD
+    sizeStepOne(freeButton:IsShown())
+    local half = math.floor((inner - GAP) / 2)
+    deButton:SetWidth(half)
+    bankButton:SetWidth(inner - half - GAP)
+    local give = math.floor(inner * 0.45)
+    giveButton:SetWidth(give)
+    recipientBox:SetWidth(inner - 6 - 8 - allButton:GetWidth() - GAP - give)
+end
+
+-- The raid's disenchanter, below the loot list: rolled once per raid, or
+-- chosen by hand (FR-RL-008, FR-RL-011).
 local raidBar = CreateFrame("Frame", nil, itemPane)
-raidBar:SetPoint("BOTTOMLEFT", itemPane, "BOTTOMLEFT", 8, 6)
-raidBar:SetPoint("BOTTOMRIGHT", itemPane, "BOTTOMRIGHT", -8, 6)
-raidBar:SetHeight(RAID_BAR - 8)
+raidBar:SetPoint("BOTTOMLEFT", itemPane, "BOTTOMLEFT", 8, 8)
+raidBar:SetPoint("BOTTOMRIGHT", itemPane, "BOTTOMRIGHT", -8, 8)
+raidBar:SetHeight(RAID_BAR - 10)
 ns.makeBackdrop(raidBar, 0.03, 0.06, 0.09, 0.95)
-local deRollButton = ns.flatButton(raidBar, L["ROLL IT"], 108, "RaidLedgerDisenchanterRoll")
-deRollButton:SetHeight(18)
-deRollButton:SetPoint("RIGHT", raidBar, "RIGHT", -4, 0)
 local disenchanterText = ns.label(raidBar, "GameFontNormalSmall", 10, {0.75, 0.55, 1.00}, "RaidLedgerDisenchanterName")
-disenchanterText:SetPoint("LEFT", raidBar, "LEFT", 8, 0)
-disenchanterText:SetPoint("RIGHT", deRollButton, "LEFT", -6, 0)
+disenchanterText:SetPoint("TOPLEFT", raidBar, "TOPLEFT", 8, -7)
+disenchanterText:SetPoint("RIGHT", raidBar, "RIGHT", -8, 0)
 disenchanterText:SetJustifyH("LEFT")
 disenchanterText:SetWordWrap(false)
+-- Two equal buttons that grow with the loot list.
+local chooseDE = ns.flatButton(raidBar, L["CHOOSE"], 100, "RaidLedgerDisenchanterChoose")
+chooseDE:SetHeight(18)
+chooseDE:SetPoint("BOTTOMLEFT", raidBar, "BOTTOMLEFT", 8, 6)
+chooseDE:SetPoint("BOTTOMRIGHT", raidBar, "BOTTOM", -GAP / 2, 6)
+local deRollButton = ns.flatButton(raidBar, L["ROLL IT"], 100, "RaidLedgerDisenchanterRoll")
+deRollButton:SetHeight(18)
+deRollButton:SetPoint("BOTTOMLEFT", raidBar, "BOTTOM", GAP / 2, 6)
+deRollButton:SetPoint("BOTTOMRIGHT", raidBar, "BOTTOMRIGHT", -8, 6)
 
 ---------------------------------------------------------------------------
 -- The whole raid by group (ALLE) and the roll menu (right-click)
@@ -151,7 +190,9 @@ for g = 1, 5 do
     for row = 1, 5 do
         local cell = ns.listRow(picker, 100, nil)
         cell:SetScript("OnClick", function(self)
-            if self.fullName then recipientBox:SetText(self.fullName) end
+            -- Opened by WÄHLEN, a name becomes the disenchanter.
+            if self.fullName and picker.forDisenchanter then roster.setDisenchanter(self.fullName)
+            elseif self.fullName then recipientBox:SetText(self.fullName) end
             picker:Hide()
         end)
         picker.cells[g][row] = cell
@@ -161,7 +202,8 @@ ns.Ledger:HookScript("OnHide", function() picker:Hide() end)
 
 -- A larger window: more loot and roll rows, wider raid-group columns.
 ns.onResize(function(width, height)
-    itemRows.fit(ns.rowsFit(height, 28, RAID_BAR + 4))
+    itemRows.fit(ns.rowsFit(height, 28, RAID_BAR + 2))
+    layoutButtons(width)
     rollRows.fit(ns.rowsFit(height, ROLLS_TOP, ROLLS_BELOW))
     local cellWidth = math.floor((width - 22) / 5) - 4
     for g = 1, 5 do
@@ -414,6 +456,7 @@ local function drawRaidBar(mayEdit)
     end
     deRollButton:SetText(name and L["ROLL AGAIN"] or L["ROLL IT"])
     ns.setEnabled(deRollButton, mayEdit and not rolling)
+    ns.setEnabled(chooseDE, mayEdit and not rolling)
 end
 
 -- drawHandOut: step 2. The give button names whoever is in the box.
@@ -435,7 +478,7 @@ local function drawDetail()
     local rolling = entry and entry.endsAt and not entry.winner
     drawRaidBar(mayEdit)
     ns.setPrimary(startButton, false)
-    freeButton:Hide()
+    sizeStepOne(false)
     if entry and entry.disenchanter then
         itemTitle:SetText(entry.item)
         stateLine:SetText(rolling and string.format(L["%d rolls  |  %ds remaining"], core.activeRollCount(entry),
@@ -470,7 +513,7 @@ local function drawDetail()
         ns.setEnabled(startButton, mayEdit and not rolling)
         ns.setPrimary(startButton, mayEdit and primary == "roll")
         -- Only a bind-on-equip item can go to any character.
-        if not entry.later and (entry.free or core.isBindOnEquip(entry.item)) then freeButton:Show() end
+        sizeStepOne(not entry.later and (entry.free or core.isBindOnEquip(entry.item)) and true or false)
         ns.setEnabled(freeButton, mayEdit and not rolling)
         drawHandOut(mayEdit and not rolling, primary)
         drawRolls(entry)
@@ -634,9 +677,14 @@ giveButton:SetScript("OnClick", function() afterAction(handOut("given")) end)
 parkButton:SetScript("OnClick", function() afterAction(handOut("parked")) end)
 deButton:SetScript("OnClick", function() afterAction(handOut("disenchanted")) end)
 bankButton:SetScript("OnClick", function() afterAction(handOut("bank")) end)
-allButton:SetScript("OnClick", function()
-    if picker:IsShown() then picker:Hide() else drawPicker() picker:Show() end
-end)
+local function togglePicker(forDisenchanter)
+    if picker:IsShown() and picker.forDisenchanter == forDisenchanter then picker:Hide() return end
+    picker.forDisenchanter = forDisenchanter
+    drawPicker()
+    picker:Show()
+end
+allButton:SetScript("OnClick", function() togglePicker(false) end)
+chooseDE:SetScript("OnClick", function() togglePicker(true) end)
 clearLoot:SetScript("OnClick", function() roster.clearActive() end)
 recipientBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
 recipientBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
@@ -653,7 +701,8 @@ ns.tip(giveButton, function()
     if core.lootSlotOf(core.selectedEntry()) then return L["Give the selected item to the name in the box and record it"] end
     return L["Record the selected item for the name in the box (the loot window is closed)"]
 end)
-ns.tip(parkButton, L["Hand the item to the name in the box (or keep it) until it is rolled later"])
+ns.tip(parkButton, L["Roll it later: the name in the box (or you) keeps it until then, e.g. a unique item"])
+ns.tip(chooseDE, L["Choose the raid's disenchanter from the raid, without a roll"])
 ns.tip(deButton, function()
     local name = roster.disenchanter()
     if name then return string.format(L["Disenchant: give it to %s, this raid's disenchanter; counts for nobody"], name) end
@@ -677,6 +726,8 @@ events:SetScript("OnEvent", function()
         ForgeTestBridge:RegisterFrame("RaidLedgerFreeRoll", freeButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerDisenchant", deButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerDisenchanterRoll", deRollButton)
+        ForgeTestBridge:RegisterFrame("RaidLedgerDisenchanterChoose", chooseDE)
+        ForgeTestBridge:RegisterFrame("RaidLedgerDisenchanterName", disenchanterText)
         ForgeTestBridge:RegisterFrame("RaidLedgerBank", bankButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerAllMembers", allButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerMembers", picker)

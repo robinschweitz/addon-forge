@@ -114,3 +114,88 @@ test("FR-RL-009 VERGABEN only corrects: no park, DE or bank button", function()
     expect(db().history[3].state).toBe("parked")
     expect(forge.findText("OFFENE ITEMS (1)")).toBeTruthy()   -- BEUTE is shown again
 end)
+
+local function sentAs(prefix)
+    local last
+    for _, m in ipairs(forge.sent()) do
+        if string.find(m.message, prefix, 1, true) then last = m.chatType end
+    end
+    return last
+end
+
+test("FR-RL-010 an assistant announces roll starts and tie-breaks as raid warnings", function()
+    forge.raid({ { name = "Tester", rank = 1 }, "Schattenklinge", "Seelenfänger", "Runenwächterin", "Donnerfaust" })
+    forge.masterLoot(NAMES)
+    forge.unit("target", { name = "Templer", guid = "0xF130003B69000104", dead = true, isPlayer = false })
+    forge.openLoot({ { id = 21281 } })
+    forge.slash("/ledger start")
+    expect(sentAs("jetzt /rnd!")).toBe("RAID_WARNING")
+    forge.roll("Schattenklinge", 50)
+    forge.roll("Seelenfänger", 50)
+    forge.advance(31, 0.25)
+    expect(sentAs("Gleichstand zwischen")).toBe("RAID_WARNING")
+    forge.roll("Schattenklinge", 70)
+    forge.advance(16, 0.25)
+    expect(sentAs("gewonnen von Schattenklinge")).toBe("RAID")   -- the winner goes to raid chat
+    forge.click("RaidLedgerAward")
+    forge.closeLoot()
+end)
+
+test("FR-RL-010 a raid member without rank announces in raid chat", function()
+    forge.raid({ "Tester", "Schattenklinge", "Seelenfänger", "Runenwächterin", "Donnerfaust" })
+    forge.unit("target", { name = "Templer", guid = "0xF130003B69000105", dead = true, isPlayer = false })
+    forge.openLoot({ { id = 21281 } })
+    forge.slash("/ledger start")
+    expect(sentAs("jetzt /rnd!")).toBe("RAID")
+    forge.advance(31, 0.25)
+    forge.closeLoot()
+    forge.slash("/ledger clear")
+end)
+
+test("FR-RL-011 WÄHLEN makes a raid member the disenchanter without a roll", function()
+    forge.click("RaidLedgerDisenchanterChoose")
+    expect("RaidLedgerMembers").toBeShown()
+    forge.click(forge.findText("Donnerfaust"))
+    expect(db().disenchanter).toBe("Donnerfaust")
+    expect(forge.findText("ENTZAUBERER: Donnerfaust")).toBeTruthy()
+    expect(sentAs("Donnerfaust ist der Entzauberer dieses Raids.")).toBe("RAID")
+    expect(forge.text("RaidLedgerRecipient")).toBe("")       -- the box is left alone
+    forge.slash("/ledger de Seelenfänger")
+    expect(db().disenchanter).toBe("Seelenfänger")
+end)
+
+test("FR-RL-012 SPÄTER WÜRFELN sits in step 1 and hands the item to the name in the box", function()
+    forge.unit("target", { name = "Templer", guid = "0xF130003B69000106", dead = true, isPlayer = false })
+    forge.openLoot({ { id = 21281 } })
+    expect(forge.text("RaidLedgerPark")).toBe("SPÄTER WÜRFELN")
+    expect(forge.rect("RaidLedgerPark").top).toBe(forge.rect("RaidLedgerStart").top)
+    forge.type("RaidLedgerRecipient", "Runenwächterin")
+    forge.click("RaidLedgerPark")
+    forge.advance(0.1)
+    expect(db().history[1].state).toBe("parked")
+    expect(db().history[1].recipient).toBe("Runenwächterin")
+    forge.closeLoot()
+end)
+
+-- Both rows of step 2 end where step 1 ends; step 1 and 2 start at one x.
+local function aligned()
+    local start, de, bank, give = forge.rect("RaidLedgerStart"), forge.rect("RaidLedgerDisenchant"),
+        forge.rect("RaidLedgerBank"), forge.rect("RaidLedgerAward")
+    local right = forge.rect(forge.shown("RaidLedgerFreeRoll") and "RaidLedgerFreeRoll" or "RaidLedgerPark").right
+    expect(de.left).toBe(start.left)
+    expect(give.right).toBe(right)
+    expect(bank.right).toBe(right)
+end
+
+test("FR-RL-013 the steps share one grid, at the default size and wider", function()
+    forge.click(forge.findText(ROBE))                -- the open item: no free BoE roll
+    aligned()
+    expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
+    forge.sketch("steps-grid", "RaidLedgerFrame")
+    forge.drag("RaidLedgerResize", 200, -60)
+    forge.advance(0.1)
+    aligned()
+    expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
+    forge.sketch("steps-grid-wide", "RaidLedgerFrame")
+    forge.slash("/ledger reset")
+end)

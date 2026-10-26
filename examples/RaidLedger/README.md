@@ -24,7 +24,7 @@ none is needed.
 
 | Tab | What it is for |
 | --- | --- |
-| **BEUTE** (loot) | The loot list (this corpse's drops, then the open items held until they are rolled), the raid's **disenchanter** below it, and the selected item in two steps: **1 ROLL** (roll, free BoE roll for BoE items, every roll with what the roller has **so far**) and **2 HAND OUT** (name box, **ALL**, **GIVE TO name**, **DISENCHANT**, **GUILD BANK**, **PARK**). The button for the next step is green. |
+| **BEUTE** (loot) | The loot list (this corpse's drops, then the open items held until they are rolled), the raid's **disenchanter** below it, and the selected item in two steps: **1 ROLL** (**ROLL**, **LATER ROLL**, free BoE roll for BoE items, every roll with what the roller has **so far**) and **2 HAND OUT** (name box, **ALL**, **GIVE TO name**, **DISENCHANT**, **GUILD BANK**). The button for the next step is green. |
 | **VERGABEN** (awards) | Every award; the selected one is only corrected: **COUNTS AS** main spec / off spec / nothing, change or restore its recipient, **BACK TO LOOT**, **REMOVE**, its roll log; **EXPORT** and **NEW RAID** |
 | **SPIELER** (players' tally) | Every raid member with items and tokens per spec, the numbers the fewest-items rule ranks by; - / + corrections per player, and their awards |
 | **RAID** | Invites, raid groups, attendance, calendar event |
@@ -109,7 +109,10 @@ a quarter of the time are left (30 s: at 15 and 8 seconds). The raid's rules:
   the tied players, and may tie again.
 
 Announcements go to raid, then party, then local chat:
-"[item] won by Bob (87) - main spec 21-120, 0 items so far."
+"[item] won by Bob (87) - main spec 21-120, 0 items so far." The start of a
+roll and of a tie-break goes out as a **raid warning** when you are raid
+leader or assistant (2.7.0), so nobody misses it; reminders and winners stay
+in raid chat.
 
 ### The roll list
 
@@ -267,10 +270,11 @@ roll log.
 
 Items do not have to be rolled right away:
 
-- **PARK** (step 2) hands the selected loot to the player in
-  the recipient box, or to you when it is empty, to **hold until it is rolled**.
+- **LATER ROLL** (step 1, formerly PARK) hands the selected loot to the player
+  in the name box, or to you when it is empty, to **hold until it is rolled**.
   Use it for unique items you cannot hold twice. The raid sees "[item] is
-  parked with Bob until it is rolled."
+  parked with Bob until it is rolled." Items that need no roll at all (crafting
+  materials, for example) are given straight away with **GIVE TO**.
 - An item you take without a roll (also from the default master-loot menu) is
   open too.
 - An award can go back to the loot list: select it in VERGABEN and press
@@ -280,7 +284,7 @@ Items do not have to be rolled right away:
   **ROLL** (wishlist prompts and auto-rolls included; **GIVE TO** then writes
   the result onto the same award, the winner becomes the recipient at once
   and the holder hands it over: "Bob hands it over"), or hand it out right
-  away with GIVE TO, DISENCHANT, GUILD BANK or PARK. With an empty name box it
+  away with GIVE TO, DISENCHANT, GUILD BANK or LATER ROLL. With an empty name box it
   stays with its holder. An open roll nobody took no longer gets stuck.
 - **Items in your bags** can be rolled too: **Alt+click** the item in your bags
   (or `/ledger roll <item link or ID>`). It is recorded as held by you (or its
@@ -296,13 +300,13 @@ Items do not have to be rolled right away:
 
 ## Disenchant and guild bank
 
-Items nobody wants go to **DISENCHANT** or **GUILD BANK** (step 2, next to
-**PARK**). The award counts for nobody, is announced to the raid
+Items nobody wants go to **DISENCHANT** or **GUILD BANK** (step 2). The award counts for nobody, is announced to the raid
 ("... will be disenchanted (Bob)."), and appears in the export as
 `disenchanted` or `bank`. A wrong award goes BACK TO LOOT first.
 
-The disenchanter is rolled **once per raid** (2.7.0) from the bar below the
-loot list ("DISENCHANTER: Bob", **ROLL IT**), or `/ledger deroll`. It starts
+The disenchanter is chosen **once per raid** (2.7.0) in the bar below the
+loot list ("DISENCHANTER: Bob"): **CHOOSE** picks a raid member by hand
+(`/ledger de <name>`), **ROLL IT** rolls it (`/ledger deroll`). The roll starts
 only while no other roll runs; everyone may `/rnd 100` (other
 ranges are ignored, ties roll again), and the winner is announced as the
 raid's disenchanter and shared with the other ledgers. From then on
@@ -350,6 +354,7 @@ commands do the same:
 | `/ledger count <name> ms\|os\|none\|enh <0-50>` | Change how that player's roll counts |
 | `/ledger free` | Post the selected item again as a free BoE roll |
 | `/ledger deroll` | Roll the raid's disenchanter (`/rnd 100`); DE then gives items to them |
+| `/ledger de <name>` | Make `<name>` the raid's disenchanter without a roll |
 | `/ledger roll <link or ID>` | Roll an item from your bags (same as Alt+click on it) |
 | `/ledger calendar` | Calendar raid event from the invite list, everyone invited |
 | `/ledger minimap on` / `off` | Show / hide the minimap button |
