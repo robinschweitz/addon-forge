@@ -442,9 +442,13 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   fixture's bot opens the corpse's loot before the client does; a corpse with
   another such drop is removed and a new creature killed, at most 8 times,
   after which the fixture fails as an infrastructure error.
-  *NOT IMPLEMENTED: decided 2026-10-26 (release of RaidWishlist 2.3.0 refused
-  when Crimson Templar also dropped Essence of Fire, 7078, and RaidLedger
-  rolled that instead)*
+  *IMPLEMENTED (live: session `8e4b34c58371`, bridge run `09d7022e406c`,
+  2026-10-26; the bot checked the corpse and logged "holds only item 20513",
+  so the re-kill branch is unit-tested only):
+  `agent_scenarios/loot_check_test.go::TestOnlyTheFixtureItemReachesTheThreshold`,
+  `test_loot_scenario.py::test_fixture_plan_says_the_corpse_holds_only_the_fixture_item`.
+  Decided 2026-10-26 after the RaidWishlist 2.3.0 release refused: Crimson
+  Templar also dropped Essence of Fire (7078) and RaidLedger rolled that.*
 - **FR-10.2** `master_loot` MUST revive the graphical and member characters
   before and after the kill, and confirm that the corpse is gone from the
   world.
