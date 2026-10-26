@@ -44,14 +44,14 @@ test("after login the ledger says hello and asks who runs the addons", function(
     forge.advance(10, 0.25)
     local sent = table.concat(sentSince(0), "\n")
     expect(sent).toContain("HQ;Tester")
-    expect(sent).toContain("H;2.6.0;1")
+    expect(sent).toContain("H;2.7.0;1")
 end)
 
 test("a hello query is answered with this ledger's version", function()
     local before = #forge.addonMessages()
     receive("HQ;Alice")
     forge.advance(2, 0.25)
-    expect(table.concat(sentSince(before), "\n")).toContain("H;2.6.0;1")
+    expect(table.concat(sentSince(before), "\n")).toContain("H;2.7.0;1")
 end)
 
 test("the settings list raid members with their addons", function()
@@ -139,33 +139,3 @@ test("the editors' own list can be emptied by an editor: the old rules apply aga
     forge.closeLoot()
 end)
 
--- Group loot (need/greed) by accident in the raid of 2026-10-19: the items won
--- were missing from the ledger. One addon user records them, without a spec.
-test("an item won with group loot is recorded without a spec and counts for nobody", function()
-    -- Alice (an assistant with the addon) left: this ledger is the one to record.
-    forge.raid({ { name = "Tester", rank = 2 }, "Bob", "Cara", "Dora" })
-    forge.slash("/ledger newraid confirm")
-    forge.fire("CHAT_MSG_LOOT", "Bob won: " .. TOME)
-    local record = db().history[1]
-    expect(record.recipient).toBe("Bob")
-    expect(record.state).toBe("given")
-    expect(record.spec).toBeNil()
-    expect(record.confirmed).toBe(true)
-    forge.slash("/ledger tally")
-    expect(forge.lastChat()).toContain("no items counted this raid yet.")
-end)
-
-test("your own group-loot win is yours, not held for a trade", function()
-    forge.fire("CHAT_MSG_LOOT", "You won: " .. CREST)
-    expect(db().history[1].recipient).toBe("Tester")
-    expect(db().history[1].state).toBe("given")
-end)
-
-test("with several ledgers only the first eligible one records group loot", function()
-    forge.raid({ { name = "Tester", rank = 2 }, { name = "Alice", rank = 1 }, "Bob", "Cara", "Dora" })
-    forge.raid({ { name = "Tester", rank = 2 }, { name = "Alice", rank = 1 }, "Bob", "Cara", "Dora" })
-    forge.slash("/ledger newraid confirm")
-    receive("H;2.5.0;1", "Alice")      -- Alice is an assistant and sorts first
-    forge.fire("CHAT_MSG_LOOT", "Bob won: " .. TOME)
-    expect(#db().history).toBe(0)
-end)

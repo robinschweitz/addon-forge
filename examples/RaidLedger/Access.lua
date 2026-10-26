@@ -385,34 +385,6 @@ function ns.onMessage(f, sender)
     return true
 end
 
--- lootRecorder: of the ledgers in the group that may edit (with an empty
--- list: the leader and assistants), the first by name records group loot,
--- so two ledgers never record it twice. Without one, the first ledger does.
-function ns.isLootRecorder()
-    local eligible, everyone = {}, {}
-    local rank = {}
-    for i = 1, GetNumRaidMembers() or 0 do
-        local name, memberRank = GetRaidRosterInfo(i)
-        if name then rank[ns.lower(name)] = memberRank or 0 end
-    end
-    local party = (GetNumRaidMembers() or 0) == 0
-    for _, member in ipairs(ns.members()) do
-        local user = userOf(member.name)
-        if user and user.ledger then
-            table.insert(everyone, ns.lower(member.name))
-            local may
-            if ns.hasEditors() then may = listed(member.name)
-            elseif party then may = ns.isPlayer(member.name) and IsPartyLeader() and true or false
-            else may = (rank[ns.lower(member.name)] or 0) > 0 end
-            if may then table.insert(eligible, ns.lower(member.name)) end
-        end
-    end
-    local pool = table.getn(eligible) > 0 and eligible or everyone
-    if table.getn(pool) == 0 then return true end
-    table.sort(pool)
-    return pool[1] == ns.lower(ns.playerName())
-end
-
 nameBox:SetScript("OnEnterPressed", function(self)
     if changeEditors(self:GetText(), true) then self:SetText("") end
     self:ClearFocus()

@@ -166,19 +166,18 @@ takes passes, but no spec changes.
 - Handouts from the default master-loot menu are recorded the same way.
 - **RECORD AWARD**: without the item in a master-loot window, the award is
   recorded by hand (`MANUAL`).
-- Items you give to yourself after a roll are `HELD BY YOU` for the winner.
-  When you trade one away and the trade completes, the copy the partner won
-  (else the oldest held copy) moves to that player. Trades between other
-  players are not visible to the addon.
+- An item you give to yourself after a roll is the **winner's award at once**:
+  you hand it over, and trades are not tracked (2.7.0).
 - Each award stores the item ID, the creature ID of the corpse (the dead target,
-  or the last creature death for chests), the winner's roll and the time.
-  Reopening the same corpse does not list its items twice.
+  the dead corpse under the mouse, or the last creature death for chests), the
+  winner's roll and the time. Reopening the same corpse never lists its items
+  twice, also after hand-outs or another kill in between.
 
 Every award is announced too: "[item] goes to Bob - main spec." when the
-handout is confirmed or recorded by hand, with "(traded)" or "(corrected)"
-when a trade or a correction changes the recipient. An item you keep for
-another player's roll names the winner: "[item] goes to Bob - main spec
-(with Tester until traded)." (2.5.1; it counts in Bob's tally right away).
+handout is confirmed or recorded by hand, with "(corrected)" when a
+correction changes the recipient. An item you keep for another player's roll
+names the winner and you: "[item] goes to Bob - main spec (Tester hands it
+over)." It counts in Bob's tally right away.
 
 ## Item and token tally
 
@@ -186,8 +185,7 @@ The tally counts this raid's awards per player, separately for main spec and
 off spec, from the ledger itself: CLEAR / NEW RAID starts everyone at 0.
 Items and tokens (Weiheabzeichen) are two separate lists: item rolls rank by
 the item tally, token rolls by the token tally. Removed awards and awards
-without a roll do not count; an item you hold for the winner counts for the
-winner. Items already won in the loot list but not handed out yet count for
+without a roll do not count. Items already won in the loot list but not handed out yet count for
 their winners too, so a second roll on the same corpse ranks correctly. The
 win announcement names both counts ("1 MS / 0 OS items so far").
 `/ledger tally` lists everyone (items, then tokens), and
@@ -205,11 +203,8 @@ next winner in the box; copies nobody rolled for are announced as unwanted.
 
 ### Group loot
 
-If the group loots with need/greed instead of master loot, the items won
-("X won: [item]") are recorded too, without a spec, so they count for nobody
-until an editor sets one (VERGABEN, **COUNTS AS**, or `/ledger spec <#> ms|os`). Only one ledger in
-the group records them (the first editor by name; without editors the first
-leader or assistant running the addon).
+Items won with need/greed group loot are not recorded (2.7.0): only
+master-loot hand-outs and the ledger's own actions make awards.
 
 Hover a player (a roll, the ALL list, the tally) for their items this raid, and
 an award or a loot row for the item tooltip (plus the award and the
@@ -233,7 +228,7 @@ Every control has a tooltip.
 
 ## Shared ledger
 
-Every award and change (handout, confirmation, trade, correction, removal,
+Every award and change (handout, confirmation, correction, removal,
 spec) goes to the other RaidLedger users in the raid or party as addon
 messages, with the award's roll log. Officers therefore see the same list,
 and their corrections travel back. A ledger without awards of its own follows
@@ -268,39 +263,45 @@ Items do not have to be rolled right away:
 
 - **PARK** (next to GIVE + RECORD) hands the selected loot to the player in
   the recipient box, or to you when it is empty, to **hold until it is rolled**.
-  Use it for unique items you cannot hold twice. The award shows `OPEN` and
-  the raid sees "[item] is parked with Bob until it is rolled."
+  Use it for unique items you cannot hold twice. The raid sees "[item] is
+  parked with Bob until it is rolled."
 - An item you take without a roll (also from the default master-loot menu) is
-  open too, and trading it away parks it with the trade partner.
+  open too.
 - An award recorded otherwise can be parked afterwards: select it in
-  VERGABEN, put the holder in its recipient box, press **PARK**.
-- To roll an open item later, select it in the loot list (or its award: the
-  park button reads **ROLL**) and press **ROLL**. The
-  item joins the roll list and the roll runs as usual (wishlist prompts and
-  auto-rolls included). **RECORD AWARD** then writes the result onto the same
-  award: held by you, it waits for your trade to the winner; held by another
-  raider, the winner becomes the recipient ("Bob hands it over"), since trades
-  between other players are not visible.
+  VERGABEN, put the holder in its recipient box, press **PARK**. It then
+  leaves VERGABEN and waits in the loot list.
+- To roll an open item later, select it in the loot list and press **ROLL**.
+  The item joins the roll list and the roll runs as usual (wishlist prompts
+  and auto-rolls included). **RECORD AWARD** then writes the result onto the
+  same award: the winner becomes the recipient at once, and the holder hands
+  it over ("Bob hands it over").
 - **Items in your bags** can be rolled too: **Alt+click** the item in your bags
   (or `/ledger roll <item link or ID>`). It is recorded as held by you (or its
-  open award is used) and the roll starts at once; the winner gets it by trade.
+  open award is used) and the roll starts at once; the winner is the recipient.
   Only the master looter or the raid lead (solo: you) can start these rolls.
-- Open items stay in the **loot list**, under their own heading after the
-  loot ("OPEN ITEMS (2)"), with their holder ("with Bob"), and the list heading
-  counts them ("LOOT (5)  |  2 OPEN"), so none is forgotten after the loot
-  window closed. Select one and press **ROLL**. DE and guild-bank items are
-  handed out for good and are not listed there.
+- Open items are listed **only in the loot list** (2.7.0), under their own
+  heading after the loot ("OPEN ITEMS (2)"), with their holder ("with Bob"),
+  and the list heading counts them ("LOOT (5)  |  2 OPEN"), so none is
+  forgotten after the loot window closed. VERGABEN lists them once their roll
+  is won. DE and guild-bank items are handed out for good and are not open.
 - Open items do not count in anyone's tally. Wishlist users see them, and the
   loot still on the corpse, under **OPEN ITEMS**.
 
 ## Disenchant and guild bank
 
 Items nobody wants go to **DE** (disenchant) or **BANK** (guild bank), next to
-**PARK**. The item goes to the name in the
-recipient box (the enchanter or the bank character), or stays with you when
-the box is empty. The award counts for nobody, is announced to the raid
+**PARK**. The award counts for nobody, is announced to the raid
 ("... will be disenchanted (Bob)."), and appears in the export as
 `disenchanted` or `bank`. A selected award in VERGABEN has the same buttons.
+
+The disenchanter is rolled **once per raid** (2.7.0): **DE ROLL** (beside
+FREE BOE ROLL) or `/ledger deroll` starts it, everyone may `/rnd 100` (other
+ranges are ignored, ties roll again), and the winner is announced as the
+raid's disenchanter and shared with the other ledgers. From then on **DE**
+gives the selected item straight to the disenchanter, whatever the box holds.
+NEW RAID forgets the disenchanter. Without one, DE gives the item to the name
+in the box (the enchanter), or keeps it with you when the box is empty.
+**BANK** always uses the box (the bank character), or you.
 
 ## Members' wishlists
 
@@ -339,6 +340,7 @@ commands do the same:
 | `/ledger pass <name>` | The player passes on the selected item (or the shown award) |
 | `/ledger count <name> ms\|os\|none\|enh <0-50>` | Change how that player's roll counts |
 | `/ledger free` | Post the selected item again as a free BoE roll |
+| `/ledger deroll` | Roll the raid's disenchanter (`/rnd 100`); DE then gives items to them |
 | `/ledger roll <link or ID>` | Roll an item from your bags (same as Alt+click on it) |
 | `/ledger calendar` | Calendar raid event from the invite list, everyone invited |
 | `/ledger minimap on` / `off` | Show / hide the minimap button |
@@ -370,11 +372,12 @@ the export: enhanced rolls default to Enhanced, held items with a winner to
 the winner; parked and deleted lines are shown but never imported.
 Times are Unix seconds.
 
-States: `given` (handed out or traded by you), `held` (with the recorder),
+States: `given` (handed out by you; an item you kept for its winner is the
+winner's), `held` (kept by the recorder without a roll: open),
 `parked` (held by the recipient until it is rolled), `manual` (recorded or
 corrected by hand), `deleted` (removed; delete it on the website if it was
 imported before), `disenchanted` and `bank` (nobody's award; the recipient
-holds the item). A `held` line without a roll is still open.
+holds the item). Open `held` and `parked` lines wait for their roll.
 
 Changes from RaidSync's `RS1|LOOT`:
 

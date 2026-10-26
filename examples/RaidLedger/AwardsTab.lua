@@ -193,23 +193,27 @@ end
 ---------------------------------------------------------------------------
 -- Drawing
 ---------------------------------------------------------------------------
+-- awards: the history without its open items, which wait for their roll in
+-- the loot tab (one place for each item, raid of 2026-10-26).
+local function awards()
+    local list = {}
+    for _, record in ipairs(core.history()) do
+        if not core.isOpenAward(record) then table.insert(list, record) end
+    end
+    return list
+end
+
 local function selectedRecord()
     local record = core.editing()
-    if record and core.findRecord(record.id) == record then return record end
+    if record and core.findRecord(record.id) == record and not core.isOpenAward(record) then return record end
     core.edit(nil)
 end
 
 local function drawList()
-    local history = core.history()
+    local history = awards()
     local total = table.getn(history)
     awardOffset = math.max(0, math.min(awardOffset, total - table.getn(awardRows)))
-    local held = 0
-    for _, record in ipairs(history) do
-        if record.state == "held" and ns.isPlayer(record.recipient) then held = held + 1 end
-    end
-    -- Items you still hold for their winners: they wait for a trade.
-    list.heading:SetText((total > table.getn(awardRows) and string.format(L["AWARDS (%d, SCROLL)"], total) or string.format(L["AWARDS (%d)"], total))
-        .. (held > 0 and ("  |  " .. string.format(L["%d HELD BY YOU"], held)) or ""))
+    list.heading:SetText(total > table.getn(awardRows) and string.format(L["AWARDS (%d, SCROLL)"], total) or string.format(L["AWARDS (%d)"], total))
     local selected = selectedRecord()
     for i, row in ipairs(awardRows) do
         local record = history[i + awardOffset]
@@ -338,7 +342,7 @@ local function showView(view)
     end
 end
 
-local tab = ns.addTab("awards", function() return string.format(L["AWARDS (%d)"], table.getn(core.history())) end, panel, refresh,
+local tab = ns.addTab("awards", function() return string.format(L["AWARDS (%d)"], table.getn(awards())) end, panel, refresh,
     "RaidLedgerTabButtonAwards")
 tab.view = showView
 ns.tip(tab.button, L["Every award of this raid: change recipient or tally, remove, export for the website"])
@@ -348,7 +352,7 @@ function ns.showAward(record)
     core.edit(record)
     recipientBox:SetText(record and record.recipient or "")
     logOffset = 0
-    for i, r in ipairs(core.history()) do
+    for i, r in ipairs(awards()) do
         if r == record then awardOffset = math.max(0, i - math.floor(table.getn(awardRows) / 2)) end
     end
     ui.show("awards")

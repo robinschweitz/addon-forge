@@ -55,6 +55,10 @@ local startButton = ns.flatButton(detail, L["ROLL"], 118, "RaidLedgerStart")
 startButton:SetPoint("TOPLEFT", detail, "TOPLEFT", 12, -70)
 local freeButton = ns.flatButton(detail, L["FREE BOE ROLL"], 118, "RaidLedgerFreeRoll")
 freeButton:SetPoint("LEFT", startButton, "RIGHT", 6, 0)
+-- Once per raid: who disenchants the items nobody wants (raid of 2026-10-26).
+local deRollButton = ns.flatButton(detail, L["DE ROLL"], 82, "RaidLedgerDisenchanterRoll")
+deRollButton:SetPoint("LEFT", freeButton, "RIGHT", 6, 0)
+ns.makeBackdrop(deRollButton, 0.16, 0.12, 0.24, 0.98)
 
 local rollHeading = ns.label(detail, "GameFontNormal", 10, {1.00, 0.80, 0.32})
 rollHeading:SetPoint("TOPLEFT", detail, "TOPLEFT", 12, -104)
@@ -374,7 +378,16 @@ local function drawDetail()
     if entry then openRecord = nil end
     local mayEdit = not ns.mayEdit or ns.mayEdit()
     local rolling = entry and entry.endsAt and not entry.winner
-    if entry then
+    ns.setEnabled(deRollButton, mayEdit and not (entry and entry.disenchanter and rolling))
+    if entry and entry.disenchanter then
+        itemTitle:SetText(entry.item)
+        stateLine:SetText(rolling and string.format(L["%d rolls  |  %ds remaining"], core.activeRollCount(entry),
+            math.max(0, math.ceil(entry.endsAt - GetTime()))) or L["Not rolled yet: start the roll."])
+        startButton:SetText(L["ROLL"])
+        ns.setEnabled(startButton, mayEdit and not rolling)
+        for _, button in ipairs({ freeButton, giveButton, parkButton, deButton, bankButton }) do ns.setEnabled(button, false) end
+        drawRolls(entry)
+    elseif entry then
         local count = entry.count or 1
         itemTitle:SetText((count > 1 and (count .. "x ") or "") .. entry.item)
         local text = entryStatus(entry)
@@ -544,6 +557,7 @@ startButton:SetScript("OnClick", function()
     end
 end)
 freeButton:SetScript("OnClick", function() core.startRoll(true) end)
+deRollButton:SetScript("OnClick", function() roster.startDisenchanterRoll() end)
 giveButton:SetScript("OnClick", function() afterAction(roster.giveSelected(recipientBox:GetText())) end)
 parkButton:SetScript("OnClick", function() afterAction(roster.parkSelected(recipientBox:GetText())) end)
 deButton:SetScript("OnClick", function() afterAction(roster.giveAwaySelected("disenchanted", recipientBox:GetText())) end)
@@ -567,7 +581,16 @@ ns.tip(giveButton, function()
     return L["Record the selected item for the name in the box (the loot window is closed)"]
 end)
 ns.tip(parkButton, L["Hand the item to the name in the box (or keep it) until it is rolled later"])
-ns.tip(deButton, L["Disenchant: give it to the name in the box (or keep it); counts for nobody"])
+ns.tip(deButton, function()
+    local name = roster.disenchanter()
+    if name then return string.format(L["Disenchant: give it to %s, this raid's disenchanter; counts for nobody"], name) end
+    return L["Disenchant: give it to the name in the box (or keep it); counts for nobody"]
+end)
+ns.tip(deRollButton, function()
+    local name = roster.disenchanter()
+    return L["Roll the raid's disenchanter: everyone may /rnd 100, the winner gets every DE item"]
+        .. (name and ("\n" .. string.format(L["Now: %s"], name)) or "")
+end)
 ns.tip(bankButton, L["Guild bank: give it to the name in the box (or keep it); counts for nobody"])
 ns.tip(clearLoot, L["Empty the loot list (the awards stay)"])
 
@@ -584,6 +607,7 @@ events:SetScript("OnEvent", function()
         ForgeTestBridge:RegisterFrame("RaidLedgerStart", startButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerFreeRoll", freeButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerDisenchant", deButton)
+        ForgeTestBridge:RegisterFrame("RaidLedgerDisenchanterRoll", deRollButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerBank", bankButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerAllMembers", allButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerMembers", picker)

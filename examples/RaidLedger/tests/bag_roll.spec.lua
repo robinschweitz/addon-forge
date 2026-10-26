@@ -62,7 +62,7 @@ test("Alt+click on a bag item records it as held and starts the raid roll", func
     expect(forge.findText("1 rolls", true)).toBeTruthy()
 end)
 
-test("the winner is recorded on the same award, held until the trade", function()
+test("the winner is the recipient of the same award at once (no trade tracking)", function()
     forge.roll("Bob", 40)
     forge.advance(31, 0.25)
     expect(forge.findText("WINNER: Alice (70)")).toBeTruthy()
@@ -70,9 +70,10 @@ test("the winner is recorded on the same award, held until the trade", function(
     local record = db().history[1]
     expect(table.getn(db().history)).toBe(1)
     expect(record.winner).toBe("Alice")
-    expect(record.state).toBe("held")
+    expect(record.recipient).toBe("Alice")
+    expect(record.state).toBe("manual")
     expect(record.spec).toBe("ms")
-    expect(raidSaid("[Loot] " .. CREST .. " goes to Alice - main spec (with Tester until traded).")).toBe(true)
+    expect(raidSaid("[Loot] " .. CREST .. " goes to Alice - main spec (Tester hands it over).")).toBe(true)
 end)
 
 test("an open award already held for that item is rolled, not recorded twice", function()

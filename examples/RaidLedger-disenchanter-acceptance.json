@@ -16,8 +16,19 @@
       "value": "/ledger timer 10"
     },
     {
-      "type": "slash",
-      "value": "/ledger start"
+      "type": "click",
+      "value": "RaidLedgerDisenchanterRoll"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "roll",
+      "value": [
+        1,
+        1000
+      ]
     },
     {
       "type": "wait",
@@ -35,15 +46,20 @@
       "value": 12
     },
     {
-      "type": "paste",
-      "value": [
-        "RaidLedgerRecipient",
-        "Test"
-      ]
+      "type": "screenshot",
+      "value": "disenchanter_rolled"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger start"
+    },
+    {
+      "type": "wait",
+      "value": 12
     },
     {
       "type": "click",
-      "value": "RaidLedgerAward"
+      "value": "RaidLedgerDisenchant"
     },
     {
       "type": "wait",
@@ -51,7 +67,7 @@
     },
     {
       "type": "screenshot",
-      "value": "held_announced"
+      "value": "disenchanted"
     },
     {
       "type": "slash",
@@ -69,30 +85,20 @@
     },
     {
       "type": "chat_contains",
-      "value": " gewonnen von Flo"
+      "value": "[Loot] Flo"
     },
     {
       "type": "chat_contains",
-      "value": " geht an Flo"
+      "value": " ist der Entzauberer dieses Raids"
     },
     {
       "type": "chat_contains",
-      "value": " - Main-Spec (bei Test bis zum Handel)."
+      "value": " wird entzaubert (Flo"
     },
     {
       "type": "global_equals",
       "path": "RaidLedgerDB.history.1.state",
-      "value": "held"
-    },
-    {
-      "type": "global_equals",
-      "path": "RaidLedgerDB.history.1.recipient",
-      "value": "Test"
-    },
-    {
-      "type": "global_equals",
-      "path": "RaidLedgerDB.history.1.spec",
-      "value": "ms"
+      "value": "disenchanted"
     },
     {
       "type": "global_equals",

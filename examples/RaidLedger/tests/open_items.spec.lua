@@ -1,6 +1,7 @@
 -- Items that wait before they are rolled: parked with a raider (unique items),
--- kept by the master looter, rolled later from the award list, and shared
--- with wishlist addons as open items.
+-- kept by the master looter, rolled later from the loot list (the only place
+-- they are listed until they are won, raid of 2026-10-26), and shared with
+-- wishlist addons as open items.
 local CREST = "|cffa335ee|Hitem:20513:0:0:0:0:0:0:0:80|h[Abyssal Crest]|h|r"
 local TOME = "|cffa335ee|Hitem:21281:0:0:0:0:0:0:0:60|h[Grimoire of Shadow Bolt]|h|r"
 local BOOTS = "|cffa335ee|Hitem:20514:0:0:0:0:0:0:0:60|h[Abyssal Boots]|h|r"
@@ -62,11 +63,14 @@ test("parked items do not count in anyone's tally", function()
     expect(forge.chat()).toContain("RaidLedger: no items counted this raid yet.")
 end)
 
-test("an open award reads ROLL, and its roll runs like any other", function()
+test("open items are not in VERGABEN; one is rolled from BEUTE like any other", function()
     forge.click("RaidLedgerTabButtonAwards")
-    forge.click(forge.findText("#1  ", true))           -- the crest, parked with Bob
-    expect(forge.text("RaidLedgerAwardPark")).toBe("ROLL")
-    forge.click("RaidLedgerAwardPark")
+    expect(forge.findText("AWARDS (0)")).toBeTruthy()
+    expect(forge.findText("#1  ", true)).toBeNil()
+    forge.click("RaidLedgerTabButtonLoot")
+    expect(forge.text("RaidLedgerItemRow2")).toBe(CREST)   -- under OPEN ITEMS, parked with Bob
+    forge.click("RaidLedgerItemRow2")
+    forge.click("RaidLedgerStart")
     expect(forge.findText("LOOT (1)  |  1 OPEN")).toBeTruthy()    -- the roll shows in BEUTE; the tome is still open
     expect(raidSaid("[Loot] " .. CREST .. " - /rnd now! 30 seconds. /rnd 100 main spec (enhanced: 1+X to 100+X, X up to 50), /rnd 99 off spec.")).toBe(true)
     forge.advance(3, 0.25)               -- the list queues behind award messages
@@ -94,38 +98,35 @@ test("a later roll on an item another raider holds goes to the winner, from the 
     expect(forge.chat()).toContain("RaidLedger: Cara: 1 main spec, 0 off spec")
 end)
 
-test("a later roll on an item the master looter holds waits for the trade to the winner", function()
-    forge.click("RaidLedgerTabButtonAwards")
-    forge.click(forge.findText("#2  ", true))           -- the tome, kept by Tester
-    forge.click("RaidLedgerAwardPark")
+test("a later roll on an item the master looter holds goes to the winner at once", function()
+    forge.click("RaidLedgerTabButtonLoot")
+    expect(forge.text("RaidLedgerItemRow2")).toBe(TOME)    -- kept by Tester
+    forge.click("RaidLedgerItemRow2")
+    forge.click("RaidLedgerStart")
     forge.roll("Alice", 70, 1, 99)
     forge.advance(31, 0.25)
     forge.clickText("RECORD AWARD")
     local record = db().history[1]
     expect(record.id).toBe(2)
-    expect(record.recipient).toBe("Tester")
-    expect(record.state).toBe("held")
+    expect(record.recipient).toBe("Alice")
+    expect(record.holder).toBe("Tester")
+    expect(record.state).toBe("manual")
     expect(record.winner).toBe("Alice")
     expect(record.spec).toBe("os")
-    expect(raidSaid("[Loot] " .. TOME .. " goes to Alice - off spec (with Tester until traded).")).toBe(true)
-    forge.trade("Alice", { TOME })
-    expect(record.recipient).toBe("Alice")
-    expect(record.state).toBe("given")
+    expect(raidSaid("[Loot] " .. TOME .. " goes to Alice - off spec (Tester hands it over).")).toBe(true)
 end)
 
-test("an item kept without a roll is open, and trading it parks it with the partner", function()
+test("an item kept without a roll is open, listed in BEUTE only", function()
     forge.openLoot({ { id = 20514 } })
     GiveMasterLoot(1, 1)                               -- from the default menu, no roll
     forge.advance(0.1)
     forge.closeLoot()
     local record = db().history[1]
     expect(record.state).toBe("held")
+    expect(forge.findText("OPEN ITEMS (1)")).toBeTruthy()
     forge.click("RaidLedgerTabButtonAwards")
-    expect(forge.findText("OPEN")).toBeTruthy()
-    forge.trade("Dora", { BOOTS })
-    expect(record.recipient).toBe("Dora")
-    expect(record.state).toBe("parked")
-    expect(raidSaid("[Loot] " .. BOOTS .. " is parked with Dora until it is rolled.")).toBe(true)
+    expect(forge.findText("AWARDS (2)")).toBeTruthy()
+    expect(forge.findText("#3  ", true)).toBeNil()
 end)
 
 test("a recorded award can be marked as parked with its holder", function()
@@ -138,6 +139,7 @@ test("a recorded award can be marked as parked with its holder", function()
     expect(record.recipient).toBe("Bob")
     expect(record.winner).toBeNil()
     expect(record.spec).toBeNil()
+    expect(forge.findText("#2  ", true)).toBeNil()          -- open now: it moved to BEUTE
     expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
 end)
 
@@ -151,29 +153,4 @@ test("open corpse items are shared with their roll status", function()
     expect(lastOpenList()).toBe("20514:o:c:,20513:r:c:")
     expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
     forge.closeLoot()
-end)
-
-test("a trade moves the copy the partner won before an older open copy", function()
-    forge.slash("/ledger newraid confirm")
-    forge.openLoot({ { id = 21281 } })
-    GiveMasterLoot(1, 1)                               -- older copy: kept, no roll (open)
-    forge.advance(0.1)
-    forge.closeLoot()
-    forge.slash("/ledger clear")
-    forge.unit("target", { name = "Templar", guid = "0xF130003B69000999", dead = true, isPlayer = false })
-    forge.openLoot({ { id = 21281 } })
-    forge.slash("/ledger start")
-    forge.roll("Alice", 40)
-    forge.advance(31, 0.25)
-    GiveMasterLoot(1, 1)                               -- newer copy: kept for the winner, Alice
-    forge.advance(0.1)
-    forge.closeLoot()
-    local newer, older = db().history[1], db().history[2]
-    expect(newer.winner).toBe("Alice")
-    expect(older.winner).toBeNil()
-    forge.trade("Alice", { TOME })
-    expect(newer.recipient).toBe("Alice")
-    expect(newer.state).toBe("given")
-    expect(older.recipient).toBe("Tester")
-    expect(older.state).toBe("held")
 end)

@@ -114,9 +114,7 @@ L["[Loot] %s won by %s (%d) - %s%s, %s so far."] = "[Loot] %s gewonnen von %s (%
 L["[Loot] %s - %d seconds left."] = "[Loot] %s - noch %d Sekunden."
 L["[Loot] %s is parked with %s until it is rolled."] = "[Loot] %s wird bis zum Auswürfeln von %s verwahrt."
 L["[Loot] %s goes to %s%s%s."] = "[Loot] %s geht an %s%s%s."
-L["traded"] = "gehandelt"
 L["corrected"] = "korrigiert"
-L["with %s until traded"] = "bei %s bis zum Handel"
 L["%s hands it over"] = "%s gibt es weiter"
 
 -- Status line
@@ -124,7 +122,6 @@ L["%d-second raid roll started."] = "%d-Sekunden-Wurf gestartet."
 L["Select a master-loot item before starting a roll."] = "Vor dem Würfeln einen Gegenstand aus der Beute auswählen."
 L["Gave #%d to %s; waiting for the loot message."] = "#%d an %s gegeben; warte auf die Beutemeldung."
 L["Award #%d confirmed: %s received the item."] = "Vergabe #%d bestätigt: %s hat den Gegenstand erhalten."
-L["Award #%d traded: %s has the item now."] = "Vergabe #%d gehandelt: %s hat den Gegenstand jetzt."
 L["Award #%d now goes to %s."] = "Vergabe #%d geht jetzt an %s."
 L["Award #%d removed; the export keeps it as deleted."] = "Vergabe #%d entfernt; der Export führt sie als gelöscht."
 L["Award #%d goes to %s (%s)."] = "Vergabe #%d geht an %s (%s)."
@@ -141,7 +138,6 @@ L["Export selected: press Ctrl+C and paste it into the raid website's loot impor
 L["Clear all recorded loot and start a new raid? Export it first."] = "Alle erfassten Vergaben löschen und einen neuen Raid beginnen? Vorher exportieren."
 
 -- Chat
-L["trade recorded: #%d %s -> %s"] = "Handel erfasst: #%d %s -> %s"
 L["no award #%s."] = "keine Vergabe #%s."
 L["give a name or target the recipient."] = "Namen angeben oder den Empfänger anvisieren."
 L["%s shares another raid's ledger; yours has its own awards, so it is not merged. Use CLEAR to follow theirs."] =
@@ -304,12 +300,10 @@ L["%d characters not invited: the calendar takes 100 per event."] =
 L["/ledger calendar - calendar raid event from the invite list, everyone on it invited"] =
     "/ledger calendar - Kalender-Raidtermin aus der Einladungsliste, alle darauf eingeladen"
 
--- Raid feedback 2026-10-19: token bundles, group loot, tooltips
+-- Raid feedback 2026-10-19: token bundles, tooltips
 L["WINNERS: %s"] = "GEWINNER: %s"
 L["[Loot] %dx %s won by %s."] = "[Loot] %dx %s gewonnen von %s."
 L["[Loot] %s - %d left: nobody wanted it."] = "[Loot] %s - %d übrig: wollte niemand."
-L["Group loot: #%d %s won by %s (no spec; /ledger spec %d ms|os)."] =
-    "Gruppenplündern: #%d %s gewonnen von %s (ohne Spec; /ledger spec %d ms|os)."
 L["This raid's awards appear here: click one for its rolls or to change it."] =
     "Hier stehen die Vergaben dieses Raids: anklicken zeigt die Würfe oder ändert die Vergabe."
 L["Close the ledger (/ledger opens it again)"] = "Schließen (/ledger öffnet es wieder)"
@@ -488,3 +482,23 @@ L["Every award of this raid: change recipient or tally, remove, export for the w
     "Alle Vergaben dieses Raids: Empfänger oder MS/OS ändern, entfernen, für die Webseite exportieren"
 L["Items and tokens per player this raid (what the fewest-items rule ranks by), with corrections"] =
     "Items und Tokens pro Spieler in diesem Raid (danach wird bei gleicher Spec gereiht), mit Korrekturen"
+
+-- Raid feedback 2026-10-26: disenchanter roll
+L["DE ROLL"] = "DE-WURF"
+L["Disenchanter roll"] = "Entzauberer-Wurf"
+L["[Loot] Disenchanter roll: /rnd 100 now, %d seconds. The winner disenchants this raid's unwanted items."] =
+    "[Loot] Entzauberer-Wurf: jetzt /rnd 100, %d Sekunden. Der Gewinner entzaubert die ungewollten Items dieses Raids."
+L["%d-second disenchanter roll started."] = "%d-Sekunden-Entzauberer-Wurf gestartet."
+L["[Loot] %s is the disenchanter for this raid (%d)."] = "[Loot] %s ist der Entzauberer dieses Raids (%d)."
+L["[Loot] Nobody rolled to disenchant; DE gives items to the name in the box."] =
+    "[Loot] Niemand hat fürs Entzaubern gewürfelt; DE gibt Items an den Namen im Feld."
+L["%s disenchants this raid: DE gives items to them."] = "%s entzaubert in diesem Raid: DE gibt die Items an sie/ihn."
+L["a disenchanter roll is already running."] = "ein Entzauberer-Wurf läuft schon."
+L["finish the running roll first."] = "erst den laufenden Wurf beenden."
+L["Disenchant: give it to %s, this raid's disenchanter; counts for nobody"] =
+    "Entzaubern: an %s geben, den Entzauberer dieses Raids; zählt für niemanden"
+L["Roll the raid's disenchanter: everyone may /rnd 100, the winner gets every DE item"] =
+    "Den Entzauberer des Raids auswürfeln: alle dürfen /rnd 100, der Gewinner bekommt jedes DE-Item"
+L["Now: %s"] = "Jetzt: %s"
+L["/ledger deroll - roll the raid's disenchanter (/rnd 100); DE then gives items to them"] =
+    "/ledger deroll - den Entzauberer des Raids auswürfeln (/rnd 100); DE gibt Items dann an ihn"
