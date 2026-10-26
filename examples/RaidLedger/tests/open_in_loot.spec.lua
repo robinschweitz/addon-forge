@@ -22,12 +22,26 @@ local function row(i) return forge.frame("RaidLedgerItemRow" .. i) end
 local function status(i) return forge.text(row(i).columns[1]) end
 local function heading() return forge.text(forge.frame("RaidLedgerRollPane").heading) end
 
+-- SPÄTER WÜRFELN asks who keeps the item (FR-RL-012): the name in the box,
+-- else the player, picked from the raid list.
+local function laterTo(name)
+    forge.click("RaidLedgerPark")
+    name = (name and name ~= "") and name or UnitName("player")
+    for g = 1, 5 do
+        for r = 1, 5 do
+            local cell = forge.frame("RaidLedgerMember" .. g .. "_" .. r)
+            if cell and cell:IsShown() and cell.fullName == name then return forge.click(cell) end
+        end
+    end
+    error("no raid list entry for " .. name)
+end
+
 test("parked and kept items stay in the loot list as OPEN; DE and bank items do not", function()
     forge.raid({ "Tester", "Alice", "Bob", "Cara" })
     forge.masterLoot({ "Tester", "Alice", "Bob", "Cara" })
     forge.openLoot({ { id = 20513 }, { id = 21281 }, { id = 20514 } })
     forge.type("RaidLedgerRecipient", "Bob")
-    forge.click("RaidLedgerPark")                       -- crest parked with Bob
+    laterTo(forge.text("RaidLedgerRecipient"))                       -- crest parked with Bob
     forge.click("RaidLedgerItemRow1")
     forge.type("RaidLedgerRecipient", "Cara")
     forge.click("RaidLedgerBank")                       -- tome to the bank character
@@ -97,7 +111,7 @@ test("many open items and a long roll both stay readable", function()
     forge.openLoot(drops)
     for _ = 1, 7 do
         forge.click("RaidLedgerItemRow1")
-        forge.click("RaidLedgerPark")
+        laterTo(forge.text("RaidLedgerRecipient"))
         forge.advance(0.1)
     end
     forge.closeLoot()

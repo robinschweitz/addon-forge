@@ -176,24 +176,32 @@ deRollButton:SetPoint("BOTTOMRIGHT", raidBar, "BOTTOMRIGHT", -8, 6)
 local picker = CreateFrame("Frame", "RaidLedgerMembers", panel)
 picker:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 0, 146)
 picker:SetPoint("RIGHT", panel, "RIGHT", 0, 0)
-picker:SetHeight(130)
+picker:SetHeight(148)
 picker:SetFrameLevel(panel:GetFrameLevel() + 20)
 ns.makeBackdrop(picker, 0.025, 0.052, 0.078, 0.99)
 picker:EnableMouse(true)
 picker:Hide()
 picker.headings, picker.cells = {}, {}
+-- What a click on a name does: "recipient" (the name box), "later" (who keeps
+-- the item until it is rolled) or "disenchanter".
+picker.mode = "recipient"
+local PICKER_CAPTIONS = { recipient = L["Who gets the item?"], later = L["Who keeps it until the roll?"],
+    disenchanter = L["Who disenchants this raid?"] }
+picker.caption = ns.label(picker, "GameFontNormalSmall", 10, {0.94, 0.97, 1.00}, "RaidLedgerMembersCaption")
+picker.caption:SetPoint("TOPLEFT", picker, "TOPLEFT", 13, -8)
 for g = 1, 5 do
     local heading = ns.label(picker, "GameFontNormalSmall", 9, {1.00, 0.80, 0.32})
     heading:SetText(string.format(L["GROUP %d"], g))
     picker.headings[g] = heading
     picker.cells[g] = {}
     for row = 1, 5 do
-        local cell = ns.listRow(picker, 100, nil)
+        local cell = ns.listRow(picker, 100, nil, "RaidLedgerMember" .. g .. "_" .. row)
         cell:SetScript("OnClick", function(self)
-            -- Opened by WÄHLEN, a name becomes the disenchanter.
-            if self.fullName and picker.forDisenchanter then roster.setDisenchanter(self.fullName)
-            elseif self.fullName then recipientBox:SetText(self.fullName) end
             picker:Hide()
+            if not self.fullName then return end
+            if picker.mode == "disenchanter" then roster.setDisenchanter(self.fullName)
+            elseif picker.mode == "later" then picker.onLater(self.fullName)
+            else recipientBox:SetText(self.fullName) end
         end)
         picker.cells[g][row] = cell
     end
@@ -209,11 +217,11 @@ ns.onResize(function(width, height)
     for g = 1, 5 do
         local x = 11 + (g - 1) * (cellWidth + 4)
         picker.headings[g]:ClearAllPoints()
-        picker.headings[g]:SetPoint("TOPLEFT", picker, "TOPLEFT", x + 2, -8)
+        picker.headings[g]:SetPoint("TOPLEFT", picker, "TOPLEFT", x + 2, -26)
         for row, cell in ipairs(picker.cells[g]) do
             cell:SetWidth(cellWidth)
             cell:ClearAllPoints()
-            cell:SetPoint("TOPLEFT", picker, "TOPLEFT", x, -21 - (row - 1) * 20)
+            cell:SetPoint("TOPLEFT", picker, "TOPLEFT", x, -39 - (row - 1) * 20)
         end
     end
 end)
@@ -674,17 +682,24 @@ end)
 freeButton:SetScript("OnClick", function() core.startRoll(true) end)
 deRollButton:SetScript("OnClick", function() roster.startDisenchanterRoll() end)
 giveButton:SetScript("OnClick", function() afterAction(handOut("given")) end)
-parkButton:SetScript("OnClick", function() afterAction(handOut("parked")) end)
 deButton:SetScript("OnClick", function() afterAction(handOut("disenchanted")) end)
 bankButton:SetScript("OnClick", function() afterAction(handOut("bank")) end)
-local function togglePicker(forDisenchanter)
-    if picker:IsShown() and picker.forDisenchanter == forDisenchanter then picker:Hide() return end
-    picker.forDisenchanter = forDisenchanter
+local function togglePicker(mode)
+    if picker:IsShown() and picker.mode == mode then picker:Hide() return end
+    picker.mode = mode
+    picker.caption:SetText(PICKER_CAPTIONS[mode])
     drawPicker()
     picker:Show()
 end
-allButton:SetScript("OnClick", function() togglePicker(false) end)
-chooseDE:SetScript("OnClick", function() togglePicker(true) end)
+allButton:SetScript("OnClick", function() togglePicker("recipient") end)
+chooseDE:SetScript("OnClick", function() togglePicker("disenchanter") end)
+parkButton:SetScript("OnClick", function() togglePicker("later") end)
+-- SPÄTER WÜRFELN asks who keeps the item: a unique item the master looter
+-- already has goes straight from the corpse to that raider (FR-RL-012).
+picker.onLater = function(name)
+    recipientBox:SetText(name)
+    afterAction(handOut("parked"))
+end
 clearLoot:SetScript("OnClick", function() roster.clearActive() end)
 recipientBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
 recipientBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
@@ -701,7 +716,7 @@ ns.tip(giveButton, function()
     if core.lootSlotOf(core.selectedEntry()) then return L["Give the selected item to the name in the box and record it"] end
     return L["Record the selected item for the name in the box (the loot window is closed)"]
 end)
-ns.tip(parkButton, L["Roll it later: the name in the box (or you) keeps it until then, e.g. a unique item"])
+ns.tip(parkButton, L["Roll it later: pick who keeps it until then. A unique item you already have goes straight from the corpse to them."])
 ns.tip(chooseDE, L["Choose the raid's disenchanter from the raid, without a roll"])
 ns.tip(deButton, function()
     local name = roster.disenchanter()
@@ -732,6 +747,9 @@ events:SetScript("OnEvent", function()
         ForgeTestBridge:RegisterFrame("RaidLedgerAllMembers", allButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerMembers", picker)
         ForgeTestBridge:RegisterFrame("RaidLedgerPickerCell1", picker.cells[1][1])
+        ForgeTestBridge:RegisterFrame("RaidLedgerMembersCaption", picker.caption)
+        -- Group 1 only: every registered frame goes into the bridge report.
+        for row = 1, 5 do ForgeTestBridge:RegisterFrame("RaidLedgerMember1_" .. row, picker.cells[1][row]) end
         for i = 1, 3 do
             ForgeTestBridge:RegisterFrame("RaidLedgerItemRow" .. i, itemRows[i])
             ForgeTestBridge:RegisterFrame("RaidLedgerItemRow" .. i .. "Status", itemRows[i].columns[1])

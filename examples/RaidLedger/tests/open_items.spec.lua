@@ -30,12 +30,26 @@ local function lastOpenList()
     return list
 end
 
+-- SPÄTER WÜRFELN asks who keeps the item (FR-RL-012): the name in the box,
+-- else the player, picked from the raid list.
+local function laterTo(name)
+    forge.click("RaidLedgerPark")
+    name = (name and name ~= "") and name or UnitName("player")
+    for g = 1, 5 do
+        for r = 1, 5 do
+            local cell = forge.frame("RaidLedgerMember" .. g .. "_" .. r)
+            if cell and cell:IsShown() and cell.fullName == name then return forge.click(cell) end
+        end
+    end
+    error("no raid list entry for " .. name)
+end
+
 test("PARK hands loot to a raider to hold until it is rolled", function()
     forge.raid({ "Tester", "Alice", "Bob", "Cara" })
     forge.masterLoot({ "Tester", "Alice", "Bob", "Cara" })
     forge.openLoot({ { id = 20513 }, { id = 21281 } })
     forge.type("RaidLedgerRecipient", "Bob")
-    forge.click("RaidLedgerPark")
+    laterTo(forge.text("RaidLedgerRecipient"))
     expect(forge.awards()[1].candidate).toBe("Bob")
     local record = db().history[1]
     expect(record.state).toBe("parked")
@@ -50,7 +64,7 @@ end)
 test("PARK without a name keeps the item with the master looter", function()
     expect(forge.text("RaidLedgerItemRow1")).toBe(TOME)
     forge.click("RaidLedgerItemRow1")
-    forge.click("RaidLedgerPark")
+    laterTo(forge.text("RaidLedgerRecipient"))
     forge.advance(0.1)
     local record = db().history[1]
     expect(record.recipient).toBe("Tester")

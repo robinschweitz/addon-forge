@@ -270,9 +270,10 @@ roll log.
 
 Items do not have to be rolled right away:
 
-- **LATER ROLL** (step 1, formerly PARK) hands the selected loot to the player
-  in the name box, or to you when it is empty, to **hold until it is rolled**.
-  Use it for unique items you cannot hold twice. The raid sees "[item] is
+- **LATER ROLL** (step 1, formerly PARK) asks "Who keeps it until the roll?"
+  and hands the selected loot to the player you click (or to you), straight
+  from the corpse, to **hold until it is rolled**. Use it for a unique item you
+  already wear and cannot loot yourself. The raid sees "[item] is
   parked with Bob until it is rolled." Items that need no roll at all (crafting
   materials, for example) are given straight away with **GIVE TO**.
 - An item you take without a roll (also from the default master-loot menu) is

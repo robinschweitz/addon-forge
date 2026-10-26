@@ -42,6 +42,10 @@
       "value": "RaidLedgerPark"
     },
     {
+      "type": "click",
+      "value": "RaidLedgerMember1_1"
+    },
+    {
       "type": "wait",
       "value": 3
     },

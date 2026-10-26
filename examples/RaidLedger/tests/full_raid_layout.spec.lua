@@ -29,6 +29,20 @@ end)
 
 local function rollLine(i) return forge.frame("RaidLedgerRollLine" .. i) end
 
+-- SPÄTER WÜRFELN asks who keeps the item (FR-RL-012): the name in the box,
+-- else the player, picked from the raid list.
+local function laterTo(name)
+    forge.click("RaidLedgerPark")
+    name = (name and name ~= "") and name or UnitName("player")
+    for g = 1, 5 do
+        for r = 1, 5 do
+            local cell = forge.frame("RaidLedgerMember" .. g .. "_" .. r)
+            if cell and cell:IsShown() and cell.fullName == name then return forge.click(cell) end
+        end
+    end
+    error("no raid list entry for " .. name)
+end
+
 test("before anyone rolls, ALLE counts the whole raid", function()
     local members = {}
     for i, name in ipairs(NAMES) do
@@ -95,7 +109,7 @@ test("open items parked with raiders stay in the loot list, under the running ro
     for _, park in ipairs({ { 45510, NAMES[2] }, { 45511, NAMES[22] }, { 45512, NAMES[1] } }) do
         forge.clickText(linkOf(park[1]))
         forge.type("RaidLedgerRecipient", park[2])
-        forge.click("RaidLedgerPark")
+        laterTo(forge.text("RaidLedgerRecipient"))
         forge.advance(0.1)
     end
     expect(forge.findText("BEUTE (2)  |  3 OFFEN")).toBeTruthy()

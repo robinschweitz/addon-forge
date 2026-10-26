@@ -26,6 +26,20 @@ local function died(guid)
     forge.fire("COMBAT_LOG_EVENT_UNFILTERED", 0, "UNIT_DIED", "0x0", "", 0, guid, "Creature", 0)
 end
 
+-- SPÄTER WÜRFELN asks who keeps the item (FR-RL-012): the name in the box,
+-- else the player, picked from the raid list.
+local function laterTo(name)
+    forge.click("RaidLedgerPark")
+    name = (name and name ~= "") and name or UnitName("player")
+    for g = 1, 5 do
+        for r = 1, 5 do
+            local cell = forge.frame("RaidLedgerMember" .. g .. "_" .. r)
+            if cell and cell:IsShown() and cell.fullName == name then return forge.click(cell) end
+        end
+    end
+    error("no raid list entry for " .. name)
+end
+
 test("FR-RL-001 a corpse reopened after a hand-out lists no item twice", function()
     forge.raid({ "Tester", "Alice", "Bob" })
     forge.masterLoot({ "Tester", "Alice", "Bob" })
@@ -126,7 +140,7 @@ test("FR-RL-004 an open item is listed in BEUTE only, until its roll is won", fu
     forge.unit("target", { name = "Crimson Templar", guid = "0xF130003B6C000044", dead = true, isPlayer = false })
     forge.openLoot({ { id = 20514 } })
     forge.type("RaidLedgerRecipient", "Bob")
-    forge.click("RaidLedgerPark")
+    laterTo(forge.text("RaidLedgerRecipient"))
     forge.advance(0.1)
     forge.closeLoot()
     forge.unit("target", false)

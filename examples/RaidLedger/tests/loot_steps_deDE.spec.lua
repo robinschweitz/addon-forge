@@ -22,6 +22,20 @@ end
 
 local function enabled(name) return forge.frame(name):IsEnabled() and true or false end
 
+-- SPÄTER WÜRFELN asks who keeps the item (FR-RL-012): the name in the box,
+-- else the player, picked from the raid list.
+local function laterTo(name)
+    forge.click("RaidLedgerPark")
+    name = (name and name ~= "") and name or UnitName("player")
+    for g = 1, 5 do
+        for r = 1, 5 do
+            local cell = forge.frame("RaidLedgerMember" .. g .. "_" .. r)
+            if cell and cell:IsShown() and cell.fullName == name then return forge.click(cell) end
+        end
+    end
+    error("no raid list entry for " .. name)
+end
+
 test("FR-RL-006 before a roll ROLL is the next step; a won roll names its winner on the give button", function()
     forge.raid(NAMES)
     forge.masterLoot(NAMES)
@@ -61,7 +75,7 @@ test("FR-RL-007 an open item nobody rolled on is disenchanted from BEUTE", funct
     forge.unit("target", { name = "Templer", guid = "0xF130003B69000102", dead = true, isPlayer = false })
     forge.openLoot({ { id = 15052 } })
     forge.type("RaidLedgerRecipient", "Donnerfaust")
-    forge.click("RaidLedgerPark")
+    laterTo(forge.text("RaidLedgerRecipient"))
     forge.advance(0.1)
     forge.closeLoot()
     expect(forge.findText("OFFENE ITEMS (1)")).toBeTruthy()
@@ -89,7 +103,7 @@ end)
 test("FR-RL-007 an open item that was not rolled goes to the guild bank from BEUTE", function()
     forge.unit("target", { name = "Templer", guid = "0xF130003B69000103", dead = true, isPlayer = false })
     forge.openLoot({ { id = 15052 } })
-    forge.click("RaidLedgerPark")                    -- kept by Tester
+    laterTo(forge.text("RaidLedgerRecipient"))                    -- kept by Tester
     forge.advance(0.1)
     forge.closeLoot()
     forge.click(forge.findText(LION))
@@ -164,13 +178,22 @@ test("FR-RL-011 WÄHLEN makes a raid member the disenchanter without a roll", fu
     expect(db().disenchanter).toBe("Seelenfänger")
 end)
 
-test("FR-RL-012 SPÄTER WÜRFELN sits in step 1 and hands the item to the name in the box", function()
+-- A unique item the master looter already wears: he cannot loot it, so it
+-- goes from the corpse to the raider who keeps it until the roll.
+test("FR-RL-012 SPÄTER WÜRFELN asks who keeps the item and gives it from the corpse", function()
     forge.unit("target", { name = "Templer", guid = "0xF130003B69000106", dead = true, isPlayer = false })
     forge.openLoot({ { id = 21281 } })
     expect(forge.text("RaidLedgerPark")).toBe("SPÄTER WÜRFELN")
     expect(forge.rect("RaidLedgerPark").top).toBe(forge.rect("RaidLedgerStart").top)
-    forge.type("RaidLedgerRecipient", "Runenwächterin")
+    local before = table.getn(db().history)
     forge.click("RaidLedgerPark")
+    expect("RaidLedgerMembers").toBeShown()
+    expect(forge.findText("Wer behält es bis zum Würfeln?")).toBeTruthy()
+    expect(table.getn(db().history)).toBe(before)          -- nothing handed out yet
+    expect(forge.layoutIssues("RaidLedgerMembers")).toEqual({})   -- the list lies over the panes
+    forge.sketch("later-picker", "RaidLedgerFrame")
+    forge.click(forge.findText("Runenwächterin"))
+    expect(forge.awards()[table.getn(forge.awards())].candidate).toBe("Runenwächterin")
     forge.advance(0.1)
     expect(db().history[1].state).toBe("parked")
     expect(db().history[1].recipient).toBe("Runenwächterin")
