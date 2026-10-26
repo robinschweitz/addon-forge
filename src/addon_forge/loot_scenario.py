@@ -243,6 +243,8 @@ PLAN = {"fixture": "master_loot", "changes": [
     "Creates one temporary AzerothGhost bot and a temporary party with the graphical test character",
     "Revives the graphical test character (and the member character) first if they are dead, and again after the kill (the creature can hit them before it dies)",
     "Spawns, kills and cleans up the fixed Crimson Templar loot fixture",
+    "Kills a new creature (at most 8 kills) until the corpse holds no other item of uncommon "
+    "quality or better beside the fixture item, so a plan's roll lands on it",
     "Designates the graphical character as master looter for Abyssal Crest (item 20513)",
     "Keeps the real master-loot window open while the plan's bridge suite runs",
     "Lets peer_roll / peer_trade / peer_say plan steps make the bot /rnd, accept a trade "
@@ -260,8 +262,8 @@ BOE_PLAN_CHANGES = [
     "Spawns, kills and cleans up The Rake (creature 5807) instead of the Crimson Templar",
     "Designates the graphical character as master looter for Lionfur Armor (item 17922, "
     "uncommon, binds when equipped; stock 100% drop)"]
-BOE_LIMITATIONS = ["The Rake's stock world-loot reference may add a random extra item "
-                   "(rarely uncommon or better) beside Lionfur Armor"]
+BOE_LIMITATIONS = ["The Rake's stock world-loot reference may add a random grey or white "
+                   "extra item beside Lionfur Armor"]
 
 
 def fixture_plan(*, boe: bool = False) -> dict:

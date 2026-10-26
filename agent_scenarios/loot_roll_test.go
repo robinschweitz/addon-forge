@@ -91,10 +91,27 @@ func TestLootRollFixture(t *testing.T) {
 		creature, item = boeLootCreature, boeLootItem
 		requireBoeLoot(t)
 	}
-	corpse := bot.SpawnKillLootable(t, creature, 45*time.Second)
-	// Registered after SpawnKillLootable, so it runs before the harness's own
-	// cleanup (SQL delete, then an unconfirmed `.npc delete`).
-	t.Cleanup(func() { removeLiveCorpse(t, bot, corpse) })
+	// FR-10.15: the plan's roll must land on the fixture item, so a corpse with
+	// another uncommon or better drop (Crimson Templar also drops Essence of
+	// Fire and cloth tokens) is removed and a new creature killed.
+	var corpse uint64
+	for attempt := 1; ; attempt++ {
+		corpse = bot.SpawnKillLootable(t, creature, 45*time.Second)
+		// Registered after SpawnKillLootable, so it runs before the harness's own
+		// cleanup (SQL delete, then an unconfirmed `.npc delete`).
+		guid := corpse
+		t.Cleanup(func() { removeLiveCorpse(t, bot, guid) })
+		extra := corpseExtras(t, bot, corpse, item)
+		if len(extra) == 0 {
+			t.Logf("corpse 0x%X holds only item %d at or above the master-loot threshold (kill %d)", corpse, item, attempt)
+			break
+		}
+		t.Logf("corpse 0x%X also holds %v at or above the master-loot threshold (kill %d)", corpse, extra, attempt)
+		if attempt == maxFixtureKills {
+			t.Fatalf("no corpse with only item %d after %d kills", item, maxFixtureKills)
+		}
+		removeLiveCorpse(t, bot, corpse)
+	}
 	// The creature spawns next to the level-10 test characters and can kill
 	// one before .damage lands (RaidWishlist run 905688594b78, 2026-10-20).
 	revive()
@@ -156,6 +173,55 @@ func removeLiveCorpse(t *testing.T, bot *e2eharness.ScenarioBot, guid uint64) {
 		}
 	}
 	t.Errorf("fixture creature 0x%X is still in the world after 3 .npc delete attempts; restart the worldserver", guid)
+}
+
+// maxFixtureKills bounds the re-kills for a corpse with extra drops: Crimson
+// Templar's group-1 loot (one drop per kill, about 37%, nearly all uncommon)
+// plus world-loot references give an extra drop in roughly 40% of kills, so
+// eight kills fail about once in 1,500 runs.
+const maxFixtureKills = 8
+
+// extraDrops lists the drops other than want at or above threshold. An item of
+// unknown quality counts, and a corpse without want reports want itself, so
+// the fixture never trusts a corpse it could not check.
+func extraDrops(items []client.LootItem, want uint32, quality map[uint32]int, threshold int) []uint32 {
+	extra, found := []uint32{}, false
+	for _, item := range items {
+		if item.ItemID == want {
+			found = true
+			continue
+		}
+		if q, ok := quality[item.ItemID]; !ok || q >= threshold {
+			extra = append(extra, item.ItemID)
+		}
+	}
+	if !found {
+		return []uint32{want}
+	}
+	return extra
+}
+
+// corpseExtras opens the corpse's loot as the bot (a group member may look
+// under master loot), releases it again and checks every drop's quality with
+// a fixed read-only query.
+func corpseExtras(t *testing.T, bot *e2eharness.ScenarioBot, corpse uint64, want uint32) []uint32 {
+	items, ok := bot.TryOpenLoot(t, corpse, 10*time.Second)
+	_ = bot.World.LootRelease(corpse)
+	if !ok {
+		t.Logf("bot could not open corpse 0x%X to check its loot", corpse)
+		return []uint32{want}
+	}
+	quality := map[uint32]int{}
+	if db, err := e2eharness.OpenWorldDB(); err == nil {
+		defer db.Close()
+		for _, it := range items {
+			var q int
+			if db.QueryRow("SELECT Quality FROM item_template WHERE entry = ?", it.ItemID).Scan(&q) == nil {
+				quality[it.ItemID] = q
+			}
+		}
+	}
+	return extraDrops(items, want, quality, int(e2eharness.LootThresholdUncommon))
 }
 
 // The boe_loot variant: The Rake (5807), a stock level-10 rare whose loot
