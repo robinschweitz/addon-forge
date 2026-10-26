@@ -43,6 +43,7 @@ test("chat reminders require a matching keyword and follow sender settings", fun
     forge.click("RaidWishlistEditorSave")
     forge.raid({ "Lead", "Alice" })
     forge.stub("GetLootMethod", function() return "master", nil, 1 end)
+    forge.slash("/wish remind on")
 
     forge.chatEvent("CHAT_MSG_RAID", "roll " .. CREST, "Alice")
     expect("RaidWishlistPrompt").toBeHidden()

@@ -168,6 +168,12 @@ L["/wish share on|off - show your wishlist to the raid lead's ledger (on by defa
     "/wish share on|off - Wunschliste der Raidleitung zeigen (Standard: an)"
 L["/wish remind all|master - chat roll reminders from all group members or only the master looter"] =
     "/wish remind all|master - Chat-Würfel-Erinnerung von allen Gruppenmitgliedern oder nur vom Plündermeister"
+L["CHAT REMINDER: ON"] = "CHAT-ERINNERUNG: AN"
+L["CHAT REMINDER: OFF"] = "CHAT-ERINNERUNG: AUS"
+L["chat roll reminders are on."] = "Chat-Würfel-Erinnerung ist an."
+L["chat roll reminders are off."] = "Chat-Würfel-Erinnerung ist aus."
+L["/wish remind on|off - open the roll prompt for chat announcements (off by default)"] =
+    "/wish remind on|off - Würfelabfrage bei Chat-Ansagen öffnen (Standard: aus)"
 L["chat roll reminders: all group members."] = "Chat-Würfel-Erinnerung: alle Gruppenmitglieder."
 L["chat roll reminders: only the master looter."] = "Chat-Würfel-Erinnerung: nur der Plündermeister."
 L["your wishlist is shared with the raid lead's ledger."] = "deine Wunschliste wird mit dem Buch der Raidleitung geteilt."

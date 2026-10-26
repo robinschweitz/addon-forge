@@ -124,7 +124,8 @@ does not roll on items you already received this raid.
 ### Chat announcements without RaidLedger
 
 Click **SETTINGS** to configure announcements from another loot addon or from
-chat. By default, RaidWishlist reacts only when the master looter posts both an
+chat. The reminder is off until you switch it on there (**CHAT REMINDER**) or
+with `/wish remind on`. Once on, RaidWishlist reacts only when the master looter posts both an
 item from your wishlist and one of the keywords `roll` or `würfel` in party or
 raid chat. Both the keyword list and the restriction to the master looter are
 configurable. Keywords count only outside item links, so a message with just an
@@ -171,6 +172,7 @@ private. `/wish share off` stops sharing; `/wish share on` starts it again.
 | `/wish auto on` / `off` | Roll automatically / show the roll prompt |
 | `/wish sync` | Ask the raid lead's ledger for this raid's awards |
 | `/wish share on` / `off` | Share your wishlist with the raid lead's ledger (on by default) |
+| `/wish remind on` / `off` | Open the roll prompt for chat announcements (off by default) |
 | `/wish remind all` / `master` | Chat roll reminders from all group members / only the master looter (default) |
 | `/wish minimap on` / `off` | Show / hide the minimap button |
 | `/wish color` / `color reset` | Pick the window color / back to the default |
