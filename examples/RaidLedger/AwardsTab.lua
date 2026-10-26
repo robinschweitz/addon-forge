@@ -1,7 +1,8 @@
 -- VERGABEN tab: every award of this raid on the left, the selected award on
--- the right - which tally it counts for (MS / OS / none), its recipient, park
--- / DE / BANK / remove, and its roll log (right-click a roll to pass or
--- recount it). EXPORT shows the website export in place of the tab.
+-- the right. It only corrects (FR-RL-009): which tally it counts for (MS / OS
+-- / none), its recipient, back to BEUTE (to roll or hand it out again),
+-- remove, and its roll log (right-click a roll to pass or recount it).
+-- EXPORT shows the website export in place of the tab.
 local _, ns = ...
 local L = ns.L
 local core, ui = ns.core, ns.ui
@@ -95,16 +96,13 @@ local changeButton = ns.flatButton(detail, L["CHANGE"], 124, "RaidLedgerChangeRe
 changeButton:SetHeight(22)
 changeButton:SetPoint("LEFT", recipientBox, "RIGHT", 8, 0)
 
-local parkButton = ns.flatButton(detail, L["PARK"], 80, "RaidLedgerAwardPark")
+-- Back to BEUTE: the award becomes an open item with whoever holds it
+-- (the live plans know it as RaidLedgerAwardPark).
+local parkButton = ns.flatButton(detail, L["BACK TO LOOT"], 140, "RaidLedgerAwardPark")
 parkButton:SetPoint("TOPLEFT", detail, "TOPLEFT", 12, -152)
 ns.makeBackdrop(parkButton, 0.20, 0.12, 0.30, 0.98)
-local deButton = ns.flatButton(detail, L["DE"], 44, "RaidLedgerAwardDE")
-deButton:SetPoint("LEFT", parkButton, "RIGHT", 6, 0)
-local bankButton = ns.flatButton(detail, L["BANK"], 56, "RaidLedgerAwardBank")
-bankButton:SetPoint("LEFT", deButton, "RIGHT", 6, 0)
-for _, button in ipairs({ deButton, bankButton }) do ns.makeBackdrop(button, 0.16, 0.12, 0.24, 0.98) end
-local removeButton = ns.flatButton(detail, L["REMOVE"], 80, "RaidLedgerRemove")
-removeButton:SetPoint("LEFT", bankButton, "RIGHT", 6, 0)
+local removeButton = ns.flatButton(detail, L["REMOVE"], 90, "RaidLedgerRemove")
+removeButton:SetPoint("LEFT", parkButton, "RIGHT", 6, 0)
 ns.makeBackdrop(removeButton, 0.28, 0.10, 0.10, 0.98)
 
 local logHeading = ns.label(detail, "GameFontNormal", 10, {1.00, 0.80, 0.32})
@@ -285,7 +283,7 @@ end
 local function drawDetail()
     local record = selectedRecord()
     local mayEdit = not ns.mayEdit or ns.mayEdit()
-    local controls = { changeButton, parkButton, deButton, bankButton, removeButton }
+    local controls = { changeButton, parkButton, removeButton }
     if not record then
         awardTitle:SetText(L["Select an award on the left"])
         nowLine:SetText(L["Here you change its recipient, its tally, or remove it."])
@@ -313,11 +311,8 @@ local function drawDetail()
         button:GetFontString():SetTextColor(current and 0.55 or 0.70, current and 1.00 or 0.93, current and 0.65 or 1.00)
     end
     changeButton:SetText(deleted and L["RESTORE + SET"] or L["CHANGE RECIPIENT"])
-    parkButton:SetText(core.isOpenAward(record) and L["ROLL"] or L["PARK"])
     ns.setEnabled(changeButton, mayEdit)
     ns.setEnabled(parkButton, mayEdit and not deleted)
-    ns.setEnabled(deButton, mayEdit and not deleted)
-    ns.setEnabled(bankButton, mayEdit and not deleted)
     ns.setEnabled(removeButton, mayEdit and not deleted)
     drawLog(record)
 end
@@ -428,15 +423,7 @@ changeButton:SetScript("OnClick", function()
 end)
 parkButton:SetScript("OnClick", function()
     local record = selectedRecord()
-    if record then roster.parkRecord(record, recipientBox:GetText()) end
-end)
-deButton:SetScript("OnClick", function()
-    local record = selectedRecord()
-    if record then roster.giveAwayRecord(record, "disenchanted", recipientBox:GetText()) end
-end)
-bankButton:SetScript("OnClick", function()
-    local record = selectedRecord()
-    if record then roster.giveAwayRecord(record, "bank", recipientBox:GetText()) end
+    if record and roster.parkRecord(record, "") then ui.show("loot") end
 end)
 removeButton:SetScript("OnClick", function()
     local record = selectedRecord()
@@ -476,13 +463,7 @@ ns.tip(changeButton, function()
     local record = selectedRecord()
     return record and record.state == "deleted" and L["Restore the award for the name in the box"] or L["Give this award to the name in the box"]
 end)
-ns.tip(parkButton, function()
-    local record = selectedRecord()
-    return record and core.isOpenAward(record) and L["Start the roll for this open item"]
-        or L["Park it with the name in the box (or its holder) until it is rolled"]
-end)
-ns.tip(deButton, L["Disenchant: give it to the name in the box (or keep it); counts for nobody"])
-ns.tip(bankButton, L["Guild bank: give it to the name in the box (or keep it); counts for nobody"])
+ns.tip(parkButton, L["Back to BEUTE as an open item with whoever holds it: roll it again or hand it out there"])
 ns.tip(removeButton, L["Remove the award (the export keeps it as removed)"])
 ns.tip(raidBox, L["The raid's ID on the website (in its address)"])
 ns.tip(backButton, L["Back to the awards"])
@@ -499,8 +480,6 @@ events:SetScript("OnEvent", function()
         ForgeTestBridge:RegisterFrame("RaidLedgerChangeRecipient", changeButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerHistory1Recipient", awardRows[1].columns[2])
         ForgeTestBridge:RegisterFrame("RaidLedgerAwardPark", parkButton)
-        ForgeTestBridge:RegisterFrame("RaidLedgerAwardDE", deButton)
-        ForgeTestBridge:RegisterFrame("RaidLedgerAwardBank", bankButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerRemove", removeButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerAwardLogHeading", logHeading)
         for _, button in ipairs(specButtons) do ForgeTestBridge:RegisterFrame("RaidLedgerSpec" .. button.spec, button) end

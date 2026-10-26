@@ -26,7 +26,7 @@ test("the award button hands the item to the roll winner and records the real re
     forge.roll("Alice", 30)
     forge.roll("Bob", 88)
     forge.advance(31, 0.25)
-    forge.clickText("GIVE + RECORD")
+    forge.click("RaidLedgerAward")
     expect(forge.awards()[1].slot).toBe(1)
     expect(forge.awards()[1].candidate).toBe("Bob")
     local record = db().history[1]
@@ -71,7 +71,7 @@ test("a recipient who is no master-loot candidate is refused, not recorded", fun
     forge.slash("/ledger clear")             -- also forgets the source, so the crest is new
     forge.advance(0.25, 0.25)
     forge.type("RaidLedgerRecipient", "Bob")
-    forge.clickText("GIVE + RECORD")
+    forge.click("RaidLedgerAward")
     expect(table.getn(forge.awards())).toBe(2)
     expect(table.getn(db().history)).toBe(2)
     expect(forge.findText("Bob cannot receive this item (not a master-loot candidate).")).toBeTruthy()

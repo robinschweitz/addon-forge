@@ -20,8 +20,8 @@ test("the roll countdown in the window ticks down without new rolls", function()
     forge.advance(9, 0.25)
     expect(forge.findText("1 rolls  |  11s remaining")).toBeTruthy()
     forge.advance(12, 0.25)
-    expect(forge.findText("WINNER: Tester (40)")).toBeTruthy()
-    forge.clickText("RECORD AWARD")
+    expect(forge.findText("Tester won (40). Next: hand it out.")).toBeTruthy()
+    forge.click("RaidLedgerAward")
     forge.closeLoot()
     expect(db().history[1].recipient).toBe("Tester")
 end)
@@ -29,8 +29,8 @@ end)
 test("a re-parked award the master looter gives himself is no longer open", function()
     -- Re-park the award with the master looter...
     forge.click("RaidLedgerTabButtonAwards")
-    forge.click(forge.findText("#1  ", true))   -- the box shows Tester
-    forge.clickText("PARK")
+    forge.click(forge.findText("#1  ", true))
+    forge.click("RaidLedgerAwardPark")          -- ZURÜCK IN BEUTE
     local record = db().history[1]
     expect(record.state).toBe("parked")
     expect(record.recipient).toBe("Tester")
@@ -46,12 +46,11 @@ test("a re-parked award the master looter gives himself is no longer open", func
     expect(forge.findText("OPEN ITEMS (1)")).toBeNil()
     forge.click("RaidLedgerTabButtonAwards")
     forge.click(forge.findText("#1  ", true))
-    expect(forge.findText("PARK")).toBeTruthy()
-    expect(forge.findText("ROLL")).toBeFalsy()
+    expect(forge.findText("BACK TO LOOT")).toBeTruthy()
 end)
 
 test("/ledger set to the master looter closes an open award too", function()
-    forge.clickText("PARK")                    -- award #1 is still selected
+    forge.click("RaidLedgerAwardPark")         -- award #1 is still selected
     expect(db().history[1].state).toBe("parked")
     forge.slash("/ledger set 1 Tester")
     expect(db().history[1].state).toBe("manual")

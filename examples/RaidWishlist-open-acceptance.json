@@ -51,15 +51,11 @@
     },
     {
       "type": "click",
-      "value": "RaidLedgerTabawards"
+      "value": "RaidLedgerItemRow2"
     },
     {
       "type": "click",
-      "value": "RaidLedgerHistory1"
-    },
-    {
-      "type": "click",
-      "value": "RaidLedgerAwardPark"
+      "value": "RaidLedgerStart"
     },
     {
       "type": "wait",
@@ -105,7 +101,7 @@
     },
     {
       "type": "chat_contains",
-      "value": " - Main-Spec (bei Test bis zum Handel)."
+      "value": " geht an Test - Main-Spec"
     },
     {
       "type": "global_equals",
@@ -115,7 +111,7 @@
     {
       "type": "global_equals",
       "path": "RaidLedgerDB.history.1.state",
-      "value": "held"
+      "value": "manual"
     },
     {
       "type": "global_equals",

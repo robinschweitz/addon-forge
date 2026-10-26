@@ -44,6 +44,7 @@ local function flatButton(parent, caption, width, name)
     button:SetWidth(width)
     button:SetHeight(24)
     makeBackdrop(button, 0.08, 0.25, 0.34, 0.98)
+    button.baseColor = { 0.08, 0.25, 0.34 }
     local text = label(button, "GameFontNormal", 10, {0.70, 0.93, 1.00})
     text:SetPoint("CENTER", button, "CENTER", 0, 0)
     button:SetFontString(text)
@@ -56,6 +57,16 @@ end
 local function setEnabled(button, enabled)
     if enabled then button:Enable() else button:Disable() end
     button:SetAlpha(enabled and 1 or 0.4)
+end
+
+-- setPrimary marks the button for the next step (green), or restores the
+-- button's own color (`baseColor`, set where a button gets another color).
+local function setPrimary(button, primary)
+    local c = primary and { 0.10, 0.42, 0.20 } or button.baseColor or { 0.08, 0.25, 0.34 }
+    button:SetBackdropColor(c[1], c[2], c[3], 0.98)
+    if primary then button:SetBackdropBorderColor(1.00, 0.82, 0.00, 0.95)
+    else button:SetBackdropBorderColor(0.20, 0.63, 0.82, 0.92) end
+    button:GetFontString():SetTextColor(primary and 1.00 or 0.70, primary and 1.00 or 0.93, primary and 1.00 or 1.00)
 end
 
 -- tip gives a frame a tooltip: a text, or a function of the frame returning one.
@@ -148,6 +159,7 @@ end
 
 ns.makeBackdrop, ns.label, ns.flatButton, ns.tip, ns.pane = makeBackdrop, label, flatButton, tip, pane
 ns.listRow, ns.highlight, ns.classColor, ns.setEnabled, ns.itemTooltip = listRow, highlight, classColor, setEnabled, itemTooltip
+ns.setPrimary = setPrimary
 
 -- ns.onResize(fn) calls fn(width, height) with the content area's size now and
 -- whenever the window changes size: tabs place their panes and fit their lists.

@@ -68,7 +68,7 @@ test("FR-RL-005 the disenchanter roll is German and fits beside the roll buttons
     forge.roll("Anna", 70)
     forge.advance(16, 0.25)
     forge.click("RaidLedgerDisenchanterRoll")
-    expect(forge.findText("DE-WURF")).toBeTruthy()
+    expect(forge.findText("AUSWÜRFELN")).toBeTruthy()
     expect(forge.findText("Entzauberer-Wurf")).toBeTruthy()
     expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
     forge.sketch("de-roll", "RaidLedgerFrame")

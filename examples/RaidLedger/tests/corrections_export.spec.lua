@@ -21,7 +21,7 @@ local function awardByHand(id, name)
     forge.click("RaidLedgerTabButtonLoot")
     forge.openLoot({ { id = id } })
     forge.type("RaidLedgerRecipient", name)
-    forge.clickText("RECORD AWARD")
+    forge.click("RaidLedgerAward")
     forge.closeLoot()
 end
 

@@ -91,7 +91,7 @@
     {
       "type": "frame_text_contains",
       "frame": "RaidLedgerRollDetail",
-      "value": "Test verwahrt es bis zum Auswürfeln"
+      "value": "Offen: Test hat es."
     },
     {
       "type": "no_lua_errors",

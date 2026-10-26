@@ -1789,13 +1789,22 @@ end
 -- item is still in it (the GiveMasterLoot hook records it), else recorded by hand.
 local function handOut(holder, state)
     local entry = selectedEntry()
-    if not entry or entry.disenchanter or (entry.later and state ~= "given") then
+    if not entry or entry.disenchanter then
         ui.status(L["Select a loot item first."])
         return false
     end
     if entry.later then
-        finishLaterRoll(entry, holder)
-        return true
+        -- An open item: a won roll goes to its winner; anything else changes
+        -- its award directly (FR-RL-007).
+        if state == "given" and entry.rollLog and entry.rollLog[1] then
+            finishLaterRoll(entry, holder)
+            return true
+        end
+        for index = table.getn(active), 1, -1 do
+            if active[index] == entry then table.remove(active, index) end
+        end
+        if selected == entry then selected = nil end
+        return roster.handOutRecord(entry.record, state, holder)
     end
     local slot = lootSlotOf(entry)
     if slot then
@@ -1818,6 +1827,39 @@ local function handOut(holder, state)
         ui.status(string.format(L["Award #%d recorded for %s."], record.id, holder))
     end
     ui.suggest(entry)   -- a bundle's next winner
+    ui.refresh()
+    return true
+end
+
+-- roster.handOutRecord hands out an open item without a roll (FR-RL-007):
+-- to a player ("given"), for disenchanting or the bank, or parked with
+-- another holder. Whoever holds it now hands it over.
+function roster.handOutRecord(record, state, name)
+    if roster.denied() then return false end
+    name = trim(name)
+    if state == "disenchanted" and ensureDatabase().disenchanter then name = ensureDatabase().disenchanter end
+    if name == "" then
+        if state == "given" then
+            ui.status(L["Choose or enter a recipient name."])
+            return false
+        end
+        name = record.recipient or playerName()   -- it stays with whoever holds it
+    end
+    local holder = record.holder or record.recipient
+    record.recipient = field(name)
+    record.holder = (holder and lower(holder) ~= lower(name)) and field(holder) or nil
+    record.state = (state == "given") and "manual" or state
+    record.winner, record.roll, record.spec, record.low, record.high = nil, nil, nil, nil, nil
+    record.confirmed = true
+    publish(record)
+    announceAward(record)
+    if state == "parked" then
+        ui.status(string.format(L["Award #%d is open, held by %s until it is rolled."], record.id, record.recipient))
+    elseif NO_TALLY[state] then
+        ui.status(string.format(L["Award #%d: %s (%s)."], record.id, stateLabels[state], record.recipient))
+    else
+        ui.status(string.format(L["Award #%d recorded for %s."], record.id, record.recipient))
+    end
     ui.refresh()
     return true
 end
@@ -1866,7 +1908,8 @@ function roster.parkRecord(record, name)
         return false
     end
     name = trim(name)
-    record.recipient = field(name ~= "" and name or record.recipient)
+    record.recipient = field(name ~= "" and name or record.holder or record.recipient)
+    record.holder = nil
     record.state, record.winner, record.spec, record.roll = "parked", nil, nil, nil
     record.low, record.high, record.confirmed = nil, nil, true
     publish(record)
@@ -2038,6 +2081,7 @@ ns.core = {
     rollSeconds = rollSeconds, tieSeconds = tieSeconds,
     startRoll = function(free) if free then startFreeRoll() else startSelectedRoll() end end,
     startLaterRoll = function(record) if not roster.denied() then startLaterRoll(record) end end,
+    isBindOnEquip = isBindOnEquip,
     deleteRecord = deleteRecord,
     newRaid = startNewRaid,
     -- Shared awards of items this client had not cached yet (item 50667 in the

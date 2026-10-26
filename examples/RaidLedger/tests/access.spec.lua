@@ -115,7 +115,7 @@ test("off the list the ledger only watches: no rolls, no awards, no corrections"
     expect(#forge.sent()).toBe(before)
     expect(forge.findText("Only the editors", true)).toBeTruthy()
     forge.type(forge.frame("RaidLedgerRecipient"), "Bob")
-    forge.clickText("RECORD AWARD")
+    forge.click("RaidLedgerAward")
     expect(#db().history).toBe(0)
     forge.slash("/ledger set 1 Bob")
     expect(#forge.sent()).toBe(before)

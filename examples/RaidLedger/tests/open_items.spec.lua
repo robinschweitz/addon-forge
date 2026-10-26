@@ -82,7 +82,7 @@ test("open items are not in VERGABEN; one is rolled from BEUTE like any other", 
 end)
 
 test("a later roll on an item another raider holds goes to the winner, from the holder", function()
-    forge.clickText("RECORD AWARD")
+    forge.click("RaidLedgerAward")
     local record = db().history[2]
     expect(record.id).toBe(1)
     expect(record.recipient).toBe("Cara")
@@ -105,7 +105,7 @@ test("a later roll on an item the master looter holds goes to the winner at once
     forge.click("RaidLedgerStart")
     forge.roll("Alice", 70, 1, 99)
     forge.advance(31, 0.25)
-    forge.clickText("RECORD AWARD")
+    forge.click("RaidLedgerAward")
     local record = db().history[1]
     expect(record.id).toBe(2)
     expect(record.recipient).toBe("Alice")
@@ -129,14 +129,16 @@ test("an item kept without a roll is open, listed in BEUTE only", function()
     expect(forge.findText("#3  ", true)).toBeNil()
 end)
 
-test("a recorded award can be marked as parked with its holder", function()
-    forge.click(forge.findText("#2  ", true))           -- the tome, given to Alice
-    expect(forge.text("RaidLedgerAwardPark")).toBe("PARK")
-    forge.type("RaidLedgerAwardRecipient", "Bob")
+test("a recorded award goes back to BEUTE with whoever holds it", function()
+    forge.click("RaidLedgerTabButtonAwards")
+    forge.click(forge.findText("#2  ", true))           -- the tome, won by Alice, Tester hands it over
+    expect(forge.text("RaidLedgerAwardPark")).toBe("BACK TO LOOT")
     forge.click("RaidLedgerAwardPark")
     local record = db().history[2]
     expect(record.state).toBe("parked")
-    expect(record.recipient).toBe("Bob")
+    expect(record.recipient).toBe("Tester")
+    expect(forge.findText("OPEN ITEMS (2)")).toBeTruthy()
+    forge.click("RaidLedgerTabButtonAwards")
     expect(record.winner).toBeNil()
     expect(record.spec).toBeNil()
     expect(forge.findText("#2  ", true)).toBeNil()          -- open now: it moved to BEUTE

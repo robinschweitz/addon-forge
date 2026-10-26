@@ -1,14 +1,17 @@
 -- BEUTE tab: the loot list on the left (this corpse's drops, then the open
--- items held until they are rolled), the selected item on the right: start a
--- roll (or a free BoE roll), every roll with what the roller has so far, and
--- the hand-out buttons. Click a roll to make its player the recipient,
+-- items held until they are rolled) with the raid's disenchanter below it;
+-- the selected item on the right in two steps (FR-RL-006): 1 WÜRFELN (roll,
+-- free BoE roll, every roll with what the roller has so far) and 2 VERGEBEN
+-- (give to a name, disenchant, guild bank, park). The button for the next
+-- step is highlighted. Click a roll to make its player the recipient,
 -- right-click it to pass or count it differently.
 local _, ns = ...
 local L = ns.L
 local core, ui = ns.core, ns.ui
 local roster = core.roster
 local LEFT_WIDTH = 288
-local ROLLS_TOP, ROLLS_BELOW = 120, 76   -- the roll list sits between the buttons and the hand-out
+local ROLLS_TOP, ROLLS_BELOW = 128, 116   -- the roll list sits between step 1 and step 2
+local RAID_BAR = 34                          -- the disenchanter bar below the loot list
 
 local panel = CreateFrame("Frame", "RaidLedgerLootTab")
 local itemOffset, rollOffset = 0, 0
@@ -51,22 +54,27 @@ stateLine:SetHeight(14)
 stateLine:SetJustifyH("LEFT")
 stateLine:SetWordWrap(false)
 
-local startButton = ns.flatButton(detail, L["ROLL"], 118, "RaidLedgerStart")
-startButton:SetPoint("TOPLEFT", detail, "TOPLEFT", 12, -70)
-local freeButton = ns.flatButton(detail, L["FREE BOE ROLL"], 118, "RaidLedgerFreeRoll")
-freeButton:SetPoint("LEFT", startButton, "RIGHT", 6, 0)
--- Once per raid: who disenchants the items nobody wants (raid of 2026-10-26).
-local deRollButton = ns.flatButton(detail, L["DE ROLL"], 82, "RaidLedgerDisenchanterRoll")
-deRollButton:SetPoint("LEFT", freeButton, "RIGHT", 6, 0)
-ns.makeBackdrop(deRollButton, 0.16, 0.12, 0.24, 0.98)
+local function stepLabel(text, ...)
+    local step = ns.label(detail, "GameFontNormal", 10, {1.00, 0.80, 0.32})
+    step:SetPoint(...)
+    step:SetText(text)
+    return step
+end
 
-local rollHeading = ns.label(detail, "GameFontNormal", 10, {1.00, 0.80, 0.32})
-rollHeading:SetPoint("TOPLEFT", detail, "TOPLEFT", 12, -104)
+-- Step 1: roll.
+stepLabel(L["1  ROLL"], "TOPLEFT", detail, "TOPLEFT", 12, -66)
+local startButton = ns.flatButton(detail, L["ROLL"], 130, "RaidLedgerStart")
+startButton:SetPoint("TOPLEFT", detail, "TOPLEFT", 12, -80)
+local freeButton = ns.flatButton(detail, L["FREE BOE ROLL"], 130, "RaidLedgerFreeRoll")
+freeButton:SetPoint("LEFT", startButton, "RIGHT", 6, 0)
+
+local rollHeading = ns.label(detail, "GameFontNormalSmall", 9, {0.55, 0.72, 0.80})
+rollHeading:SetPoint("TOPLEFT", detail, "TOPLEFT", 14, -114)
 local soFarHeading = ns.label(detail, "GameFontNormalSmall", 9, {0.55, 0.72, 0.80})
-soFarHeading:SetPoint("TOPRIGHT", detail, "TOPRIGHT", -54, -106)
+soFarHeading:SetPoint("TOPRIGHT", detail, "TOPRIGHT", -54, -114)
 soFarHeading:SetText(L["SO FAR"])
 local rollValueHeading = ns.label(detail, "GameFontNormalSmall", 9, {0.55, 0.72, 0.80})
-rollValueHeading:SetPoint("TOPRIGHT", detail, "TOPRIGHT", -16, -106)
+rollValueHeading:SetPoint("TOPRIGHT", detail, "TOPRIGHT", -16, -114)
 rollValueHeading:SetText(L["RESULT"])
 
 local rollRows = ns.rowList(function(i)
@@ -76,31 +84,51 @@ local rollRows = ns.rowList(function(i)
     return row
 end)
 local noRolls = ns.label(detail, "GameFontNormalSmall", 10, {0.42, 0.61, 0.70})
-noRolls:SetPoint("TOPLEFT", detail, "TOPLEFT", 16, -124)
+noRolls:SetPoint("TOPLEFT", detail, "TOPLEFT", 16, -ROLLS_TOP - 4)
 
+-- Step 2: hand out. The give button names the recipient.
+stepLabel(L["2  HAND OUT"], "TOPLEFT", detail, "BOTTOMLEFT", 12, 104)
 local recipientHint = ns.label(detail, "GameFontNormalSmall", 9, {0.45, 0.60, 0.68})
-recipientHint:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", 14, 70)
-recipientHint:SetText(L["RECIPIENT NAME"])
+recipientHint:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", 110, 102)
+recipientHint:SetText(L["click a roll or ALL, or type a name"])
 local recipientBox = CreateFrame("EditBox", "RaidLedgerRecipient", detail, "InputBoxTemplate")
-recipientBox:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", 18, 58)
-recipientBox:SetWidth(186)
+recipientBox:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", 18, 84)
+recipientBox:SetWidth(132)
 recipientBox:SetHeight(22)
 recipientBox:SetAutoFocus(false)
 recipientBox:SetMaxLetters(24)
-local allButton = ns.flatButton(detail, L["ALL (%d)"], 90, "RaidLedgerAllMembers")
+local allButton = ns.flatButton(detail, L["ALL (%d)"], 70, "RaidLedgerAllMembers")
 allButton:SetHeight(22)
 allButton:SetPoint("LEFT", recipientBox, "RIGHT", 8, 0)
+local giveButton = ns.flatButton(detail, L["GIVE TO ..."], 186, "RaidLedgerAward")
+giveButton:SetPoint("LEFT", allButton, "RIGHT", 6, 0)
 
-local giveButton = ns.flatButton(detail, L["GIVE + RECORD"], 150, "RaidLedgerAward")
-giveButton:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", 12, 32)
-local parkButton = ns.flatButton(detail, L["PARK"], 80, "RaidLedgerPark")
-parkButton:SetPoint("LEFT", giveButton, "RIGHT", 6, 0)
-ns.makeBackdrop(parkButton, 0.20, 0.12, 0.30, 0.98)
-local deButton = ns.flatButton(detail, L["DE"], 50, "RaidLedgerDisenchant")
-deButton:SetPoint("LEFT", parkButton, "RIGHT", 6, 0)
-local bankButton = ns.flatButton(detail, L["BANK"], 66, "RaidLedgerBank")
+local deButton = ns.flatButton(detail, L["DISENCHANT"], 130, "RaidLedgerDisenchant")
+deButton:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", 12, 40)
+local bankButton = ns.flatButton(detail, L["GUILD BANK"], 116, "RaidLedgerBank")
 bankButton:SetPoint("LEFT", deButton, "RIGHT", 6, 0)
-for _, button in ipairs({ deButton, bankButton }) do ns.makeBackdrop(button, 0.16, 0.12, 0.24, 0.98) end
+local parkButton = ns.flatButton(detail, L["PARK"], 116, "RaidLedgerPark")
+parkButton:SetPoint("LEFT", bankButton, "RIGHT", 6, 0)
+for _, button in ipairs({ deButton, bankButton, parkButton }) do
+    ns.makeBackdrop(button, 0.16, 0.12, 0.24, 0.98)
+    button.baseColor = { 0.16, 0.12, 0.24 }
+end
+
+-- The raid's disenchanter, below the loot list: rolled once per raid, not per
+-- item (FR-RL-008).
+local raidBar = CreateFrame("Frame", nil, itemPane)
+raidBar:SetPoint("BOTTOMLEFT", itemPane, "BOTTOMLEFT", 8, 6)
+raidBar:SetPoint("BOTTOMRIGHT", itemPane, "BOTTOMRIGHT", -8, 6)
+raidBar:SetHeight(RAID_BAR - 8)
+ns.makeBackdrop(raidBar, 0.03, 0.06, 0.09, 0.95)
+local deRollButton = ns.flatButton(raidBar, L["ROLL IT"], 108, "RaidLedgerDisenchanterRoll")
+deRollButton:SetHeight(18)
+deRollButton:SetPoint("RIGHT", raidBar, "RIGHT", -4, 0)
+local disenchanterText = ns.label(raidBar, "GameFontNormalSmall", 10, {0.75, 0.55, 1.00}, "RaidLedgerDisenchanterName")
+disenchanterText:SetPoint("LEFT", raidBar, "LEFT", 8, 0)
+disenchanterText:SetPoint("RIGHT", deRollButton, "LEFT", -6, 0)
+disenchanterText:SetJustifyH("LEFT")
+disenchanterText:SetWordWrap(false)
 
 ---------------------------------------------------------------------------
 -- The whole raid by group (ALLE) and the roll menu (right-click)
@@ -133,7 +161,7 @@ ns.Ledger:HookScript("OnHide", function() picker:Hide() end)
 
 -- A larger window: more loot and roll rows, wider raid-group columns.
 ns.onResize(function(width, height)
-    itemRows.fit(ns.rowsFit(height, 28, 6))
+    itemRows.fit(ns.rowsFit(height, 28, RAID_BAR + 4))
     rollRows.fit(ns.rowsFit(height, ROLLS_TOP, ROLLS_BELOW))
     local cellWidth = math.floor((width - 22) / 5) - 4
     for g = 1, 5 do
@@ -373,60 +401,92 @@ local function drawPicker()
     end
 end
 
+-- The next step for the selected item (FR-RL-006): which button is
+-- highlighted, and the state line that says it in words.
+local function boxName() return (string.gsub(recipientBox:GetText() or "", "^%s*(.-)%s*$", "%1")) end
+
+local function drawRaidBar(mayEdit)
+    local name = roster.disenchanter()
+    disenchanterText:SetText(string.format(L["DISENCHANTER: %s"], name or "-"))
+    local rolling
+    for _, entry in ipairs(core.active()) do
+        if entry.disenchanter and entry.endsAt then rolling = true end
+    end
+    deRollButton:SetText(name and L["ROLL AGAIN"] or L["ROLL IT"])
+    ns.setEnabled(deRollButton, mayEdit and not rolling)
+end
+
+-- drawHandOut: step 2. The give button names whoever is in the box.
+local handOutEnabled, handOutPrimary = false, nil
+local function drawHandOut(enabled, primary)
+    handOutEnabled, handOutPrimary = enabled, primary
+    local name = boxName()
+    giveButton:SetText(name ~= "" and string.format(L["GIVE TO %s"], string.upper(name)) or L["GIVE TO ..."])
+    ns.setEnabled(giveButton, enabled and name ~= "")
+    for _, button in ipairs({ deButton, bankButton, parkButton }) do ns.setEnabled(button, enabled) end
+    ns.setPrimary(giveButton, enabled and primary == "give")
+    ns.setPrimary(deButton, enabled and primary == "de")
+end
+
 local function drawDetail()
     local entry = core.selectedEntry()
     if entry then openRecord = nil end
-    local mayEdit = not ns.mayEdit or ns.mayEdit()
+    local mayEdit = (not ns.mayEdit or ns.mayEdit()) and true or false
     local rolling = entry and entry.endsAt and not entry.winner
-    ns.setEnabled(deRollButton, mayEdit and not (entry and entry.disenchanter and rolling))
+    drawRaidBar(mayEdit)
+    ns.setPrimary(startButton, false)
+    freeButton:Hide()
     if entry and entry.disenchanter then
         itemTitle:SetText(entry.item)
         stateLine:SetText(rolling and string.format(L["%d rolls  |  %ds remaining"], core.activeRollCount(entry),
             math.max(0, math.ceil(entry.endsAt - GetTime()))) or L["Not rolled yet: start the roll."])
         startButton:SetText(L["ROLL"])
         ns.setEnabled(startButton, mayEdit and not rolling)
-        for _, button in ipairs({ freeButton, giveButton, parkButton, deButton, bankButton }) do ns.setEnabled(button, false) end
+        drawHandOut(false)
         drawRolls(entry)
     elseif entry then
         local count = entry.count or 1
         itemTitle:SetText((count > 1 and (count .. "x ") or "") .. entry.item)
-        local text = entryStatus(entry)
+        local primary
         if entry.winners and entry.winners[1] then
             local names = {}
             for _, r in ipairs(entry.winners) do table.insert(names, r.name) end
             stateLine:SetText(string.format(L["WINNERS: %s"], table.concat(names, ", ")))
+            primary = "give"
         elseif entry.winner then
-            stateLine:SetText(string.format(L["WINNER: %s (%d)"], entry.winner.name, entry.winner.value))
+            stateLine:SetText(string.format(L["%s won (%d). Next: hand it out."], entry.winner.name, entry.winner.value))
+            primary = "give"
         elseif rolling then
-            stateLine:SetText(string.format(L["%d rolls  |  %ds remaining"], core.activeRollCount(entry), math.max(0, math.ceil(entry.endsAt - GetTime()))))
+            stateLine:SetText(string.format(L["%d rolls  |  %ds remaining"], core.activeRollCount(entry),
+                math.max(0, math.ceil(entry.endsAt - GetTime()))))
         elseif entry.nobody then
-            stateLine:SetText(L["Nobody wanted it: roll again, free BoE roll, DE or BANK."])
+            stateLine:SetText(L["Nobody wanted it. Next: disenchant it (or bank it, roll again)."])
+            primary = "de"
         else
-            stateLine:SetText(entry.later and L["Open item: start its roll."] or L["Not rolled yet: start the roll."])
+            stateLine:SetText(entry.later and L["Open item, not rolled yet. Next: roll it."] or L["Not rolled yet. Next: roll it."])
+            primary = "roll"
         end
         startButton:SetText((entry.winner or entry.nobody) and L["ROLL AGAIN"] or L["ROLL"])
         ns.setEnabled(startButton, mayEdit and not rolling)
-        ns.setEnabled(freeButton, mayEdit and not rolling and not entry.later)
-        giveButton:SetText(core.lootSlotOf(entry) and L["GIVE + RECORD"] or L["RECORD AWARD"])
-        for _, button in ipairs({ giveButton, parkButton, deButton, bankButton }) do ns.setEnabled(button, mayEdit) end
-        if entry.later then
-            ns.setEnabled(parkButton, false)
-            ns.setEnabled(deButton, false)
-            ns.setEnabled(bankButton, false)
-        end
+        ns.setPrimary(startButton, mayEdit and primary == "roll")
+        -- Only a bind-on-equip item can go to any character.
+        if not entry.later and (entry.free or core.isBindOnEquip(entry.item)) then freeButton:Show() end
+        ns.setEnabled(freeButton, mayEdit and not rolling)
+        drawHandOut(mayEdit and not rolling, primary)
         drawRolls(entry)
     elseif openRecord then
         itemTitle:SetText(openRecord.item)
-        stateLine:SetText(string.format(L["Open: %s holds it until it is rolled. Click it, then ROLL."], openRecord.recipient or "?"))
+        stateLine:SetText(string.format(L["Open: %s holds it. Next: roll it, or hand it out below."], openRecord.recipient or "?"))
         startButton:SetText(L["ROLL"])
         ns.setEnabled(startButton, mayEdit)
-        ns.setEnabled(freeButton, false)
-        for _, button in ipairs({ giveButton, parkButton, deButton, bankButton }) do ns.setEnabled(button, false) end
+        ns.setPrimary(startButton, mayEdit)
+        drawHandOut(mayEdit)
         drawRolls(nil)
     else
         itemTitle:SetText(L["Select an item on the left"])
         stateLine:SetText(L["Then ROLL starts the /rnd roll; the rolls appear below."])
-        for _, button in ipairs({ startButton, freeButton, giveButton, parkButton, deButton, bankButton }) do ns.setEnabled(button, false) end
+        ns.setEnabled(startButton, false)
+        drawHandOut(false)
         drawRolls(nil)
     end
     drawPicker()
@@ -547,6 +607,18 @@ local function afterAction(done)
     ui.refresh()
 end
 
+-- handOut: the selected loot item, or the open item picked in the list.
+local function handOut(state)
+    if openRecord then
+        local done = roster.handOutRecord(openRecord, state, recipientBox:GetText())
+        if done then openRecord = nil end
+        return done
+    end
+    if state == "given" then return roster.giveSelected(recipientBox:GetText()) end
+    if state == "parked" then return roster.parkSelected(recipientBox:GetText()) end
+    return roster.giveAwaySelected(state, recipientBox:GetText())
+end
+
 startButton:SetScript("OnClick", function()
     if openRecord then
         local record = openRecord
@@ -558,16 +630,17 @@ startButton:SetScript("OnClick", function()
 end)
 freeButton:SetScript("OnClick", function() core.startRoll(true) end)
 deRollButton:SetScript("OnClick", function() roster.startDisenchanterRoll() end)
-giveButton:SetScript("OnClick", function() afterAction(roster.giveSelected(recipientBox:GetText())) end)
-parkButton:SetScript("OnClick", function() afterAction(roster.parkSelected(recipientBox:GetText())) end)
-deButton:SetScript("OnClick", function() afterAction(roster.giveAwaySelected("disenchanted", recipientBox:GetText())) end)
-bankButton:SetScript("OnClick", function() afterAction(roster.giveAwaySelected("bank", recipientBox:GetText())) end)
+giveButton:SetScript("OnClick", function() afterAction(handOut("given")) end)
+parkButton:SetScript("OnClick", function() afterAction(handOut("parked")) end)
+deButton:SetScript("OnClick", function() afterAction(handOut("disenchanted")) end)
+bankButton:SetScript("OnClick", function() afterAction(handOut("bank")) end)
 allButton:SetScript("OnClick", function()
     if picker:IsShown() then picker:Hide() else drawPicker() picker:Show() end
 end)
 clearLoot:SetScript("OnClick", function() roster.clearActive() end)
 recipientBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
 recipientBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+recipientBox:SetScript("OnTextChanged", function() drawHandOut(handOutEnabled, handOutPrimary) end)
 
 ns.tip(startButton, function()
     if openRecord then return L["Start the roll for this open item"] end
@@ -586,12 +659,8 @@ ns.tip(deButton, function()
     if name then return string.format(L["Disenchant: give it to %s, this raid's disenchanter; counts for nobody"], name) end
     return L["Disenchant: give it to the name in the box (or keep it); counts for nobody"]
 end)
-ns.tip(deRollButton, function()
-    local name = roster.disenchanter()
-    return L["Roll the raid's disenchanter: everyone may /rnd 100, the winner gets every DE item"]
-        .. (name and ("\n" .. string.format(L["Now: %s"], name)) or "")
-end)
 ns.tip(bankButton, L["Guild bank: give it to the name in the box (or keep it); counts for nobody"])
+ns.tip(deRollButton, L["Roll the raid's disenchanter: everyone may /rnd 100, the winner gets every DE item"])
 ns.tip(clearLoot, L["Empty the loot list (the awards stay)"])
 
 local events = CreateFrame("Frame")

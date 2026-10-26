@@ -84,7 +84,7 @@ test("a later roll lists the item once, as a roll; the award ends its OPEN row",
     forge.roll("Alice", 80)
     forge.advance(31, 0.25)
     expect(forge.text("RaidLedgerRecipient")).toBe("Alice")
-    forge.clickText("RECORD AWARD")
+    forge.click("RaidLedgerAward")
     forge.advance(0.1)
     expect(forge.text("RaidLedgerItemRow2")).toBe(RING)
     expect(heading()).toBe("LOOT (0)  |  1 OPEN")

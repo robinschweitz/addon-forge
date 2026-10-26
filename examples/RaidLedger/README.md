@@ -24,8 +24,8 @@ none is needed.
 
 | Tab | What it is for |
 | --- | --- |
-| **BEUTE** (loot) | The loot list (this corpse's drops, then the open items held until they are rolled), and the selected item: **ROLL** / **FREE BOE ROLL**, every roll with what the roller has **so far**, the recipient box, **GIVE + RECORD**, **PARK**, **DE**, **BANK** |
-| **VERGABEN** (awards) | Every award; the selected one: **COUNTS AS** main spec / off spec / nothing, change or restore its recipient, park / DE / BANK / **REMOVE**, its roll log; **EXPORT** and **NEW RAID** |
+| **BEUTE** (loot) | The loot list (this corpse's drops, then the open items held until they are rolled), the raid's **disenchanter** below it, and the selected item in two steps: **1 ROLL** (roll, free BoE roll for BoE items, every roll with what the roller has **so far**) and **2 HAND OUT** (name box, **ALL**, **GIVE TO name**, **DISENCHANT**, **GUILD BANK**, **PARK**). The button for the next step is green. |
+| **VERGABEN** (awards) | Every award; the selected one is only corrected: **COUNTS AS** main spec / off spec / nothing, change or restore its recipient, **BACK TO LOOT**, **REMOVE**, its roll log; **EXPORT** and **NEW RAID** |
 | **SPIELER** (players' tally) | Every raid member with items and tokens per spec, the numbers the fewest-items rule ranks by; - / + corrections per player, and their awards |
 | **RAID** | Invites, raid groups, attendance, calendar event |
 | **EINSTELLUNGEN** (settings) | Editors, who runs which addon, roll lengths, minimap button, window scale and reset, sync |
@@ -159,13 +159,19 @@ takes passes, but no spec changes.
 
 ## Awards
 
-- **GIVE + RECORD**: while the item is still in the master-loot window,
-  the award button hands it to the recipient with `GiveMasterLoot`. The ledger
+Everything is handed out in BEUTE, step **2 HAND OUT** (2.7.0). The state line
+says what happened and what comes next ("Bob won (88). Next: hand it out."),
+and that step's button is green: ROLL before a roll, **GIVE TO BOB** after a
+win, **DISENCHANT** when nobody wanted the item.
+
+- **GIVE TO name** (the name in the box: a won roll fills it, click a roll or
+  ALL, or type one): while the item is still in the master-loot window,
+  it hands the item to the recipient with `GiveMasterLoot`. The ledger
   records the award and marks it confirmed once the server's loot message
   arrives (an unconfirmed award shows `?`).
 - Handouts from the default master-loot menu are recorded the same way.
-- **RECORD AWARD**: without the item in a master-loot window, the award is
-  recorded by hand (`MANUAL`).
+- Without the item in a master-loot window, the same button records the
+  award by hand (`MANUAL`).
 - An item you give to yourself after a roll is the **winner's award at once**:
   you hand it over, and trades are not tracked (2.7.0).
 - Each award stores the item ID, the creature ID of the corpse (the dead target,
@@ -198,7 +204,7 @@ shows NOBODY.
 Identical tokens from one corpse are one row ("3x [Weiheabzeichen ...]") and
 one roll: the best rolls win one copy each, announced together. A tie only
 matters where it decides the last copy (the players above keep theirs, the
-tied ones roll again). GIVE + RECORD hands out one copy at a time and puts the
+tied ones roll again). GIVE TO hands out one copy at a time and puts the
 next winner in the box; copies nobody rolled for are announced as unwanted.
 
 ### Group loot
@@ -261,20 +267,21 @@ roll log.
 
 Items do not have to be rolled right away:
 
-- **PARK** (next to GIVE + RECORD) hands the selected loot to the player in
+- **PARK** (step 2) hands the selected loot to the player in
   the recipient box, or to you when it is empty, to **hold until it is rolled**.
   Use it for unique items you cannot hold twice. The raid sees "[item] is
   parked with Bob until it is rolled."
 - An item you take without a roll (also from the default master-loot menu) is
   open too.
-- An award recorded otherwise can be parked afterwards: select it in
-  VERGABEN, put the holder in its recipient box, press **PARK**. It then
-  leaves VERGABEN and waits in the loot list.
-- To roll an open item later, select it in the loot list and press **ROLL**.
-  The item joins the roll list and the roll runs as usual (wishlist prompts
-  and auto-rolls included). **RECORD AWARD** then writes the result onto the
-  same award: the winner becomes the recipient at once, and the holder hands
-  it over ("Bob hands it over").
+- An award can go back to the loot list: select it in VERGABEN and press
+  **BACK TO LOOT**. It becomes open, held by whoever has the item, and
+  leaves VERGABEN.
+- An open item is handled in BEUTE like any loot: select it and press
+  **ROLL** (wishlist prompts and auto-rolls included; **GIVE TO** then writes
+  the result onto the same award, the winner becomes the recipient at once
+  and the holder hands it over: "Bob hands it over"), or hand it out right
+  away with GIVE TO, DISENCHANT, GUILD BANK or PARK. With an empty name box it
+  stays with its holder. An open roll nobody took no longer gets stuck.
 - **Items in your bags** can be rolled too: **Alt+click** the item in your bags
   (or `/ledger roll <item link or ID>`). It is recorded as held by you (or its
   open award is used) and the roll starts at once; the winner is the recipient.
@@ -289,19 +296,21 @@ Items do not have to be rolled right away:
 
 ## Disenchant and guild bank
 
-Items nobody wants go to **DE** (disenchant) or **BANK** (guild bank), next to
-**PARK**. The award counts for nobody, is announced to the raid
+Items nobody wants go to **DISENCHANT** or **GUILD BANK** (step 2, next to
+**PARK**). The award counts for nobody, is announced to the raid
 ("... will be disenchanted (Bob)."), and appears in the export as
-`disenchanted` or `bank`. A selected award in VERGABEN has the same buttons.
+`disenchanted` or `bank`. A wrong award goes BACK TO LOOT first.
 
-The disenchanter is rolled **once per raid** (2.7.0): **DE ROLL** (beside
-FREE BOE ROLL) or `/ledger deroll` starts it, everyone may `/rnd 100` (other
+The disenchanter is rolled **once per raid** (2.7.0) from the bar below the
+loot list ("DISENCHANTER: Bob", **ROLL IT**), or `/ledger deroll`. It starts
+only while no other roll runs; everyone may `/rnd 100` (other
 ranges are ignored, ties roll again), and the winner is announced as the
-raid's disenchanter and shared with the other ledgers. From then on **DE**
-gives the selected item straight to the disenchanter, whatever the box holds.
-NEW RAID forgets the disenchanter. Without one, DE gives the item to the name
-in the box (the enchanter), or keeps it with you when the box is empty.
-**BANK** always uses the box (the bank character), or you.
+raid's disenchanter and shared with the other ledgers. From then on
+**DISENCHANT** gives the selected item straight to the disenchanter, whatever
+the box holds. NEW RAID forgets the disenchanter. Without one, DISENCHANT
+gives the item to the name in the box (the enchanter), or keeps it with you
+when the box is empty. **GUILD BANK** always uses the box (the bank
+character), or you.
 
 ## Members' wishlists
 

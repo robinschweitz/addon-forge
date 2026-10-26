@@ -484,7 +484,6 @@ L["Items and tokens per player this raid (what the fewest-items rule ranks by), 
     "Items und Tokens pro Spieler in diesem Raid (danach wird bei gleicher Spec gereiht), mit Korrekturen"
 
 -- Raid feedback 2026-10-26: disenchanter roll
-L["DE ROLL"] = "DE-WURF"
 L["Disenchanter roll"] = "Entzauberer-Wurf"
 L["[Loot] Disenchanter roll: /rnd 100 now, %d seconds. The winner disenchants this raid's unwanted items."] =
     "[Loot] Entzauberer-Wurf: jetzt /rnd 100, %d Sekunden. Der Gewinner entzaubert die ungewollten Items dieses Raids."
@@ -499,6 +498,23 @@ L["Disenchant: give it to %s, this raid's disenchanter; counts for nobody"] =
     "Entzaubern: an %s geben, den Entzauberer dieses Raids; zählt für niemanden"
 L["Roll the raid's disenchanter: everyone may /rnd 100, the winner gets every DE item"] =
     "Den Entzauberer des Raids auswürfeln: alle dürfen /rnd 100, der Gewinner bekommt jedes DE-Item"
-L["Now: %s"] = "Jetzt: %s"
 L["/ledger deroll - roll the raid's disenchanter (/rnd 100); DE then gives items to them"] =
     "/ledger deroll - den Entzauberer des Raids auswürfeln (/rnd 100); DE gibt Items dann an ihn"
+
+-- Window feedback 2026-10-26: BEUTE in two steps, VERGABEN only corrects
+L["1  ROLL"] = "1  WÜRFELN"
+L["2  HAND OUT"] = "2  VERGEBEN"
+L["click a roll or ALL, or type a name"] = "Wurf oder ALLE anklicken, oder Namen tippen"
+L["GIVE TO ..."] = "VERGEBEN AN ..."
+L["GIVE TO %s"] = "VERGEBEN AN %s"
+L["ROLL IT"] = "AUSWÜRFELN"
+L["DISENCHANTER: %s"] = "ENTZAUBERER: %s"
+L["%s won (%d). Next: hand it out."] = "%s hat gewonnen (%d). Weiter: vergeben."
+L["Nobody wanted it. Next: disenchant it (or bank it, roll again)."] =
+    "Wollte niemand. Weiter: entzaubern (oder Gildenbank, nochmal würfeln)."
+L["Open item, not rolled yet. Next: roll it."] = "Offenes Item, noch nicht gewürfelt. Weiter: würfeln."
+L["Not rolled yet. Next: roll it."] = "Noch nicht gewürfelt. Weiter: würfeln."
+L["Open: %s holds it. Next: roll it, or hand it out below."] = "Offen: %s hat es. Weiter: würfeln oder unten vergeben."
+L["BACK TO LOOT"] = "ZURÜCK IN BEUTE"
+L["Back to BEUTE as an open item with whoever holds it: roll it again or hand it out there"] =
+    "Zurück in BEUTE als offenes Item bei dem, der es hat: dort neu würfeln oder anders vergeben"
