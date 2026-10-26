@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .agent_realm import _preflight
 from .peer_scenario import _fixture_env
+from .scenario_plan import SAY_TEXT
 from .windows_client import WindowsAPI, _client_binary, WindowsClientController
 from .win_login import _test_copy
 from .wowcontrol import CHARACTER, request, reset_idle_timer
@@ -168,10 +169,10 @@ class FixturePeer:
     """The fixture's party bot, driven through numbered command files.
 
     The Go fixture executes ``cmd-NNN.json`` in order and answers with
-    ``cmd-NNN.done.json``; actions are fixed (roll, open_trade, accept_trade).
+    ``cmd-NNN.done.json``; actions are fixed (roll, open_trade, accept_trade, say).
     """
 
-    ACTIONS = {"roll", "open_trade", "accept_trade"}
+    ACTIONS = {"roll", "open_trade", "accept_trade", "say"}
 
     def __init__(self, folder: Path, proc, name: str, *, clock=time.monotonic, sleep=time.sleep):
         if not CHARACTER.fullmatch(name or ""):
@@ -221,6 +222,13 @@ class FixturePeer:
     def roll(self, low: int, high: int) -> str:
         return self.wait(self.send("roll", min=int(low), max=int(high)), timeout=10)
 
+    def say(self, text: str, item: int | None = None) -> str:
+        """Party chat from the bot; the Go side checks the text again (T-026)."""
+        if not isinstance(text, str) or not SAY_TEXT.fullmatch(text):
+            raise ValueError("peer_say text is not allowed")
+        args = {"text": text} if item is None else {"text": text, "item": int(item)}
+        return self.wait(self.send("say", **args), timeout=10)
+
 
 def _stop(proc, release: Path) -> None:
     release.touch()
@@ -237,7 +245,8 @@ PLAN = {"fixture": "master_loot", "changes": [
     "Spawns, kills and cleans up the fixed Crimson Templar loot fixture",
     "Designates the graphical character as master looter for Abyssal Crest (item 20513)",
     "Keeps the real master-loot window open while the plan's bridge suite runs",
-    "Lets peer_roll / peer_trade plan steps make the bot /rnd or accept a trade"],
+    "Lets peer_roll / peer_trade / peer_say plan steps make the bot /rnd, accept a trade "
+    "or say a checked text (with an item link it builds) in party chat"],
     "limitations": ["Uses SDK game-thread Lua for invite acceptance",
                     "Targets the corpse by its client-locale name (from the world DB) with protected "
                     "TargetUnit; opens loot with InteractUnit or, failing that, one press of a "

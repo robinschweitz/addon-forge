@@ -245,3 +245,17 @@ def test_boe_variant_describes_its_own_corpse_and_item():
     assert loot_scenario.fixture_plan() is loot_scenario.PLAN
     assert loot_scenario._corpse_names({}, "The Rake") == ["The Rake"]
     assert loot_scenario._corpse_names({"names": ["Der Kratzer"]}, "The Rake") == ["Der Kratzer"]
+
+
+def test_fixture_peer_says_only_safe_text(tmp_path):
+    # SC-014, T-026: the command file carries checked text; the bot builds the link.
+    clock, sleep = fake_clock()
+    peer = loot_scenario.FixturePeer(tmp_path, Proc(), "Flobot", clock=clock, sleep=sleep)
+    number = peer.send("say", text="roll", item=20513)
+    assert json.loads((tmp_path / "cmd-001.json").read_text()) == {"action": "say", "text": "roll", "item": 20513}
+    (tmp_path / "cmd-001.done.json").write_text('{"result": "ok"}')
+    assert peer.wait(number, timeout=1) == "ok"
+    for bad in (".gm on", "roll |Hitem:1|h", "", "x" * 61):
+        with pytest.raises(ValueError):
+            peer.say(bad)
+    assert not (tmp_path / "cmd-002.json").exists()

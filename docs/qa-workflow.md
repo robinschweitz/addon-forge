@@ -409,6 +409,7 @@ one fixed SDK action:
 | `screenshot` | `"name"` | Saves the client window as `.forge-runs/step-name.png` at that moment |
 | `peer_roll` | `[low, high]` | The `master_loot` fixture's bot sends a real `/rnd` (`MSG_RANDOM_ROLL`), seen by the whole party |
 | `peer_trade` | item ID | Trades that item from the test character's bags to the fixture's bot; both sides accept |
+| `peer_say` | `[text]` or `[text, item ID]` | The fixture's bot says the text in party chat, followed by a link to the item that it builds from the realm's data. The text is 1-60 characters, starts with a letter and holds only letters, digits, spaces and `, . : ! ? ' -`, so it is never a command (SC-014) |
 
 `"companions": ["OtherAddon"]` (up to 3, folders beside the plan) adds addons the
 scenario needs as well, such as the raid lead's RaidLedger for the members'
@@ -445,7 +446,7 @@ confirms the drop with a fixed read-only query and fails if the realm's loot
 table no longer guarantees it. The Rake's stock world-loot reference may add a
 random extra item.
 
-`peer_roll` and `peer_trade` need `"fixtures": ["master_loot"]`. A step the
+`peer_roll`, `peer_trade` and `peer_say` need `"fixtures": ["master_loot"]`. A step the
 client or bot does not perform (missing command, hidden button, trade not
 completed) fails the plan with `stage: "steps"` and a log of the steps run.
 The bridge suite also saves a final `RUN_ID.png` after the steps.
