@@ -17,6 +17,7 @@ local PAD, GAP = 12, 6                       -- the detail pane's inner margin a
 local panel = CreateFrame("Frame", "RaidLedgerLootTab")
 local itemOffset, rollOffset = 0, 0
 local openRecord          -- an open award picked in the loot list (it is rolled from here)
+local openBundle          -- matching open token awards, selected before their shared roll
 
 local itemPane = ns.pane(panel, 0, 0, LEFT_WIDTH, nil, "RaidLedgerRollPane")
 local clearLoot = ns.flatButton(itemPane, L["EMPTY"], 64)
@@ -314,7 +315,20 @@ local function lootLines()
     local open = core.openRecords()
     if table.getn(open) > 0 then
         table.insert(lines, { heading = string.format(L["OPEN ITEMS (%d)"], table.getn(open)) })
-        for _, record in ipairs(open) do table.insert(lines, { record = record }) end
+        local bundles = {}
+        for _, record in ipairs(open) do
+            local key = record.token and record.itemID
+            local bundle = key and bundles[key]
+            if bundle then
+                table.insert(bundle.records, record)
+            elseif key then
+                bundle = { records = { record } }
+                bundles[key] = bundle
+                table.insert(lines, bundle)
+            else
+                table.insert(lines, { record = record })
+            end
+        end
     end
     return lines, table.getn(open)
 end
@@ -346,21 +360,23 @@ local function drawItems()
             ns.highlight(row, "heading")
             row:Show()
         else
-            local item = line.entry and line.entry.item or line.record.item
+            local item = line.entry and line.entry.item or line.record and line.record.item or line.records[1].item
             local itemID = core.itemIDFromLink(item)
-            local count = line.entry and line.entry.count or 1
+            local count = line.entry and line.entry.count or line.records and table.getn(line.records) or 1
             row:SetText((count > 1 and (count .. "x ") or "") .. item)
             row.text:SetTextColor(0.82, 0.91, 0.96)
             local text, color
             if line.entry then text, color = entryStatus(line.entry)
-            else text, color = string.format(L["with %s"], line.record.recipient or "?"), OPEN_COLOR end
+            elseif line.record then text, color = string.format(L["with %s"], line.record.recipient or "?"), OPEN_COLOR
+            else text, color = "", OPEN_COLOR end
             row.columns[1]:SetText(text)
             row.columns[1]:SetTextColor(color[1], color[2], color[3])
             local wished = table.getn(core.wishersOf(itemID))
             row.columns[2]:SetText(core.knowsWishlists() and string.format(L["WL %d"], wished) or "")
             if wished > 0 then row.columns[2]:SetTextColor(0.45, 0.85, 0.55) else row.columns[2]:SetTextColor(0.5, 0.5, 0.5) end
             local isSelected = (line.entry and line.entry == selected) or (line.record and line.record == openRecord)
-            ns.highlight(row, isSelected and "selected" or (line.record and "open") or nil)
+                or (line.records and openBundle and line.records[1] == openBundle[1])
+            ns.highlight(row, isSelected and "selected" or ((line.record or line.records) and "open") or nil)
             row:Show()
         end
     end
@@ -468,7 +484,7 @@ end
 
 local function drawDetail()
     local entry = core.selectedEntry()
-    if entry then openRecord = nil end
+    if entry then openRecord, openBundle = nil, nil end
     local mayEdit = (not ns.mayEdit or ns.mayEdit()) and true or false
     local rolling = entry and entry.endsAt and not entry.winner
     drawRaidBar(mayEdit)
@@ -512,6 +528,15 @@ local function drawDetail()
         ns.setEnabled(freeButton, mayEdit and not rolling)
         drawHandOut(mayEdit and not rolling, primary)
         drawRolls(entry)
+    elseif openBundle then
+        local count = table.getn(openBundle)
+        itemTitle:SetText((count > 1 and (count .. "x ") or "") .. openBundle[1].item)
+        stateLine:SetText(L["Open item, not rolled yet."])
+        startButton:SetText(L["ROLL"])
+        ns.setEnabled(startButton, mayEdit)
+        ns.setPrimary(startButton, mayEdit)
+        drawHandOut(false)
+        drawRolls(nil)
     elseif openRecord then
         itemTitle:SetText(openRecord.item)
         stateLine:SetText(string.format(L["Open: %s holds it."], openRecord.recipient or "?"))
@@ -532,6 +557,11 @@ end
 
 local function refresh()
     if openRecord and not core.isOpenAward(openRecord) then openRecord = nil end
+    if openBundle then
+        local open = false
+        for _, record in ipairs(openBundle) do if core.isOpenAward(record) then open = true end end
+        if not open then openBundle = nil end
+    end
     drawItems()
     drawDetail()
 end
@@ -559,11 +589,15 @@ for _, row in ipairs(itemRows) do
             if core.selectedEntry() ~= line.entry then rollOffset = 0 end
             core.select(line.entry)
             if ui.selectMasterLoot then ui.selectMasterLoot(line.entry) end
-            openRecord = nil
+            openRecord, openBundle = nil, nil
             recipientBox:SetText(line.entry.winner and line.entry.winner.name or "")
+        elseif line.records then
+            core.select(nil)
+            openRecord, openBundle = nil, line.records
+            recipientBox:SetText("")
         else
             core.select(nil)
-            openRecord = line.record
+            openRecord, openBundle = line.record, nil
             recipientBox:SetText("")
         end
         ui.refresh()
@@ -571,7 +605,7 @@ for _, row in ipairs(itemRows) do
     row:SetScript("OnEnter", function(self)
         local line = self.line
         if not line or line.heading then return end
-        local item = line.entry and line.entry.item or line.record.item
+        local item = line.entry and line.entry.item or line.record and line.record.item or line.records[1].item
         ns.itemTooltip(self, item)
         local wishers = core.wishersOf(core.itemIDFromLink(item))
         if table.getn(wishers) > 0 then
@@ -586,6 +620,8 @@ for _, row in ipairs(itemRows) do
         if line.record then
             GameTooltip:AddLine(string.format(L["Open: %s holds it until it is rolled. Click it, then ROLL."],
                 line.record.recipient or "?"), 0.85, 0.62, 1.00, true)
+        elseif line.records then
+            GameTooltip:AddLine(string.format(L["%d tokens"], table.getn(line.records)), 0.85, 0.62, 1.00, true)
         end
         GameTooltip:Show()
     end)
@@ -631,7 +667,7 @@ ns.scrollable(detail, function() return rollOffset end, function(v) rollOffset =
 
 titleButton:SetScript("OnEnter", function(self)
     local entry = core.selectedEntry()
-    local item = entry and entry.item or (openRecord and openRecord.item)
+    local item = entry and entry.item or (openBundle and openBundle[1].item) or (openRecord and openRecord.item)
     if not item then return end
     ns.itemTooltip(self, item)
     GameTooltip:Show()
@@ -659,7 +695,11 @@ local function handOut(state)
 end
 
 startButton:SetScript("OnClick", function()
-    if openRecord then
+    if openBundle then
+        local records = openBundle
+        openBundle = nil
+        core.startLaterBundle(records)
+    elseif openRecord then
         local record = openRecord
         openRecord = nil
         core.startLaterRoll(record)
@@ -680,14 +720,17 @@ local function togglePicker(mode)
     picker:Show()
 end
 allButton:SetScript("OnClick", function() togglePicker("recipient") end)
-chooseDE:SetScript("OnClick", function() togglePicker("disenchanter") end)
+chooseDE:SetScript("OnClick", function()
+    recipientBox:SetText("") -- The disenchanter picker must not leave a stale loot recipient behind.
+    togglePicker("disenchanter")
+end)
 clearLoot:SetScript("OnClick", function() roster.clearActive() end)
 recipientBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
 recipientBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 recipientBox:SetScript("OnTextChanged", function() drawHandOut(handOutEnabled, handOutPrimary) end)
 
 ns.tip(startButton, function()
-    if openRecord then return L["Start the roll for this open item"] end
+    if openRecord or openBundle then return L["Start the roll for this open item"] end
     return string.format(L["Start a %d-second /rnd roll for this item (announced in raid chat)"], core.rollSeconds())
 end)
 ns.tip(freeButton, L["Post it again as a free BoE roll for any character (/rnd 100, highest wins, counts for nobody)"])
@@ -746,7 +789,11 @@ for i = 1, MAX_MASTER_ROWS do
     row:SetPoint("TOPLEFT", masterLoot, "TOPLEFT", 12, -30 - (i - 1) * 19)
     row:SetPoint("RIGHT", masterLoot, "RIGHT", -12, 0)
     row:SetScript("OnClick", function(self)
-        if self.entry then masterLoot.entry = self.entry; ui.refresh() end
+        if self.entry then
+            core.select(self.entry)
+            ui.selectMasterLoot(self.entry)
+            ui.refresh()
+        end
     end)
     row:SetScript("OnEnter", function(self)
         if self.entry then ns.itemTooltip(self, self.entry.item); GameTooltip:Show() end

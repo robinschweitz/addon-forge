@@ -65,8 +65,6 @@ end)
 test("the winner is the recipient of the same award at once (no trade tracking)", function()
     forge.roll("Bob", 40)
     forge.advance(31, 0.25)
-    expect(forge.findText("Alice won (70).")).toBeTruthy()
-    forge.click("RaidLedgerAward")
     local record = db().history[1]
     expect(table.getn(db().history)).toBe(1)
     expect(record.winner).toBe("Alice")
@@ -103,7 +101,7 @@ test("/ledger roll <itemID> finds the item in the bags (live plans cannot type l
     forge.leader(true)
     local count = table.getn(db().history)
     forge.slash("/ledger roll 40000")
-    expect(table.getn(db().history)).toBe(count)                 -- the tome's open award is rolled again
+    expect(table.getn(db().history)).toBe(count + 1)             -- LEEREN discarded the previous open tome award
     expect(forge.findText(TOME, true)).toBeTruthy()
 end)
 

@@ -136,6 +136,7 @@ test("the points of an enhanced roll can be corrected", function()
     forge.advance(31, 0.25)
     expect(won("Alice (100) - main spec 11-110")).toBe(1)
     forge.click("RaidLedgerAward")
+    forge.advance(0.1)
     local record = forge.saved("RaidLedgerDB").history[1]
     expect(record.roll).toBe(100)
     expect(record.low).toBe(11)
@@ -298,6 +299,7 @@ test("a pass in a given-out award's roll log gives the award to the next-best ro
     forge.roll("RaiderC", 95, 1, 99)
     forge.advance(31, 0.25)
     forge.click("RaidLedgerAward")
+    forge.advance(0.1)
     local record = forge.saved("RaidLedgerDB").history[1]
     expect(record.recipient).toBe("RaiderA")
     forge.click(awardLine("RaiderA"))              -- show the award's roll log

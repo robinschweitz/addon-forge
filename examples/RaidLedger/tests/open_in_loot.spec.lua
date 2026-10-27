@@ -41,9 +41,11 @@ test("parked and kept items stay in the loot list as OPEN; DE and bank items do 
     forge.openLoot({ { id = 20513 }, { id = 21281 }, { id = 20514 } })
     forge.type("RaidLedgerRecipient", "Bob")
     laterTo(forge.text("RaidLedgerRecipient"))                       -- crest parked with Bob
+    forge.advance(0.1)
     forge.click("RaidLedgerItemRow1")
     forge.type("RaidLedgerRecipient", "Cara")
     forge.click("RaidLedgerBank")                       -- tome to the bank character
+    forge.advance(0.1)
     forge.click("RaidLedgerItemRow1")
     forge.click("RaidLedgerDisenchant")                 -- boots disenchanted by Tester
     forge.advance(0.1)
@@ -96,9 +98,6 @@ test("a later roll lists the item once, as a roll; the award ends its OPEN row",
     expect(row(4):IsShown()).toBe(false)
     forge.roll("Alice", 80)
     forge.advance(31, 0.25)
-    expect(forge.text("RaidLedgerRecipient")).toBe("Alice")
-    forge.click("RaidLedgerAward")
-    forge.advance(0.1)
     expect(forge.text("RaidLedgerItemRow2")).toBe(RING)
     expect(heading()).toBe("LOOT (0)  |  1 OPEN")
     expect(#forge.errors()).toBe(0)

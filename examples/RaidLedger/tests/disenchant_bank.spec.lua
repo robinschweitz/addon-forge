@@ -29,11 +29,11 @@ test("DE hands the item to the enchanter named in the box; it counts for nobody"
     forge.type("RaidLedgerRecipient", "Bob")
     forge.click("RaidLedgerDisenchant")
     expect(forge.awards()[1].candidate).toBe("Bob")
+    forge.advance(0.1)
     local record = db().history[1]
     expect(record.state).toBe("disenchanted")
     expect(record.recipient).toBe("Bob")
     expect(record.spec).toBeNil()
-    forge.advance(0.1)
     expect(record.confirmed).toBe(true)
     expect(raidSaid("[Loot] " .. CREST .. " will be disenchanted (Bob).")).toBe(true)
     forge.click("RaidLedgerTabButtonAwards")

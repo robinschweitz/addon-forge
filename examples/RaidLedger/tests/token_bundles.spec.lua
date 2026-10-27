@@ -51,6 +51,7 @@ end)
 test("one roll: the best three win a token each, announced together", function()
     forge.masterLoot({ "Tester", "Alice", "Bob", "Cara", "Dora" })
     tokenRoll(3, { { "Alice", 90 }, { "Bob", 80 }, { "Cara", 70 }, { "Dora", 60 } })
+    expect(raidSaid("[Loot] 3x " .. TOKEN .. " - /rnd now! 30 seconds. /rnd 100 main spec (enhanced: 1+X to 100+X, X up to 50), /rnd 99 off spec.")).toBe(true)
     expect(raidSaid("[Loot] 3x " .. TOKEN .. " won by Alice (90), Bob (80), Cara (70).")).toBe(true)
     expect(forge.text(forge.frame("RaidLedgerRecipient"))).toBe("Alice")
     expect(forge.findText("WINNERS: Alice, Bob, Cara", true)).toBeTruthy()
@@ -120,4 +121,33 @@ test("a winner's pass gives the copy to the next-best roll", function()
     forge.slash("/ledger pass Bob")
     expect(raidSaid("[Loot] 2x " .. TOKEN .. " won by Alice (90), Cara (70).")).toBe(true)
     forge.closeLoot()
+end)
+
+test("FR-RL-016 open copies of one token roll together for the best five", function()
+    local names = { "Tester", "Alice", "Bob", "Cara", "Dora", "Erik", "Fiona" }
+    forge.raid(names)
+    forge.masterLoot(names)
+    forge.slash("/ledger newraid confirm")
+    forge.slash("/ledger clear")
+    for _ = 1, 5 do
+        forge.openLoot({ { id = 52025 } })
+        forge.click("RaidLedgerMasterLootLater")
+        forge.click("RaidLedgerMasterLootMember1_2")
+        forge.advance(0.1)
+        forge.closeLoot()
+    end
+    expect(forge.findText("5x " .. TOKEN)).toBeTruthy()
+    pick("5x " .. TOKEN)
+    expect(forge.frame("RaidLedgerStart"):IsEnabled()).toBeTruthy()
+    forge.click("RaidLedgerStart")
+    for _, roll in ipairs({ { "Alice", 90 }, { "Bob", 80 }, { "Cara", 70 }, { "Dora", 60 }, { "Erik", 50 }, { "Fiona", 40 } }) do
+        forge.roll(roll[1], roll[2])
+    end
+    forge.advance(31, 0.25)
+    expect(raidSaid("[Loot] 5x " .. TOKEN .. " won by Alice (90), Bob (80), Cara (70), Dora (60), Erik (50).")).toBe(true)
+    local winners = {}
+    for _, record in ipairs(db().history) do
+        if record.itemID == 52025 and record.state == "manual" then winners[record.recipient] = true end
+    end
+    expect(winners).toEqual({ Alice = true, Bob = true, Cara = true, Dora = true, Erik = true })
 end)

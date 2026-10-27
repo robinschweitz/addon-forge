@@ -29,16 +29,18 @@ test("the award button hands the item to the roll winner and records the real re
     forge.click("RaidLedgerAward")
     expect(forge.awards()[1].slot).toBe(1)
     expect(forge.awards()[1].candidate).toBe("Bob")
+    expect(db().history[1]).toBeNil()
+    forge.advance(0.1)
     local record = db().history[1]
     expect(record.recipient).toBe("Bob")
     expect(record.state).toBe("given")
-    expect(record.confirmed).toBe(false)
+    expect(record.confirmed).toBe(true)
     expect(record.itemID).toBe(20513)
     expect(record.npc).toBe(15209)
     expect(record.roll).toBe(88)
     expect(record.rolls).toBe(2)
     forge.click("RaidLedgerTabButtonAwards")
-    expect(forge.findText("GIVEN?")).toBeTruthy()
+    expect(forge.findText("GIVEN")).toBeTruthy()
 end)
 
 test("the server's loot message confirms the handout", function()
@@ -56,11 +58,11 @@ test("handouts from the default master-loot menu are recorded, and a reopened co
     forge.closeLoot()
     lootTemplar({ { id = 21281 } })             -- the same corpse again
     GiveMasterLoot(1, 2)                        -- Alice, as the Blizzard menu would
+    forge.advance(0.1)
     expect(db().history[1].recipient).toBe("Alice")
     expect(db().history[1].itemID).toBe(21281)
     expect(table.getn(db().history)).toBe(2)
     expect(forge.findText(TOME)).toBeNil()      -- no duplicate row was left behind
-    forge.advance(0.1)
     expect(db().history[1].confirmed).toBe(true)
     forge.closeLoot()
 end)
@@ -93,8 +95,8 @@ test("chest loot takes its source from the latest creature death", function()
     forge.masterLoot({ "Tester", "Alice", "Bob" })
     forge.openLoot({ { id = 21281 } })
     GiveMasterLoot(1, 3)
-    expect(db().history[1].npc).toBe(0x700D)
     forge.advance(0.1)
+    expect(db().history[1].npc).toBe(0x700D)
     forge.closeLoot()
 end)
 

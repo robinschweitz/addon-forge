@@ -57,6 +57,7 @@ test("FR-RL-006 BEUTE states the loot result without numbered steps or instructi
     expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
     forge.sketch("steps-winner", "RaidLedgerFrame")
     forge.click("RaidLedgerAward")
+    forge.advance(0.1)
     expect(db().history[1].recipient).toBe("Schattenklinge")
     forge.closeLoot()
 end)
@@ -91,6 +92,7 @@ test("FR-RL-007 an open item nobody rolled on is disenchanted from BEUTE", funct
     expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
     forge.sketch("steps-nobody", "RaidLedgerFrame")
     forge.click("RaidLedgerDisenchant")
+    forge.advance(0.1)
     local record = db().history[1]
     expect(record.item).toBe(LION)
     expect(record.state).toBe("disenchanted")
@@ -110,6 +112,7 @@ test("FR-RL-007 an open item that was not rolled goes to the guild bank from BEU
     expect(primary("RaidLedgerStart")).toBe(true)
     forge.sketch("steps-open", "RaidLedgerFrame")
     forge.click("RaidLedgerBank")
+    forge.advance(0.1)
     expect(db().history[1].state).toBe("bank")
     expect(db().history[1].recipient).toBe("Tester")
     expect(forge.findText("OFFENE ITEMS (1)")).toBeNil()
@@ -168,6 +171,7 @@ test("FR-RL-010 an assistant announces roll starts and tie-breaks as raid warnin
     forge.advance(16, 0.25)
     expect(sentAs("gewonnen von Schattenklinge")).toBe("RAID")   -- the winner goes to raid chat
     forge.click("RaidLedgerAward")
+    forge.advance(0.1)
     forge.closeLoot()
 end)
 

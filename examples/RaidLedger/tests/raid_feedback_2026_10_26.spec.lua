@@ -57,9 +57,9 @@ test("FR-RL-001 a corpse reopened after a hand-out lists no item twice", functio
     forge.advance(0.5, 0.25)
     expect(forge.findText("LOOT (2)")).toBeTruthy()
     GiveMasterLoot(2, 3)                         -- the boots, from the reopened window
+    forge.advance(0.1)
     expect(db().history[1].item).toBe(BOOTS)
     expect(db().history[1].recipient).toBe("Bob")
-    forge.advance(0.1)
     expect(forge.findText("LOOT (1)")).toBeTruthy()
     forge.closeLoot()
     forge.slash("/ledger clear")
@@ -153,7 +153,6 @@ test("FR-RL-004 an open item is listed in BEUTE only, until its roll is won", fu
     forge.click("RaidLedgerStart")
     forge.roll("Alice", 77)
     forge.advance(31, 0.25)
-    forge.click("RaidLedgerAward")
     expect(db().history[1].recipient).toBe("Alice")
     expect(forge.findText("OPEN ITEMS (1)")).toBeNil()
     expect(forge.findText("AWARDS (1)")).toBeTruthy()

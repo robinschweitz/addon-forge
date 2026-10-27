@@ -50,11 +50,11 @@ test("PARK hands loot to a raider to hold until it is rolled", function()
     forge.type("RaidLedgerRecipient", "Bob")
     laterTo(forge.text("RaidLedgerRecipient"))
     expect(forge.awards()[1].candidate).toBe("Bob")
+    forge.advance(0.1)
     local record = db().history[1]
     expect(record.state).toBe("parked")
     expect(record.recipient).toBe("Bob")
     expect(record.spec).toBeNil()
-    forge.advance(0.1)
     expect(record.confirmed).toBe(true)
     expect(raidSaid("[Loot] " .. CREST .. " is parked with Bob until it is rolled.")).toBe(true)
     expect(forge.findText("LOOT (1)  |  1 OPEN")).toBeTruthy()
@@ -91,11 +91,10 @@ test("open items are not in VERGABEN; one is rolled from BEUTE like any other", 
     forge.roll("Cara", 80)
     forge.roll("Alice", 30)
     forge.advance(31, 0.25)
-    expect(lastOpenList()).toBe("20513:w:a1:Cara")
+    expect(lastOpenList()).toBe("")
 end)
 
 test("a later roll on an item another raider holds goes to the winner, from the holder", function()
-    forge.click("RaidLedgerAward")
     local record = db().history[2]
     expect(record.id).toBe(1)
     expect(record.recipient).toBe("Cara")
@@ -118,7 +117,6 @@ test("a later roll on an item the master looter holds goes to the winner at once
     forge.click("RaidLedgerStart")
     forge.roll("Alice", 70, 1, 99)
     forge.advance(31, 0.25)
-    forge.click("RaidLedgerAward")
     local record = db().history[1]
     expect(record.id).toBe(2)
     expect(record.recipient).toBe("Alice")
