@@ -65,7 +65,7 @@ end)
 test("the winner is the recipient of the same award at once (no trade tracking)", function()
     forge.roll("Bob", 40)
     forge.advance(31, 0.25)
-    expect(forge.findText("Alice won (70). Next: hand it out.")).toBeTruthy()
+    expect(forge.findText("Alice won (70).")).toBeTruthy()
     forge.click("RaidLedgerAward")
     local record = db().history[1]
     expect(table.getn(db().history)).toBe(1)

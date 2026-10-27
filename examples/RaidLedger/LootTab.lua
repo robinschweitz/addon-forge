@@ -55,19 +55,9 @@ stateLine:SetHeight(14)
 stateLine:SetJustifyH("LEFT")
 stateLine:SetWordWrap(false)
 
-local function stepLabel(text, ...)
-    local step = ns.label(detail, "GameFontNormal", 10, {1.00, 0.80, 0.32})
-    step:SetPoint(...)
-    step:SetText(text)
-    return step
-end
-
--- Step 1: roll now, or a free BoE
--- roll. Both steps share one grid: their rows start and end at the same x
--- (FR-RL-013); layoutButtons sizes it to the pane.
-stepLabel(L["1  ROLL"], "TOPLEFT", detail, "TOPLEFT", PAD, -68)
+-- Roll and hand-out controls share one grid, without prescribing an order.
 local startButton = ns.flatButton(detail, L["ROLL"], 130, "RaidLedgerStart")
-startButton:SetPoint("TOPLEFT", detail, "TOPLEFT", PAD, -82)
+startButton:SetPoint("TOPLEFT", detail, "TOPLEFT", PAD, -68)
 local freeButton = ns.flatButton(detail, L["FREE BOE ROLL"], 130, "RaidLedgerFreeRoll")
 freeButton:SetPoint("LEFT", startButton, "RIGHT", GAP, 0)
 
@@ -89,8 +79,7 @@ end)
 local noRolls = ns.label(detail, "GameFontNormalSmall", 10, {0.42, 0.61, 0.70})
 noRolls:SetPoint("TOPLEFT", detail, "TOPLEFT", PAD + 4, -ROLLS_TOP - 4)
 
--- Step 2: hand out. The give button names the recipient.
-stepLabel(L["2  HAND OUT"], "TOPLEFT", detail, "BOTTOMLEFT", PAD, 104)
+-- The give button names the recipient.
 local recipientHint = ns.label(detail, "GameFontNormalSmall", 9, {0.45, 0.60, 0.68})
 recipientHint:SetPoint("TOPLEFT", detail, "BOTTOMLEFT", 110, 102)
 recipientHint:SetPoint("RIGHT", detail, "RIGHT", -PAD, 0)
@@ -450,8 +439,7 @@ local function drawPicker()
     end
 end
 
--- The next step for the selected item (FR-RL-006): which button is
--- highlighted, and the state line that says it in words.
+-- The relevant action is highlighted; the state line only reports what happened.
 local function boxName() return (string.gsub(recipientBox:GetText() or "", "^%s*(.-)%s*$", "%1")) end
 
 local function drawRaidBar(mayEdit)
@@ -489,7 +477,7 @@ local function drawDetail()
     if entry and entry.disenchanter then
         itemTitle:SetText(entry.item)
         stateLine:SetText(rolling and string.format(L["%d rolls  |  %ds remaining"], core.activeRollCount(entry),
-            math.max(0, math.ceil(entry.endsAt - GetTime()))) or L["Not rolled yet: start the roll."])
+            math.max(0, math.ceil(entry.endsAt - GetTime()))) or L["Not rolled yet."])
         startButton:SetText(L["ROLL"])
         ns.setEnabled(startButton, mayEdit and not rolling)
         drawHandOut(false)
@@ -504,16 +492,16 @@ local function drawDetail()
             stateLine:SetText(string.format(L["WINNERS: %s"], table.concat(names, ", ")))
             primary = "give"
         elseif entry.winner then
-            stateLine:SetText(string.format(L["%s won (%d). Next: hand it out."], entry.winner.name, entry.winner.value))
+            stateLine:SetText(string.format(L["%s won (%d)."], entry.winner.name, entry.winner.value))
             primary = "give"
         elseif rolling then
             stateLine:SetText(string.format(L["%d rolls  |  %ds remaining"], core.activeRollCount(entry),
                 math.max(0, math.ceil(entry.endsAt - GetTime()))))
         elseif entry.nobody then
-            stateLine:SetText(L["Nobody wanted it. Next: disenchant it (or bank it, roll again)."])
+            stateLine:SetText(L["Nobody wanted it."])
             primary = "de"
         else
-            stateLine:SetText(entry.later and L["Open item, not rolled yet. Next: roll it."] or L["Not rolled yet. Next: roll it."])
+            stateLine:SetText(entry.later and L["Open item, not rolled yet."] or L["Not rolled yet."])
             primary = "roll"
         end
         startButton:SetText((entry.winner or entry.nobody) and L["ROLL AGAIN"] or L["ROLL"])
@@ -526,7 +514,7 @@ local function drawDetail()
         drawRolls(entry)
     elseif openRecord then
         itemTitle:SetText(openRecord.item)
-        stateLine:SetText(string.format(L["Open: %s holds it. Next: roll it, or hand it out below."], openRecord.recipient or "?"))
+        stateLine:SetText(string.format(L["Open: %s holds it."], openRecord.recipient or "?"))
         startButton:SetText(L["ROLL"])
         ns.setEnabled(startButton, mayEdit)
         ns.setPrimary(startButton, mayEdit)
@@ -534,7 +522,7 @@ local function drawDetail()
         drawRolls(nil)
     else
         itemTitle:SetText(L["Select an item on the left"])
-        stateLine:SetText(L["Then ROLL starts the /rnd roll; the rolls appear below."])
+        stateLine:SetText("")
         ns.setEnabled(startButton, false)
         drawHandOut(false)
         drawRolls(nil)

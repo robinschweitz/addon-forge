@@ -509,19 +509,16 @@ L["/ledger deroll - roll the raid's disenchanter (/rnd 100); DE then gives items
     "/ledger deroll - den Entzauberer des Raids auswürfeln (/rnd 100); DE gibt Items dann an ihn"
 
 -- Window feedback 2026-10-26: BEUTE in two steps, VERGABEN only corrects
-L["1  ROLL"] = "1  WÜRFELN"
-L["2  HAND OUT"] = "2  VERGEBEN"
 L["click a roll or ALL, or type a name"] = "Wurf oder ALLE anklicken, oder Namen tippen"
 L["GIVE TO ..."] = "VERGEBEN AN ..."
 L["GIVE TO %s"] = "VERGEBEN AN %s"
 L["ROLL IT"] = "AUSWÜRFELN"
 L["DISENCHANTER: %s"] = "ENTZAUBERER: %s"
-L["%s won (%d). Next: hand it out."] = "%s hat gewonnen (%d). Weiter: vergeben."
-L["Nobody wanted it. Next: disenchant it (or bank it, roll again)."] =
-    "Wollte niemand. Weiter: entzaubern (oder Gildenbank, nochmal würfeln)."
-L["Open item, not rolled yet. Next: roll it."] = "Offenes Item, noch nicht gewürfelt. Weiter: würfeln."
-L["Not rolled yet. Next: roll it."] = "Noch nicht gewürfelt. Weiter: würfeln."
-L["Open: %s holds it. Next: roll it, or hand it out below."] = "Offen: %s hat es. Weiter: würfeln oder unten vergeben."
+L["%s won (%d)."] = "%s hat gewonnen (%d)."
+L["Nobody wanted it."] = "Wollte niemand."
+L["Open item, not rolled yet."] = "Offenes Item, noch nicht gewürfelt."
+L["Not rolled yet."] = "Noch nicht gewürfelt."
+L["Open: %s holds it."] = "Offen: %s hat es."
 L["BACK TO LOOT"] = "ZURÜCK IN BEUTE"
 L["Back to BEUTE as an open item with whoever holds it: roll it again or hand it out there"] =
     "Zurück in BEUTE als offenes Item bei dem, der es hat: dort neu würfeln oder anders vergeben"
