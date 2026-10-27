@@ -21,10 +21,10 @@ local STATE_COLORS = {
 }
 
 local function stateText(record)
-    local text = core.stateLabels[record.state] or string.upper(record.state or "")
+    local text = record.state == "manual" and "" or (core.stateLabels[record.state] or string.upper(record.state or ""))
     if record.state == "held" and not ns.isPlayer(record.recipient) then text = L["HELD"] end
     if core.isOpenAward(record) then text = L["OPEN"] end
-    if not record.confirmed and record.state ~= "deleted" then text = text .. "?" end
+    if text ~= "" and not record.confirmed and record.state ~= "deleted" then text = text .. "?" end
     local color = core.isOpenAward(record) and STATE_COLORS.parked or STATE_COLORS[record.state] or STATE_COLORS.manual
     return text, color
 end
@@ -100,9 +100,11 @@ changeButton:SetPoint("LEFT", recipientBox, "RIGHT", 8, 0)
 -- (the live plans know it as RaidLedgerAwardPark).
 local parkButton = ns.flatButton(detail, L["BACK TO LOOT"], 140, "RaidLedgerAwardPark")
 parkButton:SetPoint("TOPLEFT", detail, "TOPLEFT", 12, -152)
+parkButton:SetPoint("TOPRIGHT", detail, "TOP", -3, -152)
 ns.makeBackdrop(parkButton, 0.20, 0.12, 0.30, 0.98)
 local removeButton = ns.flatButton(detail, L["REMOVE"], 90, "RaidLedgerRemove")
-removeButton:SetPoint("LEFT", parkButton, "RIGHT", 6, 0)
+removeButton:SetPoint("TOPLEFT", detail, "TOP", 3, -152)
+removeButton:SetPoint("TOPRIGHT", detail, "TOPRIGHT", -12, -152)
 ns.makeBackdrop(removeButton, 0.28, 0.10, 0.10, 0.98)
 
 local logHeading = ns.label(detail, "GameFontNormal", 10, {1.00, 0.80, 0.32})
@@ -300,7 +302,9 @@ local function drawDetail()
     end
     awardTitle:SetText(string.format("#%d %s", record.id, record.item))
     local spec = record.spec and (core.SPEC_NAMES[record.spec] or record.spec) or L["no tally"]
-    nowLine:SetText(string.format(L["NOW: %s (%s)"], record.recipient, (stateText(record))) .. "  |  " .. spec
+    local state = stateText(record)
+    nowLine:SetText((state ~= "" and string.format(L["NOW: %s (%s)"], record.recipient, state)
+        or string.format(L["NOW: %s"], record.recipient)) .. "  |  " .. spec
         .. (record.roll and string.format(L["  |  roll %d"], record.roll) or ""))
     local deleted = record.state == "deleted"
     local countable = not deleted and not core.NO_TALLY[record.state] and record.spec ~= "boe"
@@ -369,7 +373,9 @@ for _, row in ipairs(awardRows) do
         local record = self.record
         if not record then return end
         ns.itemTooltip(self, record.item)
-        GameTooltip:AddLine(string.format(L["Award #%d: %s (%s)"], record.id, record.recipient, (stateText(record))), 1, 1, 1)
+        local state = stateText(record)
+        GameTooltip:AddLine(state ~= "" and string.format(L["Award #%d: %s (%s)"], record.id, record.recipient, state)
+            or string.format(L["Award #%d: %s"], record.id, record.recipient), 1, 1, 1)
         if record.roll then
             GameTooltip:AddLine(string.format(L["Roll %d, %s"], record.roll, record.spec and core.rollLabel({
                 kind = record.spec, low = record.low, high = record.high }) or L["spec unknown"]), 0.8, 0.8, 0.8)

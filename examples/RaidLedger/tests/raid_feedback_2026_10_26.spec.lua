@@ -120,7 +120,7 @@ test("FR-RL-003 an item the master looter keeps for the winner is the winner's a
     expect(record.state ~= "held").toBe(true)
     expect(record.spec).toBe("ms")
     expect(record.confirmed).toBe(true)
-    expect(raidSaid("[Loot] " .. TOME .. " goes to Alice - main spec (Tester hands it over).")).toBe(true)
+    expect(raidSaid("[Loot] " .. TOME .. " goes to Alice - main spec (pick it up from Tester).")).toBe(true)
     forge.closeLoot()
     forge.unit("target", false)
 end)

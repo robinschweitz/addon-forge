@@ -104,7 +104,7 @@ test("a later roll on an item another raider holds goes to the winner, from the 
     expect(record.spec).toBe("ms")
     expect(record.roll).toBe(80)
     expect(#record.rollLog).toBe(2)
-    expect(raidSaid("[Loot] " .. CREST .. " goes to Cara - main spec (Bob hands it over).")).toBe(true)
+    expect(raidSaid("[Loot] " .. CREST .. " goes to Cara - main spec (pick it up from Bob).")).toBe(true)
     forge.advance(3, 0.25)               -- the list queues behind award messages
     expect(lastOpenList()).toBe("")
     forge.slash("/ledger tally")
@@ -126,7 +126,7 @@ test("a later roll on an item the master looter holds goes to the winner at once
     expect(record.state).toBe("manual")
     expect(record.winner).toBe("Alice")
     expect(record.spec).toBe("os")
-    expect(raidSaid("[Loot] " .. TOME .. " goes to Alice - off spec (Tester hands it over).")).toBe(true)
+    expect(raidSaid("[Loot] " .. TOME .. " goes to Alice - off spec (pick it up from Tester).")).toBe(true)
 end)
 
 test("an item kept without a roll is open, listed in BEUTE only", function()

@@ -73,7 +73,7 @@ test("the winner is the recipient of the same award at once (no trade tracking)"
     expect(record.recipient).toBe("Alice")
     expect(record.state).toBe("manual")
     expect(record.spec).toBe("ms")
-    expect(raidSaid("[Loot] " .. CREST .. " goes to Alice - main spec (Tester hands it over).")).toBe(true)
+    expect(raidSaid("[Loot] " .. CREST .. " goes to Alice - main spec (pick it up from Tester).")).toBe(true)
 end)
 
 test("an open award already held for that item is rolled, not recorded twice", function()

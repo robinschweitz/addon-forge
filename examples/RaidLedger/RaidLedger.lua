@@ -323,10 +323,10 @@ local function announceAward(record, how)
         announce(string.format(L["[Loot] %s goes to the guild bank (%s)."], record.item, record.recipient))
         return
     end
-    -- An item someone else hands over goes to the winner; the raid hears both.
+    -- The winner needs to know which raider currently holds the item.
     local recipient = record.recipient
     if record.holder and lower(record.holder) ~= lower(record.recipient) then
-        how = how or string.format(L["%s hands it over"], record.holder)
+        how = how or string.format(L["pick it up from %s"], record.holder)
     elseif record.state == "held" and record.winner and lower(record.winner) ~= lower(record.recipient) then
         recipient = record.winner   -- an award saved before 2026-10-26
     end
@@ -479,7 +479,7 @@ local function recordAward(entry, recipient, state, confirmed)
     -- A bundle copy belongs to the roller it was won by.
     if bundled and roll then winner = roll.name end
     -- Kept by the recorder for its roll winner, the item is the winner's award
-    -- at once (he hands it over; trades are not tracked since 2026-10-26).
+    -- at once; chat says where to pick it up (trades are not tracked).
     -- Kept without a roll, it is an open item until it is rolled.
     local holder
     if state ~= "parked" and not NO_TALLY[state] and isPlayer(recipient) then
@@ -1773,8 +1773,7 @@ if ContainerFrameItemButton_OnModifiedClick then
 end
 
 -- finishLaterRoll records the winner of a later roll: the winner becomes the
--- recipient at once, and whoever holds the item hands it over (trades are not
--- tracked since 2026-10-26).
+-- recipient at once, and chat tells them who currently holds the item.
 finishLaterRoll = function(entry, recipient)
     local record = entry.record
     local holder = record.recipient
@@ -1789,7 +1788,7 @@ finishLaterRoll = function(entry, recipient)
     record.recipient, record.state = field(recipient), "manual"
     if lower(holder) ~= lower(recipient) then
         record.holder = holder
-        how = string.format(L["%s hands it over"], holder)
+        how = string.format(L["pick it up from %s"], holder)
     end
     for index = table.getn(active), 1, -1 do
         if active[index] == entry then table.remove(active, index) end
@@ -1854,7 +1853,7 @@ end
 
 -- roster.handOutRecord hands out an open item without a roll (FR-RL-007):
 -- to a player ("given"), for disenchanting or the bank, or parked with
--- another holder. Whoever holds it now hands it over.
+-- another holder. Chat names the raider from whom to pick it up.
 function roster.handOutRecord(record, state, name)
     if roster.denied() then return false end
     name = trim(name)

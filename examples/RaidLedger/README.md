@@ -285,7 +285,7 @@ Items do not have to be rolled right away:
 - An open item is handled in BEUTE like any loot: select it and press
   **ROLL** (wishlist prompts and auto-rolls included; **GIVE TO** then writes
   the result onto the same award, the winner becomes the recipient at once
-  and the holder hands it over: "Bob hands it over"), or hand it out right
+  and the chat says who holds it for pickup: "pick it up from Bob"), or hand it out right
   away with GIVE TO, DISENCHANT or GUILD BANK. With an empty name box it
   stays with its holder. An open roll nobody took no longer gets stuck.
 - **Items in your bags** can be rolled too: **Alt+click** the item in your bags

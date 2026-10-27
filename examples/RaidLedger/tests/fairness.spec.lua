@@ -60,8 +60,8 @@ test("corrections and hand-overs are announced too", function()
     GiveMasterLoot(1, 1)                     -- the master looter keeps it for now
     forge.advance(0.1)
     forge.closeLoot()
-    -- The raid hears who won it, and who hands it over (user request 2026-10-23).
-    expect(raidSaid("[Loot] " .. TOKEN .. " goes to Alice - main spec (Tester hands it over).")).toBe(true)
+    -- The raid hears who won it and where to pick it up (user feedback 2026-10-27).
+    expect(raidSaid("[Loot] " .. TOKEN .. " goes to Alice - main spec (pick it up from Tester).")).toBe(true)
     expect(raidSaid("[Loot] " .. TOKEN .. " goes to Tester - main spec.")).toBe(false)
 end)
 
