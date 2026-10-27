@@ -88,13 +88,15 @@ recipientHint:SetPoint("TOPLEFT", detail, "TOPLEFT", 14, -112)
 recipientHint:SetText(L["RECIPIENT NAME"])
 local recipientBox = CreateFrame("EditBox", "RaidLedgerAwardRecipient", detail, "InputBoxTemplate")
 recipientBox:SetPoint("TOPLEFT", detail, "TOPLEFT", 18, -124)
-recipientBox:SetWidth(126)
+recipientBox:SetPoint("TOPRIGHT", detail, "TOP", -3, -124)
 recipientBox:SetHeight(22)
 recipientBox:SetAutoFocus(false)
 recipientBox:SetMaxLetters(24)
 local changeButton = ns.flatButton(detail, L["CHANGE"], 124, "RaidLedgerChangeRecipient")
 changeButton:SetHeight(22)
-changeButton:SetPoint("LEFT", recipientBox, "RIGHT", 8, 0)
+changeButton:ClearAllPoints()
+changeButton:SetPoint("TOPLEFT", detail, "TOP", 3, -124)
+changeButton:SetPoint("TOPRIGHT", detail, "TOPRIGHT", -12, -124)
 
 -- Back to BEUTE: the award becomes an open item with whoever holds it
 -- (the live plans know it as RaidLedgerAwardPark).
@@ -158,8 +160,18 @@ exportText:SetAutoFocus(false)
 exportText:SetFontObject(ChatFontNormal)
 exportScroll:SetScrollChild(exportText)
 
--- A larger window: more award and roll rows, a wider export field.
+-- A wider window keeps all selected-award actions on one shared grid.
 ns.onResize(function(width, height)
+    local listWidth = LEFT_WIDTH + math.floor((width - ns.CONTENT_WIDTH) * 0.4)
+    local inner = width - listWidth - 12 - 24
+    local each = math.floor((inner - 12) / 3)
+    for index, button in ipairs(specButtons) do
+        button:SetWidth(index < 3 and each or inner - each * 2 - 12)
+        if index > 1 then
+            button:ClearAllPoints()
+            button:SetPoint("LEFT", specButtons[index - 1], "RIGHT", 6, 0)
+        end
+    end
     awardRows.fit(ns.rowsFit(height, 28, 24))
     logRows.fit(ns.rowsFit(height, LOG_TOP, 28))
     exportText:SetWidth(width - 36)

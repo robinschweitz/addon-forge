@@ -394,6 +394,7 @@ function ui.setScale(scale)
     if not scale or scale < SCALE_MIN - 0.001 or scale > SCALE_MAX + 0.001 then return false end
     scale = math.floor(scale * 10 + 0.5) / 10
     Ledger:SetScale(scale)
+    if ui.setMasterLootScale then ui.setMasterLootScale(scale) end
     window().scale = scale
     fitScreen()
     saveSize()
@@ -404,7 +405,9 @@ end
 -- Restores the saved size and scale (at login, after the SavedVariables).
 local function restoreWindow()
     local saved = window()
-    Ledger:SetScale(saved.scale or 1)
+    local scale = saved.scale or 1
+    Ledger:SetScale(scale)
+    if ui.setMasterLootScale then ui.setMasterLootScale(scale) end
     Ledger:SetWidth(saved.width or WIDTH)
     Ledger:SetHeight(saved.height or HEIGHT)
     fitScreen()

@@ -740,6 +740,9 @@ masterLoot:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
 ns.makeBackdrop(masterLoot, 0.018, 0.031, 0.055, 0.98)
 masterLoot:Hide()
 
+-- This is an independent UIParent window, so it does not inherit Ledger's scale.
+function ui.setMasterLootScale(scale) masterLoot:SetScale(scale) end
+
 local masterTitle = ns.label(masterLoot, "GameFontNormal", 12, {1.00, 0.80, 0.32})
 masterTitle:SetPoint("TOPLEFT", masterLoot, "TOPLEFT", 12, -10)
 masterTitle:SetText(L["MASTER LOOT ITEMS"])
