@@ -11,6 +11,10 @@ before_load(function()
     forge.item(21281, { name = "Grimoire", link = TOME, quality = 4 })
     forge.item(20514, { name = "Abyssal Boots", link = BOOTS, quality = 4 })
     forge.item(20515, { name = "Abyssal Ring", link = RING, quality = 4 })
+    for id = 30001, 30010 do
+        forge.item(id, { name = "Relic " .. id,
+            link = "|cffa335ee|Hitem:" .. id .. ":0:0:0:0:0:0:0:80|h[Relic " .. id .. "]|h|r", quality = 4 })
+    end
 end)
 
 local function latestAward()
@@ -36,8 +40,9 @@ test("FR-RL-014 master loot opens a compact assignment popup and records its act
     expect(forge.frame("RaidLedgerMasterLootDisenchant")).toBeNil()
     expect(forge.frame("RaidLedgerMasterLootBank")).toBeNil()
     expect(forge.frame("RaidLedgerPark")).toBeNil()
+    expect(forge.rect("RaidLedgerMasterLoot").height < 160).toBe(true)
     local before = forge.rect("RaidLedgerMasterLoot")
-    forge.drag("RaidLedgerMasterLootDrag", 37, -22)
+    forge.drag("RaidLedgerMasterLoot", 37, -22)
     forge.advance(0.1)
     local after = forge.rect("RaidLedgerMasterLoot")
     expect(after.left).toBe(before.left + 37)
@@ -73,5 +78,16 @@ test("FR-RL-014 the compact recipient chooser fits a full raid with long German 
     forge.masterLoot(members)
     forge.openLoot({ { id = 20513 } })
     forge.click("RaidLedgerMasterLootLater")
+    expect(forge.layoutIssues("RaidLedgerMasterLoot")).toEqual({})
+end)
+
+test("FR-RL-014 a corpse with many items fills the popup without empty space", function()
+    local drops = {}
+    forge.closeLoot()
+    forge.slash("/ledger clear")
+    for id = 30001, 30010 do table.insert(drops, { id = id }) end
+    forge.openLoot(drops)
+    expect(forge.rect("RaidLedgerMasterLoot").height).toBe(264)
+    expect("RaidLedgerMasterLootItem10").toBeShown()
     expect(forge.layoutIssues("RaidLedgerMasterLoot")).toEqual({})
 end)

@@ -724,28 +724,25 @@ ns.tip(clearLoot, L["Empty the loot list (the awards stay)"])
 ---------------------------------------------------------------------------
 -- The corpse needs immediate actions, but the 760 px main window should not
 -- cover the game every time it opens. This popup owns only the current corpse.
+local MAX_MASTER_ROWS = 10
 local masterLoot = CreateFrame("Frame", "RaidLedgerMasterLoot", UIParent)
 masterLoot:SetWidth(460)
-masterLoot:SetHeight(210)
+masterLoot:SetHeight(93)
 masterLoot:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 20, -120)
 masterLoot:SetFrameStrata("FULLSCREEN_DIALOG")
 masterLoot:SetToplevel(true)
 masterLoot:SetClampedToScreen(true)
 masterLoot:EnableMouse(true)
 masterLoot:SetMovable(true)
+masterLoot:RegisterForDrag("LeftButton")
+masterLoot:SetScript("OnDragStart", function(self) self:StartMoving() end)
+masterLoot:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
 ns.makeBackdrop(masterLoot, 0.018, 0.031, 0.055, 0.98)
 masterLoot:Hide()
 
 local masterTitle = ns.label(masterLoot, "GameFontNormal", 12, {1.00, 0.80, 0.32})
 masterTitle:SetPoint("TOPLEFT", masterLoot, "TOPLEFT", 12, -10)
 masterTitle:SetText(L["MASTER LOOT ITEMS"])
-local masterDrag = CreateFrame("Button", "RaidLedgerMasterLootDrag", masterLoot)
-masterDrag:SetPoint("TOPLEFT", masterLoot, "TOPLEFT", 8, -4)
-masterDrag:SetPoint("TOPRIGHT", masterLoot, "TOPRIGHT", -38, -4)
-masterDrag:SetHeight(22)
-masterDrag:RegisterForDrag("LeftButton")
-masterDrag:SetScript("OnDragStart", function() masterLoot:StartMoving() end)
-masterDrag:SetScript("OnDragStop", function() masterLoot:StopMovingOrSizing() end)
 local masterClose = ns.flatButton(masterLoot, "X", 22, "RaidLedgerMasterLootClose")
 masterClose:SetHeight(18)
 masterClose:SetPoint("TOPRIGHT", masterLoot, "TOPRIGHT", -10, -8)
@@ -753,7 +750,7 @@ masterClose:SetScript("OnClick", function() masterLoot:Hide() end)
 ns.tip(masterClose, L["Close the ledger (/ledger opens it again)"])
 
 local masterRows = {}
-for i = 1, 4 do
+for i = 1, MAX_MASTER_ROWS do
     local row = ns.listRow(masterLoot, 436, nil, "RaidLedgerMasterLootItem" .. i)
     row:SetPoint("TOPLEFT", masterLoot, "TOPLEFT", 12, -30 - (i - 1) * 19)
     row:SetPoint("RIGHT", masterLoot, "RIGHT", -12, 0)
@@ -768,12 +765,12 @@ for i = 1, 4 do
 end
 
 local masterRoll = ns.flatButton(masterLoot, L["ROLL"], 138, "RaidLedgerMasterLootRoll")
-masterRoll:SetPoint("BOTTOMLEFT", masterLoot, "BOTTOMLEFT", 12, 52)
+masterRoll:SetPoint("BOTTOMLEFT", masterLoot, "BOTTOMLEFT", 12, 12)
 local masterGive = ns.flatButton(masterLoot, L["ASSIGN"], 138, "RaidLedgerMasterLootGive")
 masterGive:SetPoint("LEFT", masterRoll, "RIGHT", 11, 0)
 local masterLater = ns.flatButton(masterLoot, L["LATER ROLL"], 138, "RaidLedgerMasterLootLater")
 masterLater:SetPoint("LEFT", masterGive, "RIGHT", 11, 0)
-local masterControls = { masterTitle, masterDrag, masterClose, masterRoll, masterGive, masterLater }
+local masterControls = { masterTitle, masterClose, masterRoll, masterGive, masterLater }
 for _, row in ipairs(masterRows) do table.insert(masterControls, row) end
 
 local masterMembers = CreateFrame("Frame", "RaidLedgerMasterLootMembers", masterLoot)
@@ -820,6 +817,7 @@ masterCancel:SetPoint("BOTTOMRIGHT", masterMembers, "BOTTOMRIGHT", -12, 12)
 hideMasterMembers = function()
     masterMembers:Hide()
     for _, control in ipairs(masterControls) do control:Show() end
+    if masterLoot.normalHeight then masterLoot:SetHeight(masterLoot.normalHeight) end
 end
 masterCancel:SetScript("OnClick", hideMasterMembers)
 
@@ -860,6 +858,9 @@ local function drawMasterLoot()
         end
         if not found then masterLoot.entry = entries[1] end
     end
+    local visible = math.min(table.getn(entries), MAX_MASTER_ROWS)
+    masterLoot.normalHeight = 74 + visible * 19
+    masterLoot:SetHeight(masterLoot.normalHeight)
     for index, row in ipairs(masterRows) do
         row.entry = entries[index]
         if row.entry then
@@ -890,6 +891,7 @@ end
 
 local function chooseMasterRecipient(mode)
     if not masterLoot.entry then return end
+    masterLoot:SetHeight(math.max(masterLoot.normalHeight or 0, 158))
     masterMembers.mode = mode
     masterMembers.caption:SetText(mode == "later" and L["Who keeps it until the roll?"] or L["Who gets the item?"])
     drawMasterMembers()
@@ -930,8 +932,7 @@ events:SetScript("OnEvent", function()
         ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootRoll", masterRoll)
         ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootGive", masterGive)
         ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootLater", masterLater)
-        ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootDrag", masterDrag)
-        for row = 1, 4 do ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootItem" .. row, masterRows[row]) end
+        for row = 1, MAX_MASTER_ROWS do ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootItem" .. row, masterRows[row]) end
         for row = 1, 5 do ForgeTestBridge:RegisterFrame("RaidLedgerMasterLootMember1_" .. row, masterMembers.cells[1][row]) end
         ForgeTestBridge:RegisterFrame("RaidLedgerItem", itemTitle)
         ForgeTestBridge:RegisterFrame("RaidLedgerRollDetail", stateLine)
