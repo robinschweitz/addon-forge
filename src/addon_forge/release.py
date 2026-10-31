@@ -49,15 +49,16 @@ def addon_plans(addon: Path) -> list[Path]:
 
 
 def release_files(addon: Path) -> list[str]:
-    """The .toc, the files it loads (XML includes too) and README.md (FR-15.1, FR-15.3)."""
+    """The .toc, the files it loads (XML includes too), README.md and LICENSE (FR-15.1, FR-15.3)."""
     addon = addon.resolve()
     toc = read_toc(addon)
     if toc is None:
         raise ValueError(f"{addon.name} has no single .toc")
     files = {toc.path, *toc.files, *load_order(addon)}
-    readme = addon / "README.md"
-    if readme.is_file():
-        files.add(readme)
+    # The license text must travel with a GPL addon.
+    for extra in ("README.md", "LICENSE"):
+        if (addon / extra).is_file():
+            files.add(addon / extra)
     names = sorted(p.resolve().relative_to(addon).as_posix() for p in files)
     for name in names:
         if name.split("/")[0] in ("tests", ".forge-runs") or "ForgeTestBridge" in name:

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "addon": "RaidWishlist",
+  "character": "Test",
+  "peers": 0,
+  "steps": [
+    { "type": "slash", "value": "/wish" },
+    { "type": "click", "value": "RaidWishlistSettingsOpen" },
+    { "type": "screenshot", "value": "settings_page" },
+    { "type": "paste", "value": ["RaidWishlistEditorPoints", "42"] },
+    { "type": "click", "value": "RaidWishlistReminderSave" },
+    { "type": "click", "value": "RaidWishlistSettingsOpen" },
+    { "type": "paste", "value": ["RaidWishlistEditorPoints", "50"] },
+    { "type": "click", "value": "RaidWishlistReminderCancel" }
+  ],
+  "checks": [
+    { "type": "global_equals", "path": "RaidWishlistDB.chars.Test.balance", "value": 42 },
+    { "type": "frame_visible", "value": "RaidWishlistSettingsOpen" },
+    { "type": "no_lua_errors", "value": true }
+  ]
+}

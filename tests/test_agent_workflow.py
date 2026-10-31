@@ -289,6 +289,10 @@ class FakePeer:
         self.sent.append(f"roll {low}-{high}")
         return "ok"
 
+    def say(self, text, item=None):
+        self.sent.append(f"say {text} {item}")
+        return self.results.get("say", "ok")
+
 
 def lua_client(answers):
     codes = []
@@ -553,3 +557,37 @@ def test_hardware_click_on_the_member_client():
               sleep=lambda s: None, pids={"member": 12},
               press_click=lambda client="main": presses.append(client))
     assert presses == ["member"] and {pid for pid, _ in codes} == {12}
+
+
+def test_peer_say_steps_are_validated():
+    # FR-5.3, SC-014, T-026: the GM bot's text can never be a command or escape.
+    checks = [{"type": "player_in_world", "value": True}]
+    ok = validate_plan({**BASE, "fixtures": ["master_loot"], "steps": [
+        {"type": "peer_say", "value": ["roll", 20513]},
+        {"type": "peer_say", "value": ["Roll now: MS 100, OS 99. Don't wait!"]}], "checks": checks})
+    assert [s["value"] for s in ok["steps"]] == [["roll", 20513], ["Roll now: MS 100, OS 99. Don't wait!"]]
+    for bad in (".additem 20513", "!kick Test", "/rw hi", "roll |cffff0000x", "", "a" * 61, " roll",
+                "würfel", "roll\nnow", "roll;now", "-roll", "7 roll"):
+        with pytest.raises(ValueError, match="peer_say"):
+            validate_plan({**BASE, "fixtures": ["master_loot"],
+                           "steps": [{"type": "peer_say", "value": [bad]}], "checks": checks})
+    for bad in ("roll", ["roll", 0], ["roll", "20513"], ["roll", True], ["roll", 20513, 1], [], [1]):
+        with pytest.raises(ValueError, match="peer_say"):
+            validate_plan({**BASE, "fixtures": ["master_loot"],
+                           "steps": [{"type": "peer_say", "value": bad}], "checks": checks})
+    with pytest.raises(ValueError, match="master_loot"):
+        validate_plan({**BASE, "steps": [{"type": "peer_say", "value": ["roll"]}], "checks": checks})
+
+
+def test_peer_say_makes_the_fixture_bot_speak():
+    from addon_forge.plan_steps import StepFailed, run_steps
+    peer = FakePeer()
+    log = run_steps([{"type": "peer_say", "value": ["roll", 20513]}, {"type": "peer_say", "value": ["hello"]}],
+                    9, rpc=None, sleep=lambda s: None, peer=peer)
+    assert [e["result"] for e in log] == ["ok", "ok"]
+    assert peer.sent == ["say roll 20513", "say hello None"]
+    with pytest.raises(StepFailed, match="unknown_item"):
+        run_steps([{"type": "peer_say", "value": ["roll", 999999]}], 9, rpc=None,
+                  peer=FakePeer({"say": "unknown_item"}))
+    with pytest.raises(StepFailed, match="no_fixture_peer"):
+        run_steps([{"type": "peer_say", "value": ["roll"]}], 9, rpc=None)
