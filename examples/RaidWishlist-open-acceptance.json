@@ -39,11 +39,11 @@
     },
     {
       "type": "click",
-      "value": "RaidLedgerPark"
+      "value": "RaidLedgerMasterLootLater"
     },
     {
       "type": "click",
-      "value": "RaidLedgerMember1_1"
+      "value": "RaidLedgerMasterLootMember1_1"
     },
     {
       "type": "wait",
