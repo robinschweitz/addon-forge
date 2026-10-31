@@ -151,3 +151,30 @@ test("FR-RL-016 open copies of one token roll together for the best five", funct
     end
     expect(winners).toEqual({ Alice = true, Bob = true, Cara = true, Dora = true, Erik = true })
 end)
+
+test("FR-RL-016 an open token bundle nobody rolled on goes back to OPEN ITEMS", function()
+    local names = { "Tester", "Alice", "Bob" }
+    forge.raid(names)
+    forge.masterLoot(names)
+    forge.slash("/ledger newraid confirm")
+    forge.slash("/ledger clear")
+    for _ = 1, 2 do
+        forge.openLoot({ { id = 52025 } })
+        forge.click("RaidLedgerMasterLootLater")
+        forge.click("RaidLedgerMasterLootMember1_2")
+        forge.advance(0.1)
+        forge.closeLoot()
+    end
+    pick("2x " .. TOKEN)
+    forge.click("RaidLedgerStart")
+    forge.advance(31, 0.25)
+    expect(raidSaid("[Loot] " .. TOKEN .. " - nobody wanted it.")).toBe(true)
+    -- The copies are still with their holder: no hand-out can pick the bundle.
+    pick("2x " .. TOKEN)
+    expect(forge.frame("RaidLedgerDisenchant"):IsEnabled()).toBeFalsy()
+    forge.click("RaidLedgerDisenchant")
+    for _, record in ipairs(db().history) do
+        if record.itemID == 52025 then expect(record.state).toBe("parked") end
+    end
+    expect(forge.frame("RaidLedgerStart"):IsEnabled()).toBeTruthy()
+end)
