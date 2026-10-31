@@ -86,6 +86,14 @@ guild (README "Releasing an addon", REQUIREMENTS.md FR-15):
 5. Merge both PRs of one release before releasing the other addon: the
    website's `sync-addons` rewrites every bundled addon, and the release
    refuses a sync that would change another addon's bundle.
+6. Line endings are not a change. `F:/wow-addons` has `core.autocrlf=true`,
+   and the RaidWishlist 2.3.0 release (2026-10-26) passed all 9 plans, then
+   stopped at the website sync: its worktree was checked out with CRLF, so
+   `sync-addons` made the RaidLedger bundle look changed (released by hand:
+   robinschweitz/wow-addons#8, robinschweitz/raid-website#198). Forge now
+   runs every git command in its release worktrees with
+   `-c core.autocrlf=false` (not `git config`, which would change the
+   user's repository) and copies the addon's files with LF (FR-15.1).
 
 ## WoW 3.3.5a client facts (verified live)
 
@@ -98,9 +106,9 @@ guild (README "Releasing an addon", REQUIREMENTS.md FR-15):
 - **`InputBoxTemplate` draws its left border 5 px left of the edit box.** A
   box anchored at a label's x sticks out to the left (RaidWishlist settings
   screenshot, 2026-10-26); place it 5 px further in. A `FontString` anchored
-  on both sides centers its text unless `SetJustifyH("LEFT")`. The offline
-  emulator models neither the template's border textures nor
-  `FontString:GetJustifyH`, so `forge.layoutIssues` cannot see either: look
+  on both sides centers its text unless `SetJustifyH("LEFT")`; a spec can
+  assert that with `GetJustifyH`. The offline emulator does not model the
+  template's border textures, so `forge.layoutIssues` cannot see them: look
   at the live screenshot.
 - **Localized GlobalStrings use positional specifiers.** deDE
   `RANDOM_ROLL_RESULT` is `%1$s würfelt. Ergebnis: %2$d (%3$d-%4$d)`. Strip
@@ -259,6 +267,12 @@ Fixed in the emulator:
   `CreateFontString(nil, "OVERLAY")` with no template or `SetFontObject`). A
   plain `Button` has no font string until its first non-empty `SetText`
   (`GetFontString()` is nil); `EditBox:SetText(nil)` is a usage error.
+- **Justification** (`Script_GetJustifyH`/`V`, `StringToJustify`): a new
+  FontString reads `CENTER`/`MIDDLE` (style flags 0x212); `SetJustifyH("left")`
+  reads back `"LEFT"`; an unknown name is a usage error. A FontString anchored
+  on both sides centers its text unless `SetJustifyH("LEFT")`, so a spec can
+  now assert `fs:GetJustifyH()`. Not modelled: justification inherited from a
+  font object.
 - **Event dispatch** (`FrameScript_SignalEvent`): listeners run in registration
   order; a frame registered during a dispatch waits for the next signal (this
   already matched); a frame **unregistered** during the dispatch is skipped for

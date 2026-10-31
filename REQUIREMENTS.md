@@ -169,7 +169,9 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   `test_offline.py::test_forge_loot_ledger_reference_addon_passes_all_specs`*
 - **FR-4.4** The emulation MUST follow the audited 12340 client behaviour:
   OnUpdate only for visible frames, OnShow/OnHide on visibility changes,
-  FontString text rules, and events the client lacks never delivered.
+  FontString text rules, FontString justification (`GetJustifyH`/`GetJustifyV`
+  read back what was set, upper-case, defaulting to `CENTER`/`MIDDLE`; an
+  unknown value is a usage error), and events the client lacks never delivered.
   *IMPLEMENTED: `test_offline.py::test_emulation_matches_the_audited_client_behaviour`,
   `::test_onupdate_runs_only_for_visible_frames`,
   `::test_events_the_client_lacks_are_ignored_and_reported`,
@@ -663,7 +665,14 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   `.toc`, the files it lists, the addon's `README.md` and its `LICENSE`
   (license text must travel with a GPL addon; added 2026-10-26); files of
   the old version that the new `.toc` no longer lists are removed.
-  *IMPLEMENTED (live: RaidWishlist 2.1.0, 2026-10-24, five plans passed, robinschweitz/wow-addons#7 and robinschweitz/raid-website#153): `release.py::release`; `test_release.py::test_every_plan_passes_then_both_repositories_get_a_branch_and_a_commit`*
+  Both release worktrees (this one and FR-15.5's) MUST be checked out and
+  committed with `core.autocrlf=false`, whatever the user's checkout sets,
+  and the released files MUST be written with LF line endings (CRLF in a
+  text file of the addon's working copy becomes LF), so neither the commit
+  nor the website sync ever sees CRLF bytes (added 2026-10-26: the
+  RaidWishlist 2.3.0 release stopped at the website sync because
+  `F:/wow-addons` has `core.autocrlf=true`).
+  *IMPLEMENTED (live: RaidWishlist 2.1.0, 2026-10-24, five plans passed, robinschweitz/wow-addons#7 and robinschweitz/raid-website#153): `release.py::release`; `test_release.py::test_every_plan_passes_then_both_repositories_get_a_branch_and_a_commit`, `::test_released_files_carry_no_carriage_return` (line endings: offline only)*
 - **FR-15.2** `forge release` MUST run every acceptance plan of the addon
   itself, as live sessions on exactly the files being released (it needs
   `--approve-fixtures`), and MUST refuse unless all pass. It MUST NOT rely on
@@ -683,8 +692,11 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   `addons/<Addon>-<version>` cut from `origin/main` (separate worktree),
   commit the synced bundle, and MUST NOT push. It MUST list the website files
   outside the bundle that name the addon (pages, changelog), which still need
-  a human or agent update in the same change.
-  *IMPLEMENTED (live: RaidWishlist 2.1.0, 2026-10-24, five plans passed, robinschweitz/wow-addons#7 and robinschweitz/raid-website#153): `test_release.py::test_every_plan_passes_then_both_repositories_get_a_branch_and_a_commit`, `::test_the_website_sync_may_change_only_the_released_addon` (another addon's bundle may not change; no half release); the real `cmd/sync-addons` ran against raid-website `origin/main` on 2026-10-24*
+  a human or agent update in the same change. Line endings never count as a
+  change: with `core.autocrlf=true` in either checkout, another addon whose
+  bundle matches its `wow-addons` copy in Git MUST NOT show as changed
+  (FR-15.1 worktree rule).
+  *IMPLEMENTED (live: RaidWishlist 2.1.0, 2026-10-24, five plans passed, robinschweitz/wow-addons#7 and robinschweitz/raid-website#153): `test_release.py::test_every_plan_passes_then_both_repositories_get_a_branch_and_a_commit`, `::test_the_website_sync_may_change_only_the_released_addon` (another addon's bundle may not change; no half release), `::test_autocrlf_in_the_addons_checkout_does_not_change_another_bundle` (offline only); the real `cmd/sync-addons` ran against raid-website `origin/main` on 2026-10-24*
 - **FR-15.6** Without `--approve-fixtures`, `forge release` MUST only preview:
   the plans it would run, the version, the files it would copy and the
   branches it would create. It MUST NOT start a client or write to either
