@@ -135,7 +135,8 @@ test("the points of an enhanced roll can be corrected", function()
     expect(said("Bob's roll counts as main spec (95).")).toBe(1)
     forge.advance(31, 0.25)
     expect(won("Alice (100) - main spec 11-110")).toBe(1)
-    forge.clickText("GIVE + RECORD")
+    forge.click("RaidLedgerAward")
+    forge.advance(0.1)
     local record = forge.saved("RaidLedgerDB").history[1]
     expect(record.roll).toBe(100)
     expect(record.low).toBe(11)
@@ -268,7 +269,7 @@ test("a long roll list scrolls; the items stay in place", function()
     expect(forge.text("RaidLedgerItemRow1")).toContain("Bracers of the Untold")
     expect(forge.text("RaidLedgerRollLine1")).toBe("RaiderB  MS")
     forge.wheel("RaidLedgerDetailPane", -10)
-    expect(forge.text("RaidLedgerRollLine10")).toBe("RaiderL  MS")
+    expect(forge.text("RaidLedgerRollLine7")).toBe("RaiderL  MS")
     -- The lowest roll's menu still fits inside the window.
     forge.click(rollRow("RaiderL"), "RightButton")
     local menu, window = forge.rect("RaidLedgerRollMenu"), forge.rect("RaidLedgerFrame")
@@ -297,7 +298,8 @@ test("a pass in a given-out award's roll log gives the award to the next-best ro
     forge.roll("RaiderB", 70)
     forge.roll("RaiderC", 95, 1, 99)
     forge.advance(31, 0.25)
-    forge.clickText("GIVE + RECORD")
+    forge.click("RaidLedgerAward")
+    forge.advance(0.1)
     local record = forge.saved("RaidLedgerDB").history[1]
     expect(record.recipient).toBe("RaiderA")
     forge.click(awardLine("RaiderA"))              -- show the award's roll log

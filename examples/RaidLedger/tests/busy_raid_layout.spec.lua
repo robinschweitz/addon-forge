@@ -40,14 +40,14 @@ test("a busy evening: many items, open awards, a long roll and award list", func
         forge.slash("/ledger start")
         forge.roll(NAMES[i + 1], 50 + i)
         forge.advance(31, 0.25)
-        forge.clickText("GEBEN + ERFASSEN")
+        forge.click("RaidLedgerAward")
         forge.advance(0.5, 0.25)
         forge.closeLoot()
     end
     for _, id in ipairs({ 50417, 50418 }) do
         forge.openLoot({ { id = id } })
-        forge.type(forge.frame("RaidLedgerRecipient"), "Seelenfänger")
-        forge.click(forge.frame("RaidLedgerPark"))
+        forge.click("RaidLedgerMasterLootLater")
+        forge.click("RaidLedgerMasterLootMember5_2")       -- Seelenfänger
         forge.advance(0.5, 0.25)
         forge.closeLoot()
     end

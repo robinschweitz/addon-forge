@@ -22,15 +22,30 @@ local function row(i) return forge.frame("RaidLedgerItemRow" .. i) end
 local function status(i) return forge.text(row(i).columns[1]) end
 local function heading() return forge.text(forge.frame("RaidLedgerRollPane").heading) end
 
+-- The corpse popup alone offers SPÄTER WÜRFELN (FR-RL-012).
+local function laterTo(name)
+    forge.click("RaidLedgerMasterLootLater")
+    name = (name and name ~= "") and name or UnitName("player")
+    for g = 1, 5 do
+        for r = 1, 5 do
+            local cell = forge.frame("RaidLedgerMasterLootMember" .. g .. "_" .. r)
+            if cell and cell:IsShown() and cell.fullName == name then return forge.click(cell) end
+        end
+    end
+    error("no raid list entry for " .. name)
+end
+
 test("parked and kept items stay in the loot list as OPEN; DE and bank items do not", function()
     forge.raid({ "Tester", "Alice", "Bob", "Cara" })
     forge.masterLoot({ "Tester", "Alice", "Bob", "Cara" })
     forge.openLoot({ { id = 20513 }, { id = 21281 }, { id = 20514 } })
     forge.type("RaidLedgerRecipient", "Bob")
-    forge.click("RaidLedgerPark")                       -- crest parked with Bob
+    laterTo(forge.text("RaidLedgerRecipient"))                       -- crest parked with Bob
+    forge.advance(0.1)
     forge.click("RaidLedgerItemRow1")
     forge.type("RaidLedgerRecipient", "Cara")
     forge.click("RaidLedgerBank")                       -- tome to the bank character
+    forge.advance(0.1)
     forge.click("RaidLedgerItemRow1")
     forge.click("RaidLedgerDisenchant")                 -- boots disenchanted by Tester
     forge.advance(0.1)
@@ -83,9 +98,6 @@ test("a later roll lists the item once, as a roll; the award ends its OPEN row",
     expect(row(4):IsShown()).toBe(false)
     forge.roll("Alice", 80)
     forge.advance(31, 0.25)
-    expect(forge.text("RaidLedgerRecipient")).toBe("Alice")
-    forge.clickText("RECORD AWARD")
-    forge.advance(0.1)
     expect(forge.text("RaidLedgerItemRow2")).toBe(RING)
     expect(heading()).toBe("LOOT (0)  |  1 OPEN")
     expect(#forge.errors()).toBe(0)
@@ -97,7 +109,7 @@ test("many open items and a long roll both stay readable", function()
     forge.openLoot(drops)
     for _ = 1, 7 do
         forge.click("RaidLedgerItemRow1")
-        forge.click("RaidLedgerPark")
+        laterTo(forge.text("RaidLedgerRecipient"))
         forge.advance(0.1)
     end
     forge.closeLoot()

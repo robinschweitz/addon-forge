@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger timer 10"
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerDisenchanterRoll"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "roll",
+      "value": [
+        1,
+        1000
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 1
+    },
+    {
+      "type": "peer_roll",
+      "value": [
+        1,
+        100
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 12
+    },
+    {
+      "type": "screenshot",
+      "value": "disenchanter_rolled"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger start"
+    },
+    {
+      "type": "wait",
+      "value": 12
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerDisenchant"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    },
+    {
+      "type": "screenshot",
+      "value": "disenchanted"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger timer reset"
+    },
+    {
+      "type": "wait",
+      "value": 1
+    }
+  ],
+  "checks": [
+    {
+      "type": "event_fired",
+      "value": "CHAT_MSG_LOOT"
+    },
+    {
+      "type": "chat_contains",
+      "value": "[Loot] Flo"
+    },
+    {
+      "type": "chat_contains",
+      "value": " ist der Entzauberer dieses Raids"
+    },
+    {
+      "type": "chat_contains",
+      "value": " wird entzaubert (Flo"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.state",
+      "value": "disenchanted"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.confirmed",
+      "value": true
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}

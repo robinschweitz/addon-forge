@@ -29,6 +29,19 @@ end)
 
 local function rollLine(i) return forge.frame("RaidLedgerRollLine" .. i) end
 
+-- The corpse popup alone offers SPÄTER WÜRFELN (FR-RL-012).
+local function laterTo(name)
+    forge.click("RaidLedgerMasterLootLater")
+    name = (name and name ~= "") and name or UnitName("player")
+    for g = 1, 5 do
+        for r = 1, 5 do
+            local cell = forge.frame("RaidLedgerMasterLootMember" .. g .. "_" .. r)
+            if cell and cell:IsShown() and cell.fullName == name then return forge.click(cell) end
+        end
+    end
+    error("no raid list entry for " .. name)
+end
+
 test("before anyone rolls, ALLE counts the whole raid", function()
     local members = {}
     for i, name in ipairs(NAMES) do
@@ -66,6 +79,7 @@ test("ALLE shows every member in five raid-group columns; a click picks the reci
     expect("RaidLedgerMembers").toBeShown()
     for g = 1, 5 do expect(forge.findText("GRUPPE " .. g)).toBeTruthy() end
     for _, name in ipairs(NAMES) do expect(forge.findText(name)).toBeTruthy() end
+    expect(forge.rect("RaidLedgerMembers").height).toBe(118) -- FR-RL-014: compact overlay
     -- Column of group 3 holds members 11-15, top to bottom.
     local top = forge.rect(forge.findText(NAMES[11])).top
     expect(forge.rect(forge.findText(NAMES[15])).top < top).toBe(true)
@@ -95,7 +109,7 @@ test("open items parked with raiders stay in the loot list, under the running ro
     for _, park in ipairs({ { 45510, NAMES[2] }, { 45511, NAMES[22] }, { 45512, NAMES[1] } }) do
         forge.clickText(linkOf(park[1]))
         forge.type("RaidLedgerRecipient", park[2])
-        forge.click("RaidLedgerPark")
+        laterTo(forge.text("RaidLedgerRecipient"))
         forge.advance(0.1)
     end
     expect(forge.findText("BEUTE (2)  |  3 OFFEN")).toBeTruthy()

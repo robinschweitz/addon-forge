@@ -51,7 +51,7 @@
     },
     {
       "type": "screenshot",
-      "value": "held_announced"
+      "value": "kept_announced"
     },
     {
       "type": "slash",
@@ -77,16 +77,16 @@
     },
     {
       "type": "chat_contains",
-      "value": " - Main-Spec (bei Test bis zum Handel)."
+      "value": " - Main-Spec (bei Test abholen)."
     },
     {
       "type": "global_equals",
       "path": "RaidLedgerDB.history.1.state",
-      "value": "held"
+      "value": "given"
     },
     {
       "type": "global_equals",
-      "path": "RaidLedgerDB.history.1.recipient",
+      "path": "RaidLedgerDB.history.1.holder",
       "value": "Test"
     },
     {

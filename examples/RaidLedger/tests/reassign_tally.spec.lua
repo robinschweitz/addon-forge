@@ -39,7 +39,7 @@ local function award(id, rolls)
     forge.slash("/ledger start")
     for _, r in ipairs(rolls) do forge.roll(r[1], r[2], r[3], r[4]) end
     forge.advance(31, 0.25)
-    forge.clickText("RECORD AWARD")
+    forge.click("RaidLedgerAward")
     forge.closeLoot()
     return db().history[1]
 end
@@ -113,7 +113,7 @@ test("a reassigned token moves in the token tally only", function()
     lacks(t, "Alice: 1 main spec, 0 off spec (tokens)")
 end)
 
-test("a held item counts for the roll winner until it is reassigned", function()
+test("an item the master looter keeps counts for its roll winner until it is reassigned", function()
     forge.masterLoot({ "Tester", "Alice", "Bob", "Cara", "Dora" })
     forge.slash("/ledger clear")
     forge.openLoot({ { id = 21281 } })
@@ -123,7 +123,8 @@ test("a held item counts for the roll winner until it is reassigned", function()
     GiveMasterLoot(1, 1)                       -- the master looter keeps it
     forge.advance(0.1)
     forge.closeLoot()
-    expect(record(5).state).toBe("held")
+    expect(record(5).recipient).toBe("Alice")
+    expect(record(5).holder).toBe("Tester")
     expect(tally()).toContain("RaidLedger: Alice: 1 main spec, 0 off spec")
     forge.slash("/ledger set 5 Alice")
     expect(record(5).state).toBe("manual")

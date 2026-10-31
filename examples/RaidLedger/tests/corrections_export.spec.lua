@@ -21,7 +21,7 @@ local function awardByHand(id, name)
     forge.click("RaidLedgerTabButtonLoot")
     forge.openLoot({ { id = id } })
     forge.type("RaidLedgerRecipient", name)
-    forge.clickText("RECORD AWARD")
+    forge.click("RaidLedgerAward")
     forge.closeLoot()
 end
 
@@ -60,7 +60,8 @@ test("clicking an award in the list lets you change its recipient", function()
     forge.type("RaidLedgerAwardRecipient", "Bob")
     forge.clickText("CHANGE RECIPIENT")
     expect(db().history[2].recipient).toBe("Bob")
-    expect(forge.findText("NOW: Bob (MANUAL)", true)).toBeTruthy()
+    expect(forge.findText("NOW: Bob", true)).toBeTruthy()
+    expect(forge.findText("MANUAL", true)).toBeNil()
 end)
 
 test("/ledger del removes an award but keeps it greyed out in the list", function()

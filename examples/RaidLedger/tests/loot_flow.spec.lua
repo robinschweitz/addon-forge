@@ -32,7 +32,7 @@ test("highest first /rnd wins after 30 seconds; a re-roll is ignored", function(
 end)
 
 test("recording the award stores history that survives /reload", function()
-    forge.clickText("RECORD AWARD")
+    forge.click("RaidLedgerAward")
     local db = forge.saved("RaidLedgerDB")
     expect(db.history[1].recipient).toBe("Bob")
     expect(db.history[1].rolls).toBe(2)

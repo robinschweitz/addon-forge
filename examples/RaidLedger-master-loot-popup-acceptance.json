@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    {
+      "type": "slash",
+      "value": "/ledger newraid confirm"
+    },
+    {
+      "type": "slash",
+      "value": "/ledger"
+    },
+    {
+      "type": "screenshot",
+      "value": "master_loot_popup"
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerMasterLootLater"
+    },
+    {
+      "type": "screenshot",
+      "value": "master_loot_recipients"
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerMasterLootMember1_1"
+    },
+    {
+      "type": "wait",
+      "value": 3
+    }
+  ],
+  "checks": [
+    {
+      "type": "player_in_world",
+      "value": true
+    },
+    {
+      "type": "chat_contains",
+      "value": "wird bis zum Auswürfeln von Test verwahrt."
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.recipient",
+      "value": "Test"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.state",
+      "value": "parked"
+    },
+    {
+      "type": "no_lua_errors",
+      "value": true
+    }
+  ]
+}

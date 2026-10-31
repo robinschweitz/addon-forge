@@ -35,7 +35,7 @@ local function award(id, rolls)
     forge.slash("/ledger start")
     for _, r in ipairs(rolls) do forge.roll(r[1], r[2], r[3], r[4]) end
     forge.advance(31, 0.25)
-    forge.clickText("RECORD AWARD")
+    forge.click("RaidLedgerAward")
     forge.closeLoot()
     return db().history[1]
 end

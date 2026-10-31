@@ -60,6 +60,25 @@
     },
     {
       "type": "click",
+      "value": "RaidLedgerItemRow2"
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidLedgerRecipient",
+        "Test"
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidLedgerAward"
+    },
+    {
+      "type": "wait",
+      "value": 2
+    },
+    {
+      "type": "click",
       "value": "RaidLedgerTabawards"
     },
     {
@@ -69,21 +88,6 @@
     {
       "type": "wait",
       "value": 1
-    },
-    {
-      "type": "paste",
-      "value": [
-        "RaidLedgerAwardRecipient",
-        "Test"
-      ]
-    },
-    {
-      "type": "click",
-      "value": "RaidLedgerChangeRecipient"
-    },
-    {
-      "type": "wait",
-      "value": 2
     }
   ],
   "checks": [
@@ -101,7 +105,7 @@
     },
     {
       "type": "chat_contains",
-      "value": "geht an Test (korrigiert)."
+      "value": "geht an Test."
     },
     {
       "type": "global_equals",

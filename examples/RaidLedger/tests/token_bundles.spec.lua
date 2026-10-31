@@ -51,6 +51,7 @@ end)
 test("one roll: the best three win a token each, announced together", function()
     forge.masterLoot({ "Tester", "Alice", "Bob", "Cara", "Dora" })
     tokenRoll(3, { { "Alice", 90 }, { "Bob", 80 }, { "Cara", 70 }, { "Dora", 60 } })
+    expect(raidSaid("[Loot] 3x " .. TOKEN .. " - /rnd now! 30 seconds. /rnd 100 main spec (enhanced: 1+X to 100+X, X up to 50), /rnd 99 off spec.")).toBe(true)
     expect(raidSaid("[Loot] 3x " .. TOKEN .. " won by Alice (90), Bob (80), Cara (70).")).toBe(true)
     expect(forge.text(forge.frame("RaidLedgerRecipient"))).toBe("Alice")
     expect(forge.findText("WINNERS: Alice, Bob, Cara", true)).toBeTruthy()
@@ -61,18 +62,18 @@ test("one roll: the best three win a token each, announced together", function()
 end)
 
 test("each handout gives one copy; the next winner is picked for the next", function()
-    forge.clickText("GIVE + RECORD")
+    forge.click("RaidLedgerAward")
     forge.advance(0.5, 0.25)
     expect(db().history[1].recipient).toBe("Alice")
     expect(db().history[1].spec).toBe("ms")
     expect(db().history[1].token).toBe(true)
     expect(forge.findText("2x " .. TOKEN)).toBeTruthy()
     expect(forge.text(forge.frame("RaidLedgerRecipient"))).toBe("Bob")
-    forge.clickText("GIVE + RECORD")
+    forge.click("RaidLedgerAward")
     forge.advance(0.5, 0.25)
     expect(db().history[1].recipient).toBe("Bob")
     expect(forge.text(forge.frame("RaidLedgerRecipient"))).toBe("Cara")
-    forge.clickText("GIVE + RECORD")
+    forge.click("RaidLedgerAward")
     forge.advance(0.5, 0.25)
     expect(db().history[1].recipient).toBe("Cara")
     expect(db().history[1].roll).toBe(70)
@@ -120,4 +121,60 @@ test("a winner's pass gives the copy to the next-best roll", function()
     forge.slash("/ledger pass Bob")
     expect(raidSaid("[Loot] 2x " .. TOKEN .. " won by Alice (90), Cara (70).")).toBe(true)
     forge.closeLoot()
+end)
+
+test("FR-RL-016 open copies of one token roll together for the best five", function()
+    local names = { "Tester", "Alice", "Bob", "Cara", "Dora", "Erik", "Fiona" }
+    forge.raid(names)
+    forge.masterLoot(names)
+    forge.slash("/ledger newraid confirm")
+    forge.slash("/ledger clear")
+    for _ = 1, 5 do
+        forge.openLoot({ { id = 52025 } })
+        forge.click("RaidLedgerMasterLootLater")
+        forge.click("RaidLedgerMasterLootMember1_2")
+        forge.advance(0.1)
+        forge.closeLoot()
+    end
+    expect(forge.findText("5x " .. TOKEN)).toBeTruthy()
+    pick("5x " .. TOKEN)
+    expect(forge.frame("RaidLedgerStart"):IsEnabled()).toBeTruthy()
+    forge.click("RaidLedgerStart")
+    for _, roll in ipairs({ { "Alice", 90 }, { "Bob", 80 }, { "Cara", 70 }, { "Dora", 60 }, { "Erik", 50 }, { "Fiona", 40 } }) do
+        forge.roll(roll[1], roll[2])
+    end
+    forge.advance(31, 0.25)
+    expect(raidSaid("[Loot] 5x " .. TOKEN .. " won by Alice (90), Bob (80), Cara (70), Dora (60), Erik (50).")).toBe(true)
+    local winners = {}
+    for _, record in ipairs(db().history) do
+        if record.itemID == 52025 and record.state == "manual" then winners[record.recipient] = true end
+    end
+    expect(winners).toEqual({ Alice = true, Bob = true, Cara = true, Dora = true, Erik = true })
+end)
+
+test("FR-RL-016 an open token bundle nobody rolled on goes back to OPEN ITEMS", function()
+    local names = { "Tester", "Alice", "Bob" }
+    forge.raid(names)
+    forge.masterLoot(names)
+    forge.slash("/ledger newraid confirm")
+    forge.slash("/ledger clear")
+    for _ = 1, 2 do
+        forge.openLoot({ { id = 52025 } })
+        forge.click("RaidLedgerMasterLootLater")
+        forge.click("RaidLedgerMasterLootMember1_2")
+        forge.advance(0.1)
+        forge.closeLoot()
+    end
+    pick("2x " .. TOKEN)
+    forge.click("RaidLedgerStart")
+    forge.advance(31, 0.25)
+    expect(raidSaid("[Loot] " .. TOKEN .. " - nobody wanted it.")).toBe(true)
+    -- The copies are still with their holder: no hand-out can pick the bundle.
+    pick("2x " .. TOKEN)
+    expect(forge.frame("RaidLedgerDisenchant"):IsEnabled()).toBeFalsy()
+    forge.click("RaidLedgerDisenchant")
+    for _, record in ipairs(db().history) do
+        if record.itemID == 52025 then expect(record.state).toBe("parked") end
+    end
+    expect(forge.frame("RaidLedgerStart"):IsEnabled()).toBeTruthy()
 end)

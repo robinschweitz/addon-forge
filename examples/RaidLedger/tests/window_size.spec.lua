@@ -26,6 +26,19 @@ local function scale() return math.floor(RaidLedgerFrame:GetScale() * 100 + 0.5)
 local function shown(name) local f = forge.frame(name); return f ~= nil and f:IsVisible() end
 local function size() return RaidLedgerFrame:GetWidth(), RaidLedgerFrame:GetHeight() end
 
+-- The corpse popup alone offers SPÄTER WÜRFELN (FR-RL-012).
+local function laterTo(name)
+    forge.click("RaidLedgerMasterLootLater")
+    name = (name and name ~= "") and name or UnitName("player")
+    for g = 1, 5 do
+        for r = 1, 5 do
+            local cell = forge.frame("RaidLedgerMasterLootMember" .. g .. "_" .. r)
+            if cell and cell:IsShown() and cell.fullName == name then return forge.click(cell) end
+        end
+    end
+    error("no raid list entry for " .. name)
+end
+
 local function fullRaid()
     local members = {}
     for i, name in ipairs(NAMES) do
@@ -37,7 +50,7 @@ local function fullRaid()
     for i = 1, 20 do
         forge.openLoot({ { id = 45020 + i } })
         forge.type(forge.frame("RaidLedgerRecipient"), NAMES[i + 1])
-        forge.click("RaidLedgerPark")
+        laterTo(forge.text("RaidLedgerRecipient"))
         forge.advance(0.1)
         forge.closeLoot()
     end
@@ -53,8 +66,8 @@ test("the window starts at 760x480 and scale 100%, and fits the screen", functio
     expect(w).toBe(760)
     expect(h).toBe(480)
     expect(scale()).toBe(1)
-    expect(shown("RaidLedgerItemRow19")).toBe(true)
-    expect(forge.frame("RaidLedgerItemRow20")).toBeNil()
+    expect(shown("RaidLedgerItemRow16")).toBe(true)
+    expect(forge.frame("RaidLedgerItemRow17")).toBeNil()
 end)
 
 test("the grip in the lower right corner resizes the window", function()
@@ -73,9 +86,9 @@ end)
 
 test("a taller window shows more list rows, wider panes reach the right edge", function()
     -- 140 px taller: seven more item rows (18 px each), seven more roll rows.
-    expect(shown("RaidLedgerItemRow26")).toBe(true)
-    expect(forge.text("RaidLedgerItemRow26")).toContain("Wächters")
-    expect(forge.frame("RaidLedgerItemRow27")).toBeNil()
+    expect(shown("RaidLedgerItemRow23")).toBe(true)
+    expect(forge.text("RaidLedgerItemRow23")).toContain("Wächters")
+    expect(forge.frame("RaidLedgerItemRow24")).toBeNil()
     local window, detail = forge.rect("RaidLedgerFrame"), forge.rect("RaidLedgerDetailPane")
     expect(window.right - detail.right).toBe(16)
     expect(forge.rect("RaidLedgerRollPane").bottom).toBe(detail.bottom)
@@ -84,10 +97,10 @@ test("a taller window shows more list rows, wider panes reach the right edge", f
     forge.slash("/ledger start")
     for i = 2, 25 do forge.roll(NAMES[i], 100 - i) end
     forge.advance(1, 0.25)
-    expect(shown("RaidLedgerRollLine17")).toBe(true)
+    expect(shown("RaidLedgerRollLine15")).toBe(true)
     -- The hand-out controls stay at the bottom of the pane.
-    expect(forge.rect("RaidLedgerAward").bottom - detail.bottom <= 12).toBe(true)
-    expect(forge.rect("RaidLedgerRollLine17").bottom > forge.rect("RaidLedgerRecipient").top).toBe(true)
+    expect(forge.rect("RaidLedgerDisenchant").bottom - detail.bottom <= 18).toBe(true)
+    expect(forge.rect("RaidLedgerRollLine15").bottom > forge.rect("RaidLedgerRecipient").top).toBe(true)
     forge.sketch("large-loot", "RaidLedgerFrame")
     expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
 end)
@@ -156,7 +169,7 @@ test("size and scale stay after /reload", function()
     local w2, h2 = size()
     expect(w2).toBe(w)
     expect(h2).toBe(h)
-    expect(shown("RaidLedgerItemRow19")).toBe(true)
+    expect(shown("RaidLedgerItemRow18")).toBe(true)
 end)
 
 test("/ledger reset brings back the default size, scale and place", function()
@@ -165,7 +178,7 @@ test("/ledger reset brings back the default size, scale and place", function()
     expect(w).toBe(760)
     expect(h).toBe(480)
     expect(scale()).toBe(1)
-    expect(forge.frame("RaidLedgerItemRow20"):IsShown()).toBe(false)
+    expect(forge.frame("RaidLedgerItemRow17"):IsShown()).toBe(false)
     expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
     expect(#forge.errors()).toBe(0)
 end)

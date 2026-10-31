@@ -75,8 +75,8 @@ test("only /rnd 100 counts and the highest roll wins, whatever the tallies", fun
     forge.roll("Bob", 95)                      -- re-roll: ignored
     forge.advance(31, 0.25)
     expect(raidSaid("[Loot] " .. BRACERS .. " - free BoE roll won by Dora (70).")).toBe(1)
-    expect(forge.findText("WINNER: Dora (70)")).toBeTruthy()
-    forge.clickText("RECORD AWARD")
+    expect(forge.findText("Dora won (70).")).toBeTruthy()
+    forge.click("RaidLedgerAward")
     forge.closeLoot()
     local record = db().history[1]
     expect(record.recipient).toBe("Dora")

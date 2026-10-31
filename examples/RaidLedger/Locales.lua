@@ -20,6 +20,10 @@ L["RECIPIENT NAME"] = "EMPFÄNGER"
 L["RECORD AWARD"] = "ERFASSEN"
 L["PARK"] = "PARKEN"
 L["ROLL"] = "WÜRFELN"
+L["ASSIGN"] = "ZUWEISEN"
+L["START ROLL"] = "WÜRFELN STARTEN"
+L["LATER ROLL AT ..."] = "SPÄTER WÜRFELN BEI ..."
+L["CLOSE"] = "SCHLIESSEN"
 L["ALL (%d)"] = "ALLE (%d)"
 L["PASS"] = "PASST"
 L["ROLLS"] = "WÜRFE"
@@ -70,6 +74,7 @@ L["SCROLL FOR MORE"] = "SCROLLEN FÜR MEHR"
 L["#%d  %s  |  %s  ->  %s  (%d rolls)"] = "#%d  %s  |  %s  ->  %s  (%d Würfe)"
 L["No awards recorded in this ledger."] = "Noch keine Vergaben erfasst."
 L["NOW: %s (%s)"] = "JETZT: %s (%s)"
+L["NOW: %s"] = "JETZT: %s"
 L["RESTORE + SET"] = "WIEDERHERSTELLEN"
 L["CHANGE RECIPIENT"] = "EMPFÄNGER ÄNDERN"
 L["GIVE + RECORD"] = "GEBEN + ERFASSEN"
@@ -92,6 +97,7 @@ L["Unknown item"] = "Unbekannter Gegenstand"
 L["%s this raid: items %d MS / %d OS, tokens %d MS / %d OS"] = "%s in diesem Raid: Items %d MS / %d OS, Tokens %d MS / %d OS"
 L["  (token)"] = "  (Token)"
 L["Award #%d: %s (%s)"] = "Vergabe #%d: %s (%s)"
+L["Award #%d: %s"] = "Vergabe #%d: %s"
 L["Roll %d, %s"] = "Wurf %d, %s"
 L["spec unknown"] = "Spec unbekannt"
 
@@ -114,17 +120,15 @@ L["[Loot] %s won by %s (%d) - %s%s, %s so far."] = "[Loot] %s gewonnen von %s (%
 L["[Loot] %s - %d seconds left."] = "[Loot] %s - noch %d Sekunden."
 L["[Loot] %s is parked with %s until it is rolled."] = "[Loot] %s wird bis zum Auswürfeln von %s verwahrt."
 L["[Loot] %s goes to %s%s%s."] = "[Loot] %s geht an %s%s%s."
-L["traded"] = "gehandelt"
 L["corrected"] = "korrigiert"
-L["with %s until traded"] = "bei %s bis zum Handel"
-L["%s hands it over"] = "%s gibt es weiter"
+L["pick it up from %s"] = "bei %s abholen"
 
 -- Status line
 L["%d-second raid roll started."] = "%d-Sekunden-Wurf gestartet."
 L["Select a master-loot item before starting a roll."] = "Vor dem Würfeln einen Gegenstand aus der Beute auswählen."
 L["Gave #%d to %s; waiting for the loot message."] = "#%d an %s gegeben; warte auf die Beutemeldung."
+L["Giving %s to %s; waiting for loot confirmation."] = "%s an %s vergeben; warte auf die Beutebestätigung."
 L["Award #%d confirmed: %s received the item."] = "Vergabe #%d bestätigt: %s hat den Gegenstand erhalten."
-L["Award #%d traded: %s has the item now."] = "Vergabe #%d gehandelt: %s hat den Gegenstand jetzt."
 L["Award #%d now goes to %s."] = "Vergabe #%d geht jetzt an %s."
 L["Award #%d removed; the export keeps it as deleted."] = "Vergabe #%d entfernt; der Export führt sie als gelöscht."
 L["Award #%d goes to %s (%s)."] = "Vergabe #%d geht an %s (%s)."
@@ -141,7 +145,6 @@ L["Export selected: press Ctrl+C and paste it into the raid website's loot impor
 L["Clear all recorded loot and start a new raid? Export it first."] = "Alle erfassten Vergaben löschen und einen neuen Raid beginnen? Vorher exportieren."
 
 -- Chat
-L["trade recorded: #%d %s -> %s"] = "Handel erfasst: #%d %s -> %s"
 L["no award #%s."] = "keine Vergabe #%s."
 L["give a name or target the recipient."] = "Namen angeben oder den Empfänger anvisieren."
 L["%s shares another raid's ledger; yours has its own awards, so it is not merged. Use CLEAR to follow theirs."] =
@@ -196,6 +199,7 @@ L["/ledger clear - drop all active rolls;  /ledger reset - the window back to th
 L["DE"] = "DE"
 L["BANK"] = "BANK"
 L["DISENCHANT"] = "ENTZAUBERN"
+L["DISENCHANT (%s)"] = "ENTZAUBERN (%s)"
 L["GUILD BANK"] = "GILDENBANK"
 L["[Loot] %s will be disenchanted (%s)."] = "[Loot] %s wird entzaubert (%s)."
 L["[Loot] %s goes to the guild bank (%s)."] = "[Loot] %s geht in die Gildenbank (%s)."
@@ -304,12 +308,10 @@ L["%d characters not invited: the calendar takes 100 per event."] =
 L["/ledger calendar - calendar raid event from the invite list, everyone on it invited"] =
     "/ledger calendar - Kalender-Raidtermin aus der Einladungsliste, alle darauf eingeladen"
 
--- Raid feedback 2026-10-19: token bundles, group loot, tooltips
+-- Raid feedback 2026-10-19: token bundles, tooltips
 L["WINNERS: %s"] = "GEWINNER: %s"
 L["[Loot] %dx %s won by %s."] = "[Loot] %dx %s gewonnen von %s."
 L["[Loot] %s - %d left: nobody wanted it."] = "[Loot] %s - %d übrig: wollte niemand."
-L["Group loot: #%d %s won by %s (no spec; /ledger spec %d ms|os)."] =
-    "Gruppenplündern: #%d %s gewonnen von %s (ohne Spec; /ledger spec %d ms|os)."
 L["This raid's awards appear here: click one for its rolls or to change it."] =
     "Hier stehen die Vergaben dieses Raids: anklicken zeigt die Würfe oder ändert die Vergabe."
 L["Close the ledger (/ledger opens it again)"] = "Schließen (/ledger öffnet es wieder)"
@@ -488,3 +490,50 @@ L["Every award of this raid: change recipient or tally, remove, export for the w
     "Alle Vergaben dieses Raids: Empfänger oder MS/OS ändern, entfernen, für die Webseite exportieren"
 L["Items and tokens per player this raid (what the fewest-items rule ranks by), with corrections"] =
     "Items und Tokens pro Spieler in diesem Raid (danach wird bei gleicher Spec gereiht), mit Korrekturen"
+
+-- Raid feedback 2026-10-26: disenchanter roll
+L["Disenchanter roll"] = "Entzauberer-Wurf"
+L["[Loot] Disenchanter roll: /rnd 100 now, %d seconds. The winner disenchants this raid's unwanted items."] =
+    "[Loot] Entzauberer-Wurf: jetzt /rnd 100, %d Sekunden. Der Gewinner entzaubert die ungewollten Items dieses Raids."
+L["%d-second disenchanter roll started."] = "%d-Sekunden-Entzauberer-Wurf gestartet."
+L["[Loot] %s is the disenchanter for this raid (%d)."] = "[Loot] %s ist der Entzauberer dieses Raids (%d)."
+L["[Loot] Nobody rolled to disenchant; DE gives items to the name in the box."] =
+    "[Loot] Niemand hat fürs Entzaubern gewürfelt; DE gibt Items an den Namen im Feld."
+L["%s disenchants this raid: DE gives items to them."] = "%s entzaubert in diesem Raid: DE gibt die Items an sie/ihn."
+L["a disenchanter roll is already running."] = "ein Entzauberer-Wurf läuft schon."
+L["finish the running roll first."] = "erst den laufenden Wurf beenden."
+L["Disenchant: give it to %s, this raid's disenchanter; counts for nobody"] =
+    "Entzaubern: an %s geben, den Entzauberer dieses Raids; zählt für niemanden"
+L["Roll the raid's disenchanter: everyone may /rnd 100, the winner gets every DE item"] =
+    "Den Entzauberer des Raids auswürfeln: alle dürfen /rnd 100, der Gewinner bekommt jedes DE-Item"
+L["/ledger deroll - roll the raid's disenchanter (/rnd 100); DE then gives items to them"] =
+    "/ledger deroll - den Entzauberer des Raids auswürfeln (/rnd 100); DE gibt Items dann an ihn"
+
+-- Window feedback 2026-10-26: BEUTE in two steps, VERGABEN only corrects
+L["click a roll or ALL, or type a name"] = "Wurf oder ALLE anklicken, oder Namen tippen"
+L["GIVE TO ..."] = "VERGEBEN AN ..."
+L["GIVE TO %s"] = "VERGEBEN AN %s"
+L["ROLL IT"] = "AUSWÜRFELN"
+L["DISENCHANTER: %s"] = "ENTZAUBERER: %s"
+L["%s won (%d)."] = "%s hat gewonnen (%d)."
+L["Nobody wanted it."] = "Wollte niemand."
+L["Open item, not rolled yet."] = "Offenes Item, noch nicht gewürfelt."
+L["Not rolled yet."] = "Noch nicht gewürfelt."
+L["Open: %s holds it."] = "Offen: %s hat es."
+L["BACK TO LOOT"] = "ZURÜCK IN BEUTE"
+L["Back to BEUTE as an open item with whoever holds it: roll it again or hand it out there"] =
+    "Zurück in BEUTE als offenes Item bei dem, der es hat: dort neu würfeln oder anders vergeben"
+
+-- Raid feedback 2026-10-26, second pass: later roll, chosen disenchanter
+L["LATER ROLL"] = "SPÄTER WÜRFELN"
+L["CHOOSE"] = "WÄHLEN"
+L["Choose the raid's disenchanter from the raid, without a roll"] = "Den Entzauberer des Raids aus dem Raid wählen, ohne Wurf"
+L["[Loot] %s is the disenchanter for this raid."] = "[Loot] %s ist der Entzauberer dieses Raids."
+L["usage: /ledger de <name>"] = "Aufruf: /ledger de <Name>"
+L["/ledger de <name> - make <name> the raid's disenchanter without a roll"] =
+    "/ledger de <Name> - <Name> ohne Wurf zum Entzauberer des Raids machen"
+L["Who gets the item?"] = "Wer bekommt das Item?"
+L["Who keeps it until the roll?"] = "Wer behält es bis zum Würfeln?"
+L["Who disenchants this raid?"] = "Wer entzaubert in diesem Raid?"
+L["Roll it later: pick who keeps it until then. A unique item you already have goes straight from the corpse to them."] =
+    "Später würfeln: wählen, wer es bis dahin behält. Ein Unique-Item, das du schon hast, geht direkt aus der Leiche an diese Person."

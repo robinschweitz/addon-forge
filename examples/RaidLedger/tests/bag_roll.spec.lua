@@ -62,17 +62,16 @@ test("Alt+click on a bag item records it as held and starts the raid roll", func
     expect(forge.findText("1 rolls", true)).toBeTruthy()
 end)
 
-test("the winner is recorded on the same award, held until the trade", function()
+test("the winner is the recipient of the same award at once (no trade tracking)", function()
     forge.roll("Bob", 40)
     forge.advance(31, 0.25)
-    expect(forge.findText("WINNER: Alice (70)")).toBeTruthy()
-    forge.clickText("RECORD AWARD")
     local record = db().history[1]
     expect(table.getn(db().history)).toBe(1)
     expect(record.winner).toBe("Alice")
-    expect(record.state).toBe("held")
+    expect(record.recipient).toBe("Alice")
+    expect(record.state).toBe("manual")
     expect(record.spec).toBe("ms")
-    expect(raidSaid("[Loot] " .. CREST .. " goes to Alice - main spec (with Tester until traded).")).toBe(true)
+    expect(raidSaid("[Loot] " .. CREST .. " goes to Alice - main spec (pick it up from Tester).")).toBe(true)
 end)
 
 test("an open award already held for that item is rolled, not recorded twice", function()
@@ -102,7 +101,7 @@ test("/ledger roll <itemID> finds the item in the bags (live plans cannot type l
     forge.leader(true)
     local count = table.getn(db().history)
     forge.slash("/ledger roll 40000")
-    expect(table.getn(db().history)).toBe(count)                 -- the tome's open award is rolled again
+    expect(table.getn(db().history)).toBe(count + 1)             -- LEEREN discarded the previous open tome award
     expect(forge.findText(TOME, true)).toBeTruthy()
 end)
 
@@ -123,14 +122,14 @@ test("the next roll after an award counts the winner's item", function()
     forge.roll("Tester", 60)
     forge.advance(31, 0.25)
     expect(raidSaid("[Loot] " .. CREST .. " won by Tester (60) - main spec, 0 MS / 0 OS items so far.")).toBe(true)
-    forge.clickText("GIVE + RECORD")
+    forge.click("RaidLedgerAward")
     forge.advance(0.5, 0.25)
     forge.closeLoot()
     forge.slash("/ledger roll 20513")
     forge.roll("Tester", 45)
     forge.advance(31, 0.25)
     expect(raidSaid("[Loot] " .. CREST .. " won by Tester (45) - main spec, 1 MS / 0 OS items so far.")).toBe(true)
-    forge.clickText("RECORD AWARD")
+    forge.click("RaidLedgerAward")
     expect(db().history[1].rollLog[1].tally).toBe(1)
     expect(db().history[2].rollLog[1].tally).toBe(0)
     -- The award's roll log in the window names the tally the ranking used.

@@ -26,7 +26,7 @@ test("a running roll still finishes while the ledger window is hidden", function
 end)
 
 test("an awarded item is not re-added while the loot window stays open", function()
-    forge.clickText("RECORD AWARD")
+    forge.click("RaidLedgerAward")
     forge.advance(1, 0.25)              -- OnUpdate re-scans the still-open loot window
     expect(forge.findText(CREST)).toBeNil()
     expect(forge.saved("RaidLedgerDB").history[1].recipient).toBe("Alice")
