@@ -169,7 +169,9 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   `test_offline.py::test_forge_loot_ledger_reference_addon_passes_all_specs`*
 - **FR-4.4** The emulation MUST follow the audited 12340 client behaviour:
   OnUpdate only for visible frames, OnShow/OnHide on visibility changes,
-  FontString text rules, and events the client lacks never delivered.
+  FontString text rules, FontString justification (`GetJustifyH`/`GetJustifyV`
+  read back what was set, upper-case, defaulting to `CENTER`/`MIDDLE`; an
+  unknown value is a usage error), and events the client lacks never delivered.
   *IMPLEMENTED: `test_offline.py::test_emulation_matches_the_audited_client_behaviour`,
   `::test_onupdate_runs_only_for_visible_frames`,
   `::test_events_the_client_lacks_are_ignored_and_reported`,
