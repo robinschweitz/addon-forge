@@ -86,6 +86,14 @@ guild (README "Releasing an addon", REQUIREMENTS.md FR-15):
 5. Merge both PRs of one release before releasing the other addon: the
    website's `sync-addons` rewrites every bundled addon, and the release
    refuses a sync that would change another addon's bundle.
+6. Line endings are not a change. `F:/wow-addons` has `core.autocrlf=true`,
+   and the RaidWishlist 2.3.0 release (2026-10-26) passed all 9 plans, then
+   stopped at the website sync: its worktree was checked out with CRLF, so
+   `sync-addons` made the RaidLedger bundle look changed (released by hand:
+   robinschweitz/wow-addons#8, robinschweitz/raid-website#198). Forge now
+   runs every git command in its release worktrees with
+   `-c core.autocrlf=false` (not `git config`, which would change the
+   user's repository) and copies the addon's files with LF (FR-15.1).
 
 ## WoW 3.3.5a client facts (verified live)
 

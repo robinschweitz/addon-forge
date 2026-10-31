@@ -30,6 +30,21 @@ def _git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProc
                           encoding="utf-8", check=check)
 
 
+def _tree_git(tree: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess:
+    """Git in a release worktree: never convert line endings, whatever the user's checkout
+    sets (FR-15.1). Passed per call, as `git config` in a worktree would change the user's repo."""
+    return _git(tree, "-c", "core.autocrlf=false", *args, check=check)
+
+
+def _copy_lf(source: Path, target: Path) -> None:
+    """Copy a released file with LF line endings; a file with NUL bytes is binary and copied as is."""
+    data = source.read_bytes()
+    if b"\0" not in data:
+        data = data.replace(b"\r\n", b"\n")
+    target.write_bytes(data)
+    shutil.copystat(source, target)
+
+
 def _version(toc_text: str) -> str | None:
     match = re.search(r"(?im)^##\s*Version\s*:\s*(\S+)\s*$", toc_text)
     return match.group(1) if match else None
@@ -99,7 +114,8 @@ class _Worktree:
         self.path = Path(tempfile.mkdtemp(prefix="forge-release-")) / repo.name
 
     def __enter__(self) -> Path:
-        _git(self.repo, "worktree", "add", "-q", "-b", self.branch, str(self.path), "origin/main")
+        # Checked out as stored in Git (LF): CRLF bytes would reach the commit and the website sync.
+        _tree_git(self.repo, "worktree", "add", "-q", "-b", self.branch, str(self.path), "origin/main")
         return self.path
 
     def __exit__(self, *exc):
@@ -108,10 +124,10 @@ class _Worktree:
 
 
 def _commit(tree: Path, paths: list[str], message: str) -> str:
-    _git(tree, "add", "-A", "--", *paths)
-    if _git(tree, "diff", "--cached", "--quiet", check=False).returncode == 0:
+    _tree_git(tree, "add", "-A", "--", *paths)
+    if _tree_git(tree, "diff", "--cached", "--quiet", check=False).returncode == 0:
         raise RuntimeError(f"Nothing to commit in {tree.name}")
-    _git(tree, "commit", "-q", "-m", message)
+    _tree_git(tree, "commit", "-q", "-m", message)
     return _git(tree, "rev-parse", "HEAD").stdout.strip()
 
 
@@ -204,7 +220,7 @@ def release(cfg: Config, addon: Path, *, approve: bool = False, session=None, sy
             shutil.rmtree(target, ignore_errors=True)   # files the new .toc no longer lists go
             for rel in files:
                 (target / rel).parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(addon / rel, target / rel)
+                _copy_lf(addon / rel, target / rel)   # the working copy may be CRLF (FR-15.1)
             result["commits"] = {"wow-addons": _commit(tree, [name], (
                 f"{name} {version}\n\nReleased with forge release after every live plan passed on these files"
                 f" ({released or 'new'} -> {version}):\n{runs}\n"))}
@@ -214,8 +230,8 @@ def release(cfg: Config, addon: Path, *, approve: bool = False, session=None, sy
                     result["website_sync"] = synced
                     # The website syncs every bundled addon; only this one may change, or
                     # an unmerged release of another addon would be undone.
-                    _git(site, "add", "-A", "--", "internal/addons/bundle")
-                    changed = _git(site, "diff", "--cached", "--name-only").stdout.split()
+                    _tree_git(site, "add", "-A", "--", "internal/addons/bundle")
+                    changed = _tree_git(site, "diff", "--cached", "--name-only").stdout.split()
                     others = [path for path in changed if not path.startswith(f"internal/addons/bundle/{name}/")]
                     if others:
                         raise RuntimeError("The website sync would also change " + ", ".join(others)
