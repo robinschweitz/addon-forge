@@ -71,7 +71,7 @@ guild (README "Releasing an addon", REQUIREMENTS.md FR-15):
    refused) and merge the addon's PR here first.
 2. Preview: `forge --config forge.local.toml release examples/<Addon>`.
 3. Announce it, then run it with `--approve-fixtures`. It is a series of live
-   sessions on the human's desktop: 5 plans for RaidWishlist, 19 for
+   sessions on the human's desktop: 5 plans for RaidWishlist, 20 for
    RaidLedger. Each session closes the previous one's client (FR-7.6).
 4. On `released`, push the two branches it names, update the website pages
    and the changelog it lists (`web/src/release.ts`, German entry) on the
@@ -94,6 +94,16 @@ guild (README "Releasing an addon", REQUIREMENTS.md FR-15):
    runs every git command in its release worktrees with
    `-c core.autocrlf=false` (not `git config`, which would change the
    user's repository) and copies the addon's files with LF (FR-15.1).
+7. Never stop a release while a fixture runs. Killing the RaidLedger 2.7.0
+   release mid-fixture on 2026-10-31 left the worldserver unable to invite:
+   every later `master_loot` fixture failed with "Group invite popup did not
+   appear" until `docker restart ac-worldserver`. The database showed no
+   stuck group; the exact state in server memory is unknown.
+8. A plan's `.forge-runs/<run>.json` is the bridge report: its `passed` covers
+   the bridge tests only. The plan verdict is in the session or release
+   output. A leftover RaidLedger editor list in the test client's
+   SavedVariables also denies `Test` every roll; look for
+   `Nur Freigegebene dürfen ändern` in the chat.
 
 ## WoW 3.3.5a client facts (verified live)
 
