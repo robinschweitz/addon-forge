@@ -98,9 +98,9 @@ guild (README "Releasing an addon", REQUIREMENTS.md FR-15):
 - **`InputBoxTemplate` draws its left border 5 px left of the edit box.** A
   box anchored at a label's x sticks out to the left (RaidWishlist settings
   screenshot, 2026-10-26); place it 5 px further in. A `FontString` anchored
-  on both sides centers its text unless `SetJustifyH("LEFT")`. The offline
-  emulator models neither the template's border textures nor
-  `FontString:GetJustifyH`, so `forge.layoutIssues` cannot see either: look
+  on both sides centers its text unless `SetJustifyH("LEFT")`; a spec can
+  assert that with `GetJustifyH`. The offline emulator does not model the
+  template's border textures, so `forge.layoutIssues` cannot see them: look
   at the live screenshot.
 - **Localized GlobalStrings use positional specifiers.** deDE
   `RANDOM_ROLL_RESULT` is `%1$s würfelt. Ergebnis: %2$d (%3$d-%4$d)`. Strip
