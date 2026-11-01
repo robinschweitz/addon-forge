@@ -118,7 +118,7 @@
     {
       "type": "global_equals",
       "path": "RaidLedgerDB.history.1.state",
-      "value": "held"
+      "value": "manual"
     },
     {
       "type": "global_equals",

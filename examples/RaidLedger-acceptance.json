@@ -138,7 +138,7 @@
     {
       "type": "frame_text_contains",
       "frame": "RaidLedgerExportText",
-      "value": ";15209;20513;Test;held;"
+      "value": ";15209;20513;Test;given;"
     },
     {
       "type": "frame_text_contains",

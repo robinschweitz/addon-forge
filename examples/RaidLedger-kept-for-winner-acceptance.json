@@ -77,7 +77,7 @@
     },
     {
       "type": "chat_contains",
-      "value": " - Main-Spec (Test gibt es weiter)."
+      "value": " - Main-Spec (bei Test abholen)."
     },
     {
       "type": "global_equals",
