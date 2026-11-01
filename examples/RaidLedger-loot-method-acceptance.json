@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot",
+    "raid_lead"
+  ],
+  "steps": [
+    {"type": "slash", "value": "/ledger lootbutton show"},
+    {"type": "screenshot", "value": "loot_method_start"},
+    {"type": "click", "value": "RaidLedgerLootMethod"},
+    {"type": "wait", "value": 2},
+    {"type": "screenshot", "value": "loot_method_group"},
+    {"type": "click", "value": "RaidLedgerLootMethod"},
+    {"type": "wait", "value": 2},
+    {"type": "screenshot", "value": "loot_method_master"}
+  ],
+  "checks": [
+    {"type": "player_in_world", "value": true},
+    {"type": "frame_visible", "value": "RaidLedgerLootMethod"},
+    {"type": "frame_text_contains", "frame": "RaidLedgerLootMethod", "value": "BEUTE: PLÜNDERMEISTER"},
+    {"type": "no_lua_errors", "value": true}
+  ]
+}

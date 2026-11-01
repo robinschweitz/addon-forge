@@ -1779,7 +1779,7 @@ local function mayStartRolls()
         if raid == 0 and partyMaster == 0 then return true end
     end
     if raid > 0 then return (IsRaidLeader() or IsRaidOfficer()) and true or false end
-    return IsPartyLeader() and true or false
+    return IsPartyLeader("player") and true or false
 end
 
 -- bagLink finds an item ID's link in the bags (for /ledger roll <itemID>).
