@@ -165,7 +165,7 @@ them here is open work (REQUIREMENTS.md FR-14.5).
 ### FR-RL-023 - Finished raids are kept, not deleted
 - **Status:** Not implemented
 - **Source:** User question 2026-11-06 ("store multiple raids so in the end we might even be able to have a history of them in the addon").
-- **Statement:** NEW RAID MUST close the current raid and keep it as a saved raid instead of deleting it: its awards with their roll logs, its tally corrections, its raid key (`session`), start time, website raid ID and disenchanter. The new raid starts empty, as today. RaidLedger MUST keep at most `TO BE DECIDED` (OQ-RL-1) saved raids and drop the oldest beyond that, and never more than the current award cap of 250 per raid. A ledger saved before this feature MUST keep its awards as the current raid.
+- **Statement:** NEW RAID MUST close the current raid and keep it as a saved raid instead of deleting it: its awards with their roll logs, its tally corrections, its raid key (`session`), start time, website raid ID and disenchanter. The new raid starts empty, as today. How many saved raids RaidLedger keeps MUST be a setting the player chooses, with no fixed upper limit (decided 2026-11-06, OQ-RL-1). Beyond that number it drops the oldest. Each raid keeps the current award cap of 250. A ledger saved before this feature MUST keep its awards as the current raid.
 - **Rationale:** Raids span several days, and raid leads want to look back at earlier raids without an export.
 - **Security:** Saved raids are local data. Their size stays bounded by the raid and award caps (SC-019).
 - **Acceptance criteria:** Given a current raid with awards, when the player confirms NEW RAID, then the ledger is empty and the old raid is listed as a saved raid with all its awards. Given a ledger saved by RaidLedger 2.9.0, when the new version loads it, then its awards are the current raid. Given more saved raids than the limit, then the oldest one is dropped.
@@ -204,12 +204,12 @@ them here is open work (REQUIREMENTS.md FR-14.5).
 
 ### NFR-RL-001 - Saved data stays small enough
 - **Status:** Not implemented
-- **Statement:** The saved raids MUST NOT slow down login or `/reload` noticeably. The size the 3.3.5a client handles comfortably in one SavedVariables file is `UNKNOWN`; the raid limit (OQ-RL-1) is chosen with a live check of a full ledger (25 raiders, the maximum number of saved raids, 250 awards each).
+- **Statement:** The saved raids MUST NOT slow down login or `/reload` noticeably. The size the 3.3.5a client handles comfortably in one SavedVariables file is `UNKNOWN`; since the player picks the number of raids (OQ-RL-1), a live check with a large ledger (25 raiders, many saved raids, 250 awards each) MUST find a default and the point where the settings show a warning about slow loading.
 - **Evidence:** None yet.
 
 ## Open Questions
 
-- **OQ-RL-1** How many finished raids should RaidLedger keep (a number of raids, or the raids of the last weeks)?
+- **OQ-RL-1** Answered 2026-11-06: the player chooses how many raids to keep, with no fixed upper limit (FR-RL-023).
 - **OQ-RL-2** Where should the list of past raids be: a new tab, or a raid picker on VERGABEN?
 - **OQ-RL-3** May a past raid be reopened as the current raid (FR-RL-025)?
 - **OQ-RL-4** When a sync brings another raid, should RaidLedger still ask whether to make it the current raid, or only store it?
