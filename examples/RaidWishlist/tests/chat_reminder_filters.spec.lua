@@ -168,3 +168,44 @@ test("a repeated line reminds again, also after rolling; auto-roll rolls each ti
     expect(#repeats).toBe(3)
     forge.slash("/wish auto off")
 end)
+
+-- User decision 2026-11-06: with group loot for trash there is no master
+-- looter, so "only the master looter" falls back to the raid lead and the
+-- assistants (in a party, the party leader).
+test("without a master looter the raid lead and assistants count", function()
+    forge.raid({ { name = "Lead", rank = 2 }, { name = "Helper", rank = 1 }, "Alice", "Tester" })
+    forge.stub("GetLootMethod", function() return "group" end)
+    forge.chatEvent("CHAT_MSG_RAID", "t " .. CREST, "Alice")
+    expect("RaidWishlistPrompt").toBeHidden()
+    forge.chatEvent("CHAT_MSG_RAID", "t " .. CREST, "Helper")
+    expect("RaidWishlistPrompt").toBeShown()
+    forge.click("RaidWishlistSkip")
+    forge.chatEvent("CHAT_MSG_RAID_WARNING", "t " .. CREST, "Lead")
+    expect("RaidWishlistPrompt").toBeShown()
+    forge.click("RaidWishlistSkip")
+
+    -- With master loot only the master looter counts (Alice is raid3).
+    forge.stub("GetLootMethod", function() return "master", nil, 3 end)
+    forge.chatEvent("CHAT_MSG_RAID", "t " .. CREST, "Lead")
+    expect("RaidWishlistPrompt").toBeHidden()
+    forge.chatEvent("CHAT_MSG_RAID", "t " .. CREST, "Alice")
+    expect("RaidWishlistPrompt").toBeShown()
+    forge.click("RaidWishlistSkip")
+
+    -- A party: its leader (party1 here) counts, the others do not.
+    forge.raid({})
+    forge.party({ "Lead", "Alice" })
+    forge.stub("GetLootMethod", function() return "group" end)
+    forge.stub("GetPartyLeaderIndex", function() return 1 end)
+    forge.chatEvent("CHAT_MSG_PARTY", "t " .. CREST, "Alice")
+    expect("RaidWishlistPrompt").toBeHidden()
+    forge.chatEvent("CHAT_MSG_PARTY_LEADER", "t " .. CREST, "Lead")
+    expect("RaidWishlistPrompt").toBeShown()
+    forge.click("RaidWishlistSkip")
+
+    -- The sender button says so in its tooltip.
+    forge.click("RaidWishlistSettingsOpen")
+    forge.hover("RaidWishlistReminderAll")
+    expect(forge.tooltip()[1]).toContain("without master loot")
+    forge.click("RaidWishlistReminderCancel")
+end)

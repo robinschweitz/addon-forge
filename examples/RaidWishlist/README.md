@@ -134,7 +134,9 @@ keyword is needed by default; enter keywords (for example `roll, würfel`) to
 react only to lines that contain one of them, and clear the field to need none
 again. Every such line is a new roll: when the master looter posts the same
 line again (for example `t [item] 2` for each copy), the prompt opens again,
-or auto-roll rolls again. The restriction to the master looter is configurable too. Keywords count
+or auto-roll rolls again. Without master loot (for example group loot for trash), "only the master
+looter" means the raid lead and the assistants (in a party, its leader). This
+restriction is configurable too. Keywords count
 only outside item links, so `[Trollbane]` never counts as `roll`. RaidLedger's own
 `[Loot]` announcements are ignored: RaidLedger starts its rolls directly.
 

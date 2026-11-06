@@ -1516,6 +1516,23 @@ local function isMasterLooter(name)
     return master and lower(master) == lower(name)
 end
 
+-- mayAnnounceRolls is who counts in "only the master looter" mode: the master
+-- looter, or without master loot (group loot for trash) the raid lead and the
+-- assistants, in a party its leader (user decision 2026-11-06).
+local function mayAnnounceRolls(name)
+    if GetLootMethod() == "master" then return isMasterLooter(name) end
+    local key = lower(name)
+    if GetNumRaidMembers() and GetNumRaidMembers() > 0 then
+        for i = 1, GetNumRaidMembers() do
+            local member, rank = GetRaidRosterInfo(i)
+            if member and lower(member) == key then return (rank or 0) > 0 end
+        end
+        return false
+    end
+    local leader = GetPartyLeaderIndex()
+    return leader and leader > 0 and lower(UnitName("party" .. leader) or "") == key or false
+end
+
 -- shareWishlist sends this character's wishlist to the group so the raid
 -- lead's ledger can show who wants an item:
 --   W;<exported at>;<part>;<parts>;<itemID>:<m|o>:<enhanced 0|1>:<rank>,...
@@ -1584,7 +1601,7 @@ local function onChatReminder(message, sender)
     if string.find(message, "^%[Loot%]") then return end
     local _, char = ensureDatabase()
     if not char.reminderOn or not matchingReminderKeyword(message, char) then return end
-    if not char.reminderAll and not isMasterLooter(sender) then return end
+    if not char.reminderAll and not mayAnnounceRolls(sender) then return end
     for id in string.gmatch(message, "|Hitem:(%d+):") do
         local entry = findWish(tonumber(id))
         if entry then
@@ -1793,6 +1810,7 @@ local function buttonTip(button, text)
     button:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 buttonTip(autoButton, L["Auto-roll: roll on wishlisted items by yourself, without the prompt (e.g. while away)."])
+buttonTip(reminderAll, L["Who may announce a roll in chat. Only the master looter: without master loot (for example group loot), the raid lead and the assistants."])
 buttonTip(importOpen, L["Import: paste your wishlist export from the guild website."])
 buttonTip(editOpen, L["Edit: add, change or remove wishlist items."])
 buttonTip(catalogueSearchButton, L["Catalogue search: find WotLK raid loot by English or German name."])

@@ -84,6 +84,8 @@ L["CHAT ROLL REMINDER"] = "CHAT-WÜRFEL-ERINNERUNG"
 L["A reminder needs a wishlisted item link. Keywords are optional."] = "Eine Erinnerung braucht einen Wunsch-Itemlink. Schlüsselwörter sind optional."
 L["Only the master looter"] = "Nur der Plündermeister"
 L["All group members"] = "Alle Gruppenmitglieder"
+L["Who may announce a roll in chat. Only the master looter: without master loot (for example group loot), the raid lead and the assistants."] =
+    "Wer im Chat zum Würfeln aufrufen darf. Nur der Plündermeister: ohne Plündermeister (zum Beispiel Gruppenplündern) der Schlachtzugsleiter und die Assistenten."
 L["Keywords (comma-separated)"] = "Schlüsselwörter (mit Komma)"
 L["SAVE SETTINGS"] = "EINSTELLUNGEN SPEICHERN"
 L["Settings saved."] = "Einstellungen gespeichert."
