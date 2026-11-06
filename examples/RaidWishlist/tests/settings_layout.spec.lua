@@ -21,7 +21,7 @@ end)
 
 test("texts and edit boxes line up at the left edge", function()
     local heading = forge.findText("ENHANCE-PUNKTE")
-    local hint = forge.findText("Eine Erinnerung braucht einen Wunsch-Itemlink und ein Schlüsselwort.")
+    local hint = forge.findText("Eine Erinnerung braucht einen Wunsch-Itemlink. Schlüsselwörter sind optional.")
     -- The hint is left-justified (the emulator has no GetJustifyH yet; the
     -- sketch below draws the justification).
     expect(left(hint)).toBe(left(heading))

@@ -118,18 +118,20 @@ spec and EP) or **SKIP**. It closes when the roll ends.
 second after the roll starts, for example while you are away from the keyboard.
 
 Either way the addon rolls at most once per roll (the ledger only counts your
-first roll), joins a tie-break only if you are one of the tied players, and
-does not roll on items you already received this raid.
+first roll) and joins a tie-break only if you are one of the tied players. It
+also rolls on items you already received this raid (some items are wanted
+twice); the prompt then says **already received**.
 
 ### Chat announcements without RaidLedger
 
 Click **SETTINGS** to configure announcements from another loot addon or from
 chat. The reminder is off until you switch it on there (**CHAT REMINDER**) or
-with `/wish remind on`. Once on, RaidWishlist reacts only when the master looter posts both an
-item from your wishlist and one of the keywords `roll` or `würfel` in party or
-raid chat. Both the keyword list and the restriction to the master looter are
-configurable. Keywords count only outside item links, so a message with just an
-item link (even `[Trollbane]`) never creates a roll prompt. RaidLedger's own
+with `/wish remind on`. Once on, RaidWishlist reacts when the master looter
+posts an item from your wishlist in party chat, raid chat or a raid warning. No
+keyword is needed by default; enter keywords (for example `roll, würfel`) to
+react only to lines that contain one of them, and clear the field to need none
+again. The restriction to the master looter is configurable too. Keywords count
+only outside item links, so `[Trollbane]` never counts as `roll`. RaidLedger's own
 `[Loot]` announcements are ignored: RaidLedger starts its rolls directly.
 
 ## Open items

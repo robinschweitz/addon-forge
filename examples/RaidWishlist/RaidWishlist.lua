@@ -10,7 +10,10 @@ local Wishlist = CreateFrame("Frame", "RaidWishlistFrame", UIParent)
 local PREFIX = "FLLedger"
 local AUTO_DELAY = 1        -- seconds before an automatic roll
 local SPEC_LABELS = { ms = "MS", os = "OS" }
-local DEFAULT_REMINDER_KEYWORDS = "roll,würfel"
+-- No keyword by default (user decision 2026-11-06): any announcement with a
+-- wishlisted item link counts. The old default is dropped from saved settings.
+local DEFAULT_REMINDER_KEYWORDS = ""
+local OLD_DEFAULT_KEYWORDS = "roll,würfel"
 -- Disenchanted or banked items have a holder but count for nobody.
 local NO_TALLY = { disenchanted = true, bank = true }
 local TOKEN_NAMES = { "Weiheabzeichen" }
@@ -90,6 +93,11 @@ local function ensureDatabase()
     db.raid.awards = db.raid.awards or {}
     local me = playerName()
     db.chars[me] = db.chars[me] or { items = {} }
+    -- Once per character: settings saved before 2.4.0 stored the old default.
+    if not db.chars[me].keywordsChecked then
+        if db.chars[me].reminderKeywords == OLD_DEFAULT_KEYWORDS then db.chars[me].reminderKeywords = nil end
+        db.chars[me].keywordsChecked = true
+    end
     return db, db.chars[me]
 end
 
@@ -98,12 +106,15 @@ local function reminderKeywords(char)
 end
 
 -- Keywords count only outside item links: "[Trollbane]" is no "roll".
+-- Without keywords every message matches.
 local function matchingReminderKeyword(message, char)
     local text = lower((string.gsub(message, "|H.-|h.-|h", "")))
+    local any = false
     for keyword in string.gmatch(reminderKeywords(char), "[^,]+") do
-        if keyword ~= "" and string.find(text, lower(keyword), 1, true) then return true end
+        any = true
+        if string.find(text, lower(keyword), 1, true) then return true end
     end
-    return false
+    return not any
 end
 
 local MAX_ENHANCED = 50     -- X = min(EP, 50), the website's rule
@@ -827,7 +838,7 @@ reminderHint:SetPoint("TOPLEFT", settingsPanel, "TOPLEFT", 12, -146)
 reminderHint:SetPoint("RIGHT", settingsPanel, "RIGHT", -12, 0)
 reminderHint:SetWordWrap(true)
 reminderHint:SetJustifyH("LEFT")
-reminderHint:SetText(L["A reminder needs a wishlisted item link and a keyword."])
+reminderHint:SetText(L["A reminder needs a wishlisted item link. Keywords are optional."])
 -- Off by default (user decision 2026-10-26): chat only opens prompts once
 -- the player switches the reminder on.
 local reminderOn = flatButton(settingsPanel, "RaidWishlistReminderOn", "", 180, 24)
@@ -1381,16 +1392,12 @@ function settings.save()
     for word in string.gmatch(value, "[^,%s]+") do
         if string.len(word) <= 32 then table.insert(words, word) end
     end
-    if table.getn(words) == 0 then
-        settingsStatus:SetText(L["Enter at least one reminder keyword."])
-        return
-    end
     local _, char = ensureDatabase()
     -- Unchanged points keep the wins counted since the last balance.
     if tostring(points) ~= settings.draft.points then settings.setBalance(char, points) end
     char.reminderAll = settings.draft.reminderAll
     char.reminderOn = settings.draft.reminderOn
-    char.reminderKeywords = table.concat(words, ",")
+    char.reminderKeywords = table.getn(words) > 0 and table.concat(words, ",") or nil
     settings.close()
     refresh()
     status:SetText(L["Settings saved."])
@@ -1416,6 +1423,8 @@ local function showPrompt(entry, key, seconds)
     prompt = { entry = entry, key = key, endsAt = GetTime() + seconds }
     promptItem:SetText(itemLink(entry.itemID))
     local note = entry.note ~= "" and ("  -  " .. entry.note) or ""
+    -- FR-RW-007: an item already won is rolled again, but the player is told.
+    if entry.received then note = "  -  " .. L["already received"] .. note end
     promptNote:SetText(string.format(L["Priority %d, %s%s"], entry.priority, rangeLabel(entry), note))
     rollButton:SetText(string.format(L["ROLL %s"], rangeLabel(entry)))
     Prompt:Show()
@@ -1445,7 +1454,7 @@ local function onRollStart(f)
     if not followSession(f[2] or "") then return end
     if ensureDatabase().raid.session ~= before then refresh() end
     local entry = findWish(itemID)
-    if not entry or entry.received then return end
+    if not entry then return end
     if round > 1 then
         local tied = false
         for name in string.gmatch(f[8] or "", "[^,]+") do
@@ -1564,7 +1573,7 @@ local function onAddonMessage(prefix, message, channel, sender)
 end
 
 -- Chat from another loot addon is untrusted text. It only creates a prompt
--- after both a user-selected keyword and a wishlisted item link match.
+-- for a wishlisted item link, and a keyword when the player set any.
 local function onChatReminder(message, sender)
     if type(message) ~= "string" or not sender or isPlayer(sender) then return end
     -- RaidLedger starts its rolls by addon message; its "[Loot]" lines
@@ -1575,7 +1584,7 @@ local function onChatReminder(message, sender)
     if not char.reminderAll and not isMasterLooter(sender) then return end
     for id in string.gmatch(message, "|Hitem:(%d+):") do
         local entry = findWish(tonumber(id))
-        if entry and not entry.received then
+        if entry then
             local key = "chat:" .. lower(sender) .. ":" .. id .. ":" .. lower(message)
             if rolled[key] then return end
             if not Wishlist:IsShown() then
@@ -1912,6 +1921,7 @@ Wishlist:RegisterEvent("PLAYER_LOGIN")
 Wishlist:RegisterEvent("CHAT_MSG_ADDON")
 Wishlist:RegisterEvent("CHAT_MSG_RAID")
 Wishlist:RegisterEvent("CHAT_MSG_RAID_LEADER")
+Wishlist:RegisterEvent("CHAT_MSG_RAID_WARNING")
 Wishlist:RegisterEvent("CHAT_MSG_PARTY")
 Wishlist:RegisterEvent("CHAT_MSG_PARTY_LEADER")
 Wishlist:SetScript("OnEvent", function(self, event, ...)
@@ -1966,7 +1976,8 @@ Wishlist:SetScript("OnEvent", function(self, event, ...)
         end
     elseif event == "CHAT_MSG_ADDON" then
         onAddonMessage(...)
-    elseif event == "CHAT_MSG_RAID" or event == "CHAT_MSG_RAID_LEADER" or event == "CHAT_MSG_PARTY" or event == "CHAT_MSG_PARTY_LEADER" then
+    elseif event == "CHAT_MSG_RAID" or event == "CHAT_MSG_RAID_LEADER" or event == "CHAT_MSG_RAID_WARNING"
+        or event == "CHAT_MSG_PARTY" or event == "CHAT_MSG_PARTY_LEADER" then
         onChatReminder(...)
     end
 end)

@@ -158,10 +158,22 @@ test("the raid list shows who got what, with your tally", function()
     forge.click("RaidWishlistTabraid")
 end)
 
-test("received items are not rolled again", function()
+-- FR-RW-007 (user decision 2026-11-06): some items are wanted twice, and a
+-- manual roll from the bags is often an item someone already won.
+test("received items are rolled again, with a note", function()
+    forge.click("RaidWishlistAuto")                 -- auto-roll off: the prompt
     rollStart("Lead-1-7", 20513)
+    expect("RaidWishlistPrompt").toBeShown()
+    expect(forge.findText("already received", true)).toBeTruthy()
+    expect(forge.layoutIssues("RaidWishlistPrompt")).toEqual({})
+    forge.click("RaidWishlistSkip")
+    forge.click("RaidWishlistAuto")                 -- auto-roll on again
+    rollStart("Lead-1-7b", 20513)
     forge.advance(1.2, 0.2)
-    expect(#rolls).toBe(3)
+    expect(#rolls).toBe(4)
+    forge.click("RaidWishlistTabwish")
+    expect(forge.findText("RECEIVED")).toBeTruthy()
+    forge.click("RaidWishlistTabraid")
 end)
 
 test("an item the master looter holds for you counts as yours", function()
@@ -169,7 +181,7 @@ test("an item the master looter holds for you counts as yours", function()
     expect(forge.findText("YOU: ITEMS 2 MS / 0 OS  |  TOKENS 0 MS / 0 OS")).toBeTruthy()
     rollStart("Lead-1-8", 20514)
     forge.advance(1.2, 0.2)
-    expect(#rolls).toBe(3)
+    expect(#rolls).toBe(5)
 end)
 
 test("corrections replace older revisions; removed awards no longer count", function()
