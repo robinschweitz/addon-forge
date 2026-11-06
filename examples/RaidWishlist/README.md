@@ -118,7 +118,9 @@ spec and EP) or **SKIP**. It closes when the roll ends.
 second after the roll starts, for example while you are away from the keyboard.
 
 Either way the addon rolls at most once per roll (the ledger only counts your
-first roll) and joins a tie-break only if you are one of the tied players. It
+first roll) and joins a tie-break only if you are one of the tied players.
+It answers a roll started by any raider's RaidLedger, also one that still
+holds an older raid; only the newest raid fills **THIS RAID** and **OPEN**. It
 also rolls on items you already received this raid (some items are wanted
 twice); the prompt then says **already received**.
 

@@ -71,6 +71,15 @@
 - **Acceptance criteria:** Given a wishlisted item already received this raid, when RaidLedger starts a roll on it, then the prompt appears and names it as already received. Given the same with auto-roll on, then the addon rolls once. Given the reminder switched on and an item already received, when a matching chat announcement arrives, then the prompt appears.
 - **Evidence:** `examples/RaidWishlist/tests/wishlist.spec.lua::received items are rolled again, with a note`, `::an item the master looter holds for you counts as yours`; `examples/RaidWishlist/tests/chat_reminder_filters.spec.lua::a received item still gets a chat reminder`. Live session `b4c95f331600` (bridge run `290c99371df1`, 2026-11-06, plan `examples/RaidWishlist-won-again-acceptance.json`): Test won item 20513 (`received = true`), then `/ledger roll 20513` recorded a new held award and opened the prompt again; `step-wl_won_again_prompt.png` shows `schon erhalten` in the prompt, with no Lua errors. Auto-roll and the chat path for a received item are offline only.
 
+### FR-RW-008 - Roll starts from any ledger in the group
+- **Status:** Verified Offline
+- **Source:** User report 2026-11-06 (a raid assistant's Alt+click bag roll opened no prompt on another raider's client: the assistant's RaidLedger still held an older raid than the raid lead's) and user decision 2026-11-06: always prompt.
+- **Statement:** A RaidLedger roll start from any group member MUST open the roll prompt (or make the automatic roll) for a wishlisted item, whatever raid that ledger holds and whatever the loot method. A roll start from a ledger whose raid is older than the one the wishlist follows MUST NOT switch the wishlist's raid lists (THIS RAID, OPEN, received items); a newer one still does.
+- **Rationale:** A roll start is a live event. Several raiders may run RaidLedger, and only the one who last pressed NEW RAID holds today's raid.
+- **Security:** Only roll starts from group members over RAID or PARTY are accepted (unchanged). The message still creates no wishlist data (SC-019).
+- **Acceptance criteria:** Given a wishlist that follows today's raid from the raid lead's ledger, when another raider's ledger with an older raid starts a roll on a wishlisted item, then the prompt appears and the wishlist still follows today's raid. Given a roll start from a newer raid, then the wishlist switches to that raid (unchanged).
+- **Evidence:** `examples/RaidWishlist/tests/next_raid.spec.lua::a roll from an older raid still prompts and keeps the newer raid`, `::an assistant's bag roll from a ledger with an older raid prompts under group loot`. Offline only.
+
 ## Non-Functional Requirements
 
 ### NFR-RW-001 - Compatibility and layout

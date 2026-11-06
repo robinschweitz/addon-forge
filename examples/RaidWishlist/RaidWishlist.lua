@@ -1451,9 +1451,11 @@ local function onRollStart(f)
     if not itemID or not seconds or f[4] == "" then return end
     -- The first roll of a new raid can be its first message: switch to that
     -- raid before asking what was received (last raid's awards do not count).
+    -- A ledger that still holds an older raid prompts too, but keeps this
+    -- raid's lists (FR-RW-008): several raiders may run RaidLedger.
+    if (f[2] or "") == "" then return end
     local before = ensureDatabase().raid.session
-    if not followSession(f[2] or "") then return end
-    if ensureDatabase().raid.session ~= before then refresh() end
+    if followSession(f[2]) and ensureDatabase().raid.session ~= before then refresh() end
     local entry = findWish(itemID)
     if not entry then return end
     if round > 1 then

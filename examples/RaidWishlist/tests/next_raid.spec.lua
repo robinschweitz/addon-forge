@@ -8,8 +8,8 @@ before_load(function()
     forge.item(20513, { name = "Abyssal Crest", link = CREST, quality = 4 })
 end)
 
-local function receive(message)
-    forge.fire("CHAT_MSG_ADDON", "FLLedger", message, "RAID", "Lead")
+local function receive(message, sender)
+    forge.fire("CHAT_MSG_ADDON", "FLLedger", message, "RAID", sender or "Lead")
 end
 
 test("last raid's award does not stop the next raid's roll prompt", function()
@@ -32,8 +32,29 @@ test("last raid's award does not stop the next raid's roll prompt", function()
     expect(forge.findText("RECEIVED")).toBeNil()
 end)
 
-test("a roll from an older raid than the one kept is ignored", function()
+-- FR-RW-008 (user decision 2026-11-06): a roll start is a live event, so it
+-- prompts whatever raid its ledger holds, but an older raid does not replace
+-- the lists of the newer one.
+test("a roll from an older raid still prompts and keeps the newer raid", function()
     forge.click("RaidWishlistRoll")
     receive("S;Lead-1792131000;Lead;Lead-1792131500-2;20513;30;1;")
-    expect("RaidWishlistPrompt").toBeHidden()
+    expect("RaidWishlistPrompt").toBeShown()
+    expect(forge.saved("RaidWishlistDB").raid.session).toBe("Lead-1792735000")
+    forge.click("RaidWishlistSkip")
+end)
+
+-- User report 2026-11-06: under group loot for trash, an assistant Alt+clicked
+-- an item in the bags; the assistant's RaidLedger still held an older raid,
+-- and no other raider got a prompt.
+test("an assistant's bag roll from a ledger with an older raid prompts under group loot", function()
+    forge.raid({ "Lead", "Roller", "Tester" })
+    forge.stub("GetLootMethod", function() return "group" end)
+    receive("O;Lead-1792735000;Lead;")
+    receive("S;Roller-1792131000;Roller;Roller-1792735100-1;20513;30;1;", "Roller")
+    expect("RaidWishlistPrompt").toBeShown()
+    expect(forge.saved("RaidWishlistDB").raid.session).toBe("Lead-1792735000")
+    -- A held award from that older raid does not join this raid's list.
+    receive("A;Roller-1792131000;Roller;1;1;1792735100;20513;;Roller;held;1;;;;;;0;;02:00", "Roller")
+    expect(forge.saved("RaidWishlistDB").raid.awards["roller:1"]).toBeNil()
+    forge.click("RaidWishlistSkip")
 end)
