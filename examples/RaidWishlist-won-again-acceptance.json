@@ -111,12 +111,12 @@
     },
     {
       "type": "global_equals",
-      "path": "RaidLedgerDB.history.1.low",
+      "path": "RaidLedgerDB.history.2.low",
       "value": 21
     },
     {
       "type": "global_equals",
-      "path": "RaidLedgerDB.history.1.confirmed",
+      "path": "RaidLedgerDB.history.2.confirmed",
       "value": true
     },
     {
@@ -137,6 +137,11 @@
     {
       "type": "frame_visible",
       "value": "RaidWishlistPrompt"
+    },
+    {
+      "type": "global_equals",
+      "path": "RaidLedgerDB.history.1.state",
+      "value": "held"
     },
     {
       "type": "no_lua_errors",

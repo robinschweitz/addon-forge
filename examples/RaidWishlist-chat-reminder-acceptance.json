@@ -39,6 +39,21 @@
       "value": "/wish remind all"
     },
     {
+      "type": "click",
+      "value": "RaidWishlistSettingsOpen"
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidWishlistReminderKeywords",
+        " "
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistReminderSave"
+    },
+    {
       "type": "peer_say",
       "value": [
         "here it is",
