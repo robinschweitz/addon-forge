@@ -156,63 +156,63 @@ them here is open work (REQUIREMENTS.md FR-14.5).
 ### FR-RL-022 - Sync says why another raid is not merged and offers to switch
 - **Status:** Implemented (offline)
 - **Source:** User report 2026-11-06 (a character that was not in Monday's raid ran `/ledger sync`; nothing arrived and nothing said why) and user decision 2026-11-06: say why every time, and offer to switch.
-- **Statement:** When a sync the player asked for (`/ledger sync` or SYNC AWARDS) brings awards of another raid while this ledger has awards of its own, RaidLedger MUST say so in chat every time, naming the sender, and MUST ask once per sync and raid whether to replace this ledger with that raid. YES MUST empty this ledger like NEW RAID (awards, tally corrections, disenchanter), follow that raid and ask the group again, so its awards arrive. NO MUST change nothing. The automatic sync after login keeps warning at most once and never asks. An empty ledger keeps following the sender's raid without a question (unchanged).
+- **Statement:** When a sync the player asked for (`/ledger sync` or SYNC AWARDS) brings awards of another raid while this ledger has awards of its own, RaidLedger MUST say so in chat every time, naming the sender, and MUST ask once per sync and raid whether to replace this ledger with that raid. YES MUST keep this ledger's raid under HISTORY (FR-RL-023), make that raid the current one and ask the group again, so its awards arrive. NO MUST change nothing. Since 2.10.0 the other raid is also kept under HISTORY, and outside a sync of the player's own the question comes once per raid (FR-RL-026: the player is always told and decides). An empty ledger keeps following the sender's raid without a question (unchanged).
 - **Rationale:** Players switch characters between raid days, and a ledger that silently keeps its own raid looks broken.
 - **Security:** Only group members' ledgers are asked; with an editor list, only editors' ledgers count (unchanged). The question names the sender from the event (SC-019). Replacing the ledger needs the player's click.
-- **Acceptance criteria:** Given a ledger with its own awards, when the player syncs and another raid's ledger answers, then chat names that ledger and a question appears; a second sync says it again. Given YES, then this ledger is empty, follows that raid, and the awards sent next are stored. Given NO, then nothing changes. Given the automatic sync after login, then no question appears.
+- **Acceptance criteria:** Given a ledger with its own awards, when the player syncs and another raid's ledger answers, then chat names that ledger and a question appears; a second sync says it again. Given YES, then this ledger's raid is kept under HISTORY, that raid is current, and the awards sent next are stored. Given NO, then the current raid stays. Given awards of another raid without a sync of the player's own, then the question appears once.
 - **Evidence:** `examples/RaidLedger/tests/shared_ledger.spec.lua::FR-RL-022 a sync explains another raid every time and offers to switch`. Offline only.
 
 ### FR-RL-023 - Finished raids are kept, not deleted
-- **Status:** Not implemented
+- **Status:** Implemented (offline)
 - **Source:** User question 2026-11-06 ("store multiple raids so in the end we might even be able to have a history of them in the addon").
 - **Statement:** NEW RAID MUST close the current raid and keep it as a saved raid instead of deleting it: its awards with their roll logs, its tally corrections, its raid key (`session`), start time, website raid ID and disenchanter. The new raid starts empty, as today. How many saved raids RaidLedger keeps MUST be a setting the player chooses, with no fixed upper limit (decided 2026-11-06, OQ-RL-1). Beyond that number it drops the oldest. Each raid keeps the current award cap of 250. A ledger saved before this feature MUST keep its awards as the current raid.
 - **Rationale:** Raids span several days, and raid leads want to look back at earlier raids without an export.
 - **Security:** Saved raids are local data. Their size stays bounded by the raid and award caps (SC-019).
 - **Acceptance criteria:** Given a current raid with awards, when the player confirms NEW RAID, then the ledger is empty and the old raid is listed as a saved raid with all its awards. Given a ledger saved by RaidLedger 2.9.0, when the new version loads it, then its awards are the current raid. Given more saved raids than the limit, then the oldest one is dropped.
-- **Evidence:** None yet.
+- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-023 NEW RAID keeps the finished raid with all its awards`, `::FR-RL-023 the player chooses how many raids to keep`; `tests/migration.spec.lua::old awards get IDs oldest first and appear in the export` (a 2.9.0 ledger). The default of 20 kept raids is an `ASSUMPTION` until NFR-RL-001's live check. Offline only.
 
 ### FR-RL-024 - A list of past raids
-- **Status:** Not implemented
+- **Status:** Implemented (offline)
 - **Source:** User question 2026-11-06.
 - **Statement:** RaidLedger MUST show the saved raids newest first, each with its date and start time, who recorded it, its website raid ID when set, and its number of awards. Selecting one MUST show its awards, roll logs and tallies, and its RS2 export, the same way as for the current raid. The list MUST be on its own new tab (decided 2026-11-06, OQ-RL-2). A saved raid can be reopened (FR-RL-025), corrected by editors (FR-RL-027) and deleted (FR-RL-028).
 - **Acceptance criteria:** Given three saved raids, when the player opens the list, then they appear newest first with date, recorder and award count. Given a selected raid, then its awards, roll logs and tallies are shown and its export matches the export that raid produced before it was closed. Given a German client and 25 raiders with long names, then `forge.layoutIssues` finds nothing.
-- **Evidence:** None yet.
+- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-024 the VERLAUF tab lists the saved raids newest first`, `::FR-RL-024 a selected raid shows its tallies and its export`; `tests/history_layout.spec.lua::VERLAUF fits 30 saved raids with 25 raiders each` (deDE, sketches `history-list`, `history-raid`, `history-awards`). Awards and roll logs show in VERGABEN, whose heading names the raid. Offline only.
 
 ### FR-RL-025 - Reopen a past raid
-- **Status:** Not implemented
+- **Status:** Implemented (offline)
 - **Source:** User report 2026-11-06 (a raid that continues on another day); wanted, decided 2026-11-06 (OQ-RL-3).
 - **Statement:** The player MUST be able to make a saved raid the current raid again, after a confirmation. The current raid is then kept as a saved raid. Rolls, tallies and new awards then belong to the reopened raid, and the group's ledgers and wishlists follow it like any shared raid.
 - **Acceptance criteria:** Given a saved raid from Monday and a current raid from today, when the player reopens Monday's raid and confirms, then Monday's raid is current, today's is saved, and the next award joins Monday's raid with the next free award number.
-- **Evidence:** None yet.
+- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-025 a saved raid is reopened after a confirmation`. Group ledgers follow on their next message as for any shared raid; RaidWishlist only follows newer raids by itself, so the ledger sends `R;session;origin` and the wishlist asks (FR-RW-010). Offline only.
 
 ### FR-RL-026 - A sync from another raid is kept as a saved raid
-- **Status:** Not implemented
+- **Status:** Implemented (offline)
 - **Source:** User decisions 2026-11-06 (FR-RL-022) and the raid-history question.
 - **Statement:** When a sync brings awards of another raid, RaidLedger MUST store them as a saved raid of that raid's recorder, instead of only offering to replace the current raid (FR-RL-022). The current raid stays as it is. RaidLedger MUST tell the player that it stored that raid and from whom, and offer to make it the current raid; nothing switches without the player's yes (decided 2026-11-06, OQ-RL-4: the player is always told and decides). A sync MUST keep sharing only the current raid, so the traffic stays the same as today.
 - **Security:** Only group members' ledgers are stored, and with an editor list only editors' (unchanged). Per sync at most one raid per sender is stored, within the raid and award caps (SC-019).
 - **Acceptance criteria:** Given a ledger with today's raid, when the player syncs and Admin's ledger answers with Monday's raid, then Monday's raid appears in the saved raids with Admin as recorder and all its awards, and today's raid is unchanged. Given the same sync again, then Monday's raid is updated, not stored twice.
-- **Evidence:** None yet.
+- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-026 a sync from another raid is stored beside ours and offered`; `tests/shared_ledger.spec.lua::FR-RL-022 a sync explains another raid every time and offers to switch`. Each sender may store one other raid per login, so a ledger cannot push saved raids out with made-up raids. Offline only.
 
 ### FR-RL-027 - Tallies belong to their raid
-- **Status:** Not implemented
+- **Status:** Implemented (offline)
 - **Source:** Follows from FR-RL-023.
 - **Statement:** Roll rankings and the SPIELER tally MUST count only the current raid's awards and corrections, as today. A saved raid's tallies MUST be computed from its own awards and corrections. Editors MAY correct awards of a saved raid (decided 2026-11-06, OQ-RL-5). The correction MUST be shared with the group like a correction in the current raid, and every ledger that holds that raid applies it; ledgers without it ignore it. The editor-list rule is the same as for the current raid (SC-019).
 - **Acceptance criteria:** Given Bob won an item in a saved raid, when a roll starts in the current raid, then Bob's tally is 0. Given the saved raid is selected in the list, then Bob shows 1 item there.
-- **Evidence:** None yet.
+- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-027 a saved raid's awards no longer count in the current raid's rolls`, `::FR-RL-027 an editor corrects a saved raid and the group gets it`, `::FR-RL-027 a correction of a raid we do not hold is ignored`. A correction of a saved raid is an `A` line with that raid's key and a 20th field `1`. Offline only.
 
 ### FR-RL-028 - Delete a saved raid
-- **Status:** Not implemented
+- **Status:** Implemented (offline)
 - **Source:** User decision 2026-11-06 (OQ-RL-6).
 - **Statement:** The player MUST be able to delete a saved raid by hand, after a confirmation that names the raid. The current raid cannot be deleted this way (NEW RAID closes it). A deletion MUST remove the raid only from the player's own ledger; nothing is sent to the group, and other players keep their copy (decided 2026-11-06, OQ-RL-7). A later sync MAY bring that raid back as a stored raid, which the player is told about (FR-RL-026).
 - **Acceptance criteria:** Given three saved raids, when the player deletes the middle one and confirms, then two remain and the current raid is unchanged. Given the player cancels, then all three remain. Given a deletion, then no addon message is sent.
-- **Evidence:** None yet.
+- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-028 deleting a saved raid asks, removes it only here and sends nothing`. Offline only.
 
 ## Non-Functional Requirements
 
 ### NFR-RL-001 - Saved data stays small enough
 - **Status:** Not implemented
 - **Statement:** The saved raids MUST NOT slow down login or `/reload` noticeably. The size the 3.3.5a client handles comfortably in one SavedVariables file is `UNKNOWN`; since the player picks the number of raids (OQ-RL-1), a live check with a large ledger (25 raiders, many saved raids, 250 awards each) MUST find a default and the point where the settings show a warning about slow loading.
-- **Evidence:** None yet.
+- **Evidence:** None yet. The live check with a large ledger and the slow-loading warning are still to do.
 
 ## Open Questions
 

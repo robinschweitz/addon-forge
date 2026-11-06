@@ -180,6 +180,7 @@ local function ensureDatabase()
     RaidLedgerDB = RaidLedgerDB or {}
     local db = RaidLedgerDB
     db.history = db.history or {}
+    db.raids = db.raids or {}   -- finished raids, newest first (FR-RL-023)
     db.nextID = db.nextID or 0
     -- Records from version 1.0 have no stable ID yet; number them oldest first.
     for i = table.getn(db.history), 1, -1 do
@@ -204,8 +205,63 @@ local function reminders(seconds)
     return { math.floor(seconds / 2 + 0.5), math.floor(seconds / 4 + 0.5) }
 end
 
-local function findRecord(id)
-    for _, record in ipairs(ensureDatabase().history) do
+---------------------------------------------------------------------------
+-- Raid history (FR-RL-023 to FR-RL-028). The current raid lives in the
+-- database itself (history, session, startedAt, raidID, disenchanter,
+-- tallyAdjust); a saved raid in db.raids has the same fields plus recorder
+-- and closedAt. Functions that take a `raid` work on either.
+---------------------------------------------------------------------------
+-- storedBy: the one other raid each sender may store per login (FR-RL-026),
+-- so a ledger cannot push our saved raids out with made-up raids.
+local saved = { DEFAULT_KEEP = 20, storedBy = {} }
+
+function saved.keep() return ensureDatabase().keepRaids or saved.DEFAULT_KEEP end
+
+-- saved.recorderOf reads who started a raid from its key ("Name-<time>").
+function saved.recorderOf(session)
+    return string.match(session or "", "^(.-)%-%d+$")
+end
+
+function saved.find(session)
+    for _, raid in ipairs(ensureDatabase().raids) do
+        if raid.session == session then return raid end
+    end
+end
+
+-- saved.raidOf: the raid (current or saved) an award belongs to.
+function saved.raidOf(record)
+    local db = ensureDatabase()
+    for _, r in ipairs(db.history) do
+        if r == record then return db end
+    end
+    for _, raid in ipairs(db.raids) do
+        for _, r in ipairs(raid.history) do
+            if r == record then return raid end
+        end
+    end
+    return db
+end
+
+-- saved.trim drops the oldest raids beyond the number the player keeps.
+function saved.trim()
+    local raids = ensureDatabase().raids
+    while table.getn(raids) > saved.keep() do table.remove(raids) end
+end
+
+-- saved.close keeps the current raid as a saved raid, when it holds anything.
+function saved.close()
+    local db = ensureDatabase()
+    local hasTally = next(db.tallyAdjust or {}) ~= nil
+    if table.getn(db.history) == 0 and not hasTally then return end
+    local session = db.session or (field(playerName()) .. "-" .. time())
+    table.insert(db.raids, 1, { session = session, recorder = saved.recorderOf(session) or playerName(),
+        history = db.history, startedAt = db.startedAt, raidID = db.raidID, disenchanter = db.disenchanter,
+        tallyAdjust = db.tallyAdjust or {}, closedAt = time() })
+    saved.trim()
+end
+
+local function findRecord(id, raid)
+    for _, record in ipairs((raid or ensureDatabase()).history) do
         if record.id == id then return record end
     end
 end
@@ -218,20 +274,22 @@ end
 -- out yet count for their winners too (raid of 2026-10-19: loot stayed on the
 -- corpse while it was rolled, and the next roll said "0 items so far"), except
 -- the entry `except` that is being decided.
-local function tallies(tokens, except)
+local function tallies(tokens, except, raid)
+    local db = ensureDatabase()
+    raid = raid or db
     local counts = {}
     local function add(name, spec)
         local key = lower(name)
         counts[key] = counts[key] or { ms = 0, os = 0 }
         counts[key][spec] = counts[key][spec] + 1
     end
-    for _, r in ipairs(ensureDatabase().history) do
+    for _, r in ipairs(raid.history) do
         if (r.spec == "ms" or r.spec == "os") and r.state ~= "deleted" and not NO_TALLY[r.state]
             and (r.token and true or false) == (tokens and true or false) then
             add((r.state == "held" and r.winner) or r.recipient, r.spec)
         end
     end
-    for _, entry in ipairs(active) do
+    for _, entry in ipairs(raid == db and active or {}) do
         if entry ~= except and not entry.free and (isToken(entry.item) and true or false) == (tokens and true or false) then
             for _, w in ipairs(entry.winners or { entry.winner }) do
                 if w.kind == "ms" or w.kind == "os" then add(w.name, w.kind) end
@@ -239,7 +297,7 @@ local function tallies(tokens, except)
         end
     end
     -- Corrections by hand (the tally tab) on top; a tally never drops below 0.
-    for key, fix in pairs(ensureDatabase().tallyAdjust or {}) do
+    for key, fix in pairs(raid.tallyAdjust or {}) do
         local ms, os = fix[tokens and "tms" or "ms"] or 0, fix[tokens and "tos" or "os"] or 0
         if ms ~= 0 or os ~= 0 then
             counts[key] = counts[key] or { ms = 0, os = 0 }
@@ -408,15 +466,17 @@ local function shareRollStart(entry, seconds, tied)
 end
 
 -- currentSession names this raid's ledger; it changes with every new raid.
-local function encodeRecord(r)
-    return table.concat({ "A", currentSession(), field(r.origin or playerName()), r.id, r.rev or 1, r.at or 0,
+-- A correction of a saved raid carries that raid's key and a 20th field "1",
+-- so ledgers that do not hold that raid ignore it (FR-RL-027).
+local function encodeRecord(r, session, closed)
+    return table.concat({ "A", session or currentSession(), field(r.origin or playerName()), r.id, r.rev or 1, r.at or 0,
         r.itemID or "", r.npc or "", field(r.recipient), r.state or "manual", r.confirmed and 1 or 0,
         r.spec or "", r.roll or "", r.low or "", r.high or "", field(r.winner or ""), r.rolls or 0,
-        r.token and 1 or "", r.time or "" }, ";")
+        r.token and 1 or "", r.time or "" }, ";") .. (closed and ";1" or "")
 end
 
 -- encodeLog splits a roll log into messages of at most ~200 characters.
-local function encodeLog(r)
+local function encodeLog(r, session)
     local entries = {}
     for _, e in ipairs(r.rollLog or {}) do
         local code = e.note and (NOTE_CODES[e.note] or "x") or ""
@@ -436,7 +496,7 @@ local function encodeLog(r)
     if table.getn(current) > 0 then table.insert(parts, current) end
     local messages = {}
     for index, part in ipairs(parts) do
-        table.insert(messages, table.concat({ "L", currentSession(), field(r.origin or playerName()), r.id,
+        table.insert(messages, table.concat({ "L", session or currentSession(), field(r.origin or playerName()), r.id,
             index, table.getn(parts), table.concat(part, "/") }, ";"))
     end
     return messages
@@ -446,9 +506,11 @@ end
 local function publish(record, withLog)
     record.origin = record.origin or playerName()
     record.rev = (record.rev or 0) + 1
-    queue(encodeRecord(record))
+    local raid = saved.raidOf(record)
+    local session = raid ~= ensureDatabase() and raid.session or nil
+    queue(encodeRecord(record, session, session ~= nil))
     if withLog then
-        for _, message in ipairs(encodeLog(record)) do queue(message) end
+        for _, message in ipairs(encodeLog(record, session)) do queue(message) end
     end
 end
 
@@ -856,9 +918,9 @@ end
 -- item for a moment and traded it on to the winner. Without a name the
 -- current player target is used. With `roll` (a re-decided roll), that roll's
 -- player becomes the award's winner.
-local function setRecipient(id, name, roll)
+local function setRecipient(id, name, roll, raid)
     if roster.denied() then return false end
-    local record = findRecord(id)
+    local record = findRecord(id, raid)
     if not record then
         say(string.format(L["no award #%s."], tostring(id)))
         return false
@@ -879,14 +941,15 @@ local function setRecipient(id, name, roll)
     record.roll, record.low, record.high = roll and roll.value, roll and roll.low, roll and roll.high
     publish(record)
     ui.status(string.format(L["Award #%d now goes to %s."], record.id, record.recipient))
-    announceAward(record, L["corrected"])
+    -- A saved raid's correction is not news for this raid's chat.
+    if not raid or raid == ensureDatabase() then announceAward(record, L["corrected"]) end
     ui.refresh()
     return true
 end
 
-local function deleteRecord(id)
+local function deleteRecord(id, raid)
     if roster.denied() then return end
-    local record = findRecord(id)
+    local record = findRecord(id, raid)
     if not record or record.state == "deleted" then
         say(string.format(L["no award #%s."], tostring(id)))
         return
@@ -900,7 +963,6 @@ end
 -- Receiving the shared ledger -------------------------------------------------
 local STATES = { given = true, held = true, manual = true, deleted = true, parked = true, disenchanted = true, bank = true }
 local NOTE_NAMES = { r = "re-roll", t = "not in tie-break", p = "passed", n = "not counted" }
-local warnedSession
 
 local function split(text)
     local fields = {}
@@ -922,56 +984,77 @@ local function inGroup(name)
     return false
 end
 
-local function findShared(origin, id)
-    for _, record in ipairs(ensureDatabase().history) do
+local function findShared(origin, id, raid)
+    for _, record in ipairs((raid or ensureDatabase()).history) do
         if record.id == id and lower(record.origin or playerName()) == lower(origin) then return record end
     end
 end
 
--- acceptSession decides whether a message about raid `session` belongs in
--- this ledger. A ledger without awards of its own follows the sender's raid
--- (also after a NEW RAID there); one with its own awards keeps its raid.
-local function acceptSession(session, sender)
+-- offerRaid tells the player that `sender`'s ledger holds raid `session`, which
+-- is kept under HISTORY, and asks whether to make it the current raid: once per
+-- raid, and again after each /ledger sync (FR-RL-022, FR-RL-026).
+function saved.offer(session, sender)
+    if roster.offeredRaids[session] then return end
+    roster.offeredRaids[session] = true
+    say(string.format(L["%s's ledger holds another raid; it is kept under HISTORY. Yours stays the current raid."], sender))
+    StaticPopup_Show("RAIDLEDGER_FOLLOW_RAID", sender, nil, { session = session, sender = sender })
+end
+
+-- acceptSession returns the raid a message about raid `session` belongs in:
+-- the current raid, a saved one, or nil. A ledger without awards of its own
+-- follows the sender's raid (its old awards are kept under HISTORY); one with
+-- its own awards keeps its raid and stores the other one beside it
+-- (FR-RL-026). `closed` marks a correction of a finished raid, which only
+-- ledgers holding that raid apply (FR-RL-027).
+local function acceptSession(session, sender, closed)
     local db = ensureDatabase()
-    if session == "" then return false end
-    if session == db.session then return true end
+    if session == "" then return nil end
+    if session == db.session then return db end
+    local raid = saved.find(session)
+    if closed then return raid end
+    local own = false
     for _, record in ipairs(db.history) do
-        if lower(record.origin or playerName()) == lower(playerName()) then
-            -- FR-RL-022: a sync the player asked for says why every time and
-            -- asks once per raid whether to switch; the automatic one warns once.
-            local manual = roster.syncAskedAt and GetTime() - roster.syncAskedAt < 60
-            if manual and not roster.offeredRaids[session] then
-                roster.offeredRaids[session] = true
-                warnedSession = session
-                say(string.format(L["%s shares another raid's ledger; yours has its own awards, so it is not merged. /ledger sync offers to switch to theirs."], sender))
-                StaticPopup_Show("RAIDLEDGER_FOLLOW_RAID", sender, nil, { session = session, sender = sender })
-            elseif warnedSession ~= session then
-                warnedSession = session
-                say(string.format(L["%s shares another raid's ledger; yours has its own awards, so it is not merged. /ledger sync offers to switch to theirs."], sender))
-            end
-            return false
-        end
+        if lower(record.origin or playerName()) == lower(playerName()) then own = true break end
     end
-    db.history, db.session, db.startedAt = {}, session, nil
-    return true
+    if not own then
+        if raid then
+            saved.reopen(raid, true)
+        else
+            saved.close()
+            db.history, db.session, db.startedAt, db.raidID, db.disenchanter, db.tallyAdjust = {}, session, nil, nil, nil, {}
+        end
+        return db
+    end
+    if not raid then
+        local key = lower(sender)
+        if saved.storedBy[key] and saved.storedBy[key] ~= session then return nil end
+        saved.storedBy[key] = session
+        raid = { session = session, recorder = saved.recorderOf(session) or field(sender), history = {}, tallyAdjust = {} }
+        table.insert(db.raids, 1, raid)
+        saved.trim()
+    end
+    saved.offer(session, sender)
+    return raid
 end
 
 local function applyRecord(f, sender)
     local id, rev = tonumber(f[4]), tonumber(f[5])
     -- With an editor list, only editors' ledgers change ours.
     if ns.trusts and not ns.trusts(sender) then return end
-    if not id or not rev or f[3] == "" or table.getn(f) < 19 or not acceptSession(f[2], sender) then return end
+    if not id or not rev or f[3] == "" or table.getn(f) < 19 then return end
+    local raid = acceptSession(f[2], sender, f[20] == "1")
+    if not raid then return end
     local db = ensureDatabase()
-    local record = findShared(f[3], id)
+    local record = findShared(f[3], id, raid)
     if record and (record.rev or 0) >= rev then return end
     local at = tonumber(f[6]) or 0
     if not record then
         record = { id = id, origin = f[3] }
-        local position = table.getn(db.history) + 1
-        for i, other in ipairs(db.history) do
+        local position = table.getn(raid.history) + 1
+        for i, other in ipairs(raid.history) do
             if (other.at or 0) < at then position = i break end
         end
-        table.insert(db.history, position, record)
+        table.insert(raid.history, position, record)
     end
     local itemID = tonumber(f[7])
     record.rev, record.at, record.itemID, record.npc = rev, at, itemID, tonumber(f[8])
@@ -991,15 +1074,16 @@ local function applyRecord(f, sender)
     record.time = f[19] ~= "" and f[19] or date("%H:%M", at)
     -- Our own awards coming back (after a crash): never reuse their numbers.
     if lower(f[3]) == lower(playerName()) then db.nextID = math.max(db.nextID, id) end
-    db.startedAt = math.min(db.startedAt or at, at)
+    raid.startedAt = math.min(raid.startedAt or at, at)
     ui.refresh()
 end
 
 local function applyLog(f, sender)
     local id, part, total = tonumber(f[4]), tonumber(f[5]), tonumber(f[6])
     if ns.trusts and not ns.trusts(sender) then return end
-    if not (id and part and total) or total > 40 or not acceptSession(f[2], sender) then return end
-    local record = findShared(f[3], id)
+    if not (id and part and total) or total > 40 then return end
+    local raid = acceptSession(f[2], sender)
+    local record = raid and findShared(f[3], id, raid)
     if not record then return end
     record.logParts = record.logParts or {}
     record.logParts[part] = f[7] or ""
@@ -1139,8 +1223,11 @@ end
 function roster.applyAdjust(f, sender)
     if ns.trusts and not ns.trusts(sender) then return end
     local at = tonumber(f[8])
-    if not at or (f[3] or "") == "" or not acceptSession(f[2], sender) then return end
-    local all = roster.adjustments()
+    if not at or (f[3] or "") == "" then return end
+    local raid = acceptSession(f[2], sender)
+    if not raid then return end
+    raid.tallyAdjust = raid.tallyAdjust or {}
+    local all = raid.tallyAdjust
     local key = lower(f[3])
     if all[key] and (all[key].at or 0) >= at then return end
     all[key] = { name = f[3], ms = tonumber(f[4]) or 0, os = tonumber(f[5]) or 0, tms = tonumber(f[6]) or 0,
@@ -1158,9 +1245,11 @@ local function setRaidID(value)
 end
 
 -- A new raid starts an empty ledger, so its loot is never exported under the
--- previous raid's ID. Award IDs keep counting up.
-local function startNewRaid()
+-- previous raid's ID. The finished raid is kept under HISTORY (FR-RL-023).
+-- Award IDs keep counting up.
+local function startNewRaid(quiet)
     local db = ensureDatabase()
+    saved.close()
     db.history = {}
     db.startedAt = nil
     db.raidID = nil
@@ -1168,22 +1257,76 @@ local function startNewRaid()
     db.disenchanter = nil
     editing = nil
     ns.resetTallyAdjustments()
-    say(L["new raid: the award ledger is empty."])
+    saved.shown = nil
+    if not quiet then say(L["new raid: the award ledger is empty; the last raid is kept under HISTORY."]) end
     ui.refresh()
+end
+
+-- saved.reopen makes a saved raid the current raid again (FR-RL-025); the
+-- current raid is kept under HISTORY. Wishlists are told with
+-- "R;session;origin", since they follow only newer raids by themselves; a
+-- ledger that only follows another ledger's raid (`follow`) tells nobody.
+function saved.reopen(raid, follow)
+    local db = ensureDatabase()
+    for i, other in ipairs(db.raids) do
+        if other == raid then table.remove(db.raids, i) break end
+    end
+    startNewRaid(true)
+    db.history, db.session, db.startedAt = raid.history, raid.session, raid.startedAt
+    db.raidID, db.disenchanter, db.tallyAdjust = raid.raidID, raid.disenchanter, raid.tallyAdjust or {}
+    if not follow then queue(table.concat({ "R", raid.session, field(playerName()) }, ";")) end
+    ui.refresh()
+end
+
+-- saved.delete removes a saved raid from this ledger only (FR-RL-028).
+function saved.delete(raid)
+    local raids = ensureDatabase().raids
+    for i, other in ipairs(raids) do
+        if other == raid then
+            table.remove(raids, i)
+            if saved.shown == raid then saved.shown = nil end
+            say(string.format(L["raid of %s deleted from your ledger."], saved.label(raid)))
+            ui.refresh()
+            return true
+        end
+    end
+end
+
+-- saved.label names a raid for lists and questions: "03.11. 19:30  Admin";
+-- `short` leaves out the recorder.
+function saved.label(raid, short)
+    local at = raid.startedAt or tonumber(string.match(raid.session or "", "%-(%d+)$"))
+    local when = at and date("%d.%m. %H:%M", at) or ""
+    if short then return when end
+    return (when ~= "" and when .. "  " or "") .. (raid.recorder or saved.recorderOf(raid.session) or "?")
+end
+
+function saved.setKeep(value)
+    value = tonumber(value)
+    if not value or value < 1 or value ~= math.floor(value) then return false end
+    ensureDatabase().keepRaids = value ~= saved.DEFAULT_KEEP and value or nil
+    saved.trim()
+    ui.refresh()
+    return true
 end
 
 -- roster.followRaid replaces this ledger with another ledger's raid (FR-RL-022)
 -- and asks the group again, so that raid's awards arrive.
 function roster.followRaid(data)
     if not data or not data.session then return end
-    startNewRaid()
-    ensureDatabase().session = data.session
+    local raid = saved.find(data.session)
+    if raid then
+        saved.reopen(raid)
+    else
+        startNewRaid(true)
+        ensureDatabase().session = data.session
+    end
     say(string.format(L["now following %s's raid; asked the group for its awards."], data.sender or "?"))
     requestSync()
 end
 
 StaticPopupDialogs["RAIDLEDGER_FOLLOW_RAID"] = {
-    text = L["%s's ledger holds another raid. Replace your ledger with it? Your own awards are removed; export them first."],
+    text = L["%s's ledger holds another raid. Make it your current raid? Yours is kept under HISTORY."],
     button1 = YES,
     button2 = NO,
     OnAccept = function(_, data) roster.followRaid(data) end,
@@ -1192,8 +1335,29 @@ StaticPopupDialogs["RAIDLEDGER_FOLLOW_RAID"] = {
     hideOnEscape = 1,
 }
 
+StaticPopupDialogs["RAIDLEDGER_REOPEN_RAID"] = {
+    text = L["Continue the raid of %s? The current raid is kept under HISTORY."],
+    button1 = YES,
+    button2 = NO,
+    OnAccept = function(_, raid) saved.reopen(raid) say(string.format(L["the raid of %s is the current raid again."], saved.label(raid))) end,
+    timeout = 0,
+    whileDead = 1,
+    hideOnEscape = 1,
+}
+
+StaticPopupDialogs["RAIDLEDGER_DELETE_RAID"] = {
+    text = L["Delete the raid of %s from your ledger? Other players keep their copy."],
+    button1 = YES,
+    button2 = NO,
+    OnAccept = function(_, raid) saved.delete(raid) end,
+    OnCancel = function() end,
+    timeout = 0,
+    whileDead = 1,
+    hideOnEscape = 1,
+}
+
 StaticPopupDialogs["RAIDLEDGER_NEW_RAID"] = {
-    text = L["Clear all recorded loot and start a new raid? Export it first."],
+    text = L["Start a new raid? The current raid is kept under HISTORY."],
     button1 = YES,
     button2 = NO,
     OnAccept = function() startNewRaid() end,
@@ -1752,8 +1916,10 @@ end
 
 function roster.applyDisenchanter(f, sender)
     if ns.trusts and not ns.trusts(sender) then return end
-    if not f[3] or not string.match(f[3], "^[^%s;|]+$") or string.len(f[3]) > 24 or not acceptSession(f[2], sender) then return end
-    ensureDatabase().disenchanter = f[3]
+    if not f[3] or not string.match(f[3], "^[^%s;|]+$") or string.len(f[3]) > 24 then return end
+    local raid = acceptSession(f[2], sender)
+    if not raid then return end
+    raid.disenchanter = f[3]
     ui.refresh()
 end
 
@@ -2055,7 +2221,7 @@ function roster.changeRecipient(record, name)
         ui.status(L["Enter the new recipient's name."])
         return false
     end
-    return setRecipient(record.id, name) and true or false
+    return setRecipient(record.id, name, nil, saved.raidOf(record)) and true or false
 end
 
 -- roster.setSpec moves an award to the main- or off-spec tally, or out of it.
@@ -2210,7 +2376,27 @@ ns.core = {
     startLaterBundle = function(records) if not roster.denied() then startLaterBundle(records) end end,
     isBindOnEquip = isBindOnEquip,
     deleteRecord = deleteRecord,
-    newRaid = startNewRaid,
+    newRaid = function() startNewRaid() end,
+    -- Raid history (HistoryTab.lua); the awards tab shows `shownRaid`.
+    raids = function() return ensureDatabase().raids end,
+    current = function() return ensureDatabase() end,
+    shownRaid = function()
+        local raid = saved.shown
+        if raid then
+            for _, other in ipairs(ensureDatabase().raids) do
+                if other == raid then return raid end
+            end
+            saved.shown = nil
+        end
+        return ensureDatabase()
+    end,
+    showRaid = function(raid) saved.shown = raid editing = nil end,
+    raidLabel = saved.label, keepRaids = saved.keep, setKeepRaids = saved.setKeep,
+    askReopen = function(raid)
+        if roster.denied() then return end
+        StaticPopup_Show("RAIDLEDGER_REOPEN_RAID", saved.label(raid), nil, raid)
+    end,
+    askDelete = function(raid) StaticPopup_Show("RAIDLEDGER_DELETE_RAID", saved.label(raid), nil, raid) end,
     -- Shared awards of items this client had not cached yet (item 50667 in the
     -- raid of 2026-10-19) get their link once the item is known.
     refreshLinks = function()
@@ -2229,10 +2415,12 @@ ns.core = {
         requestSync()
         say(L["asked the group's ledgers for this raid's awards."])
     end,
-    export = function()
+    export = function(raid)
         local db = ensureDatabase()
-        if not db.raidID then return nil end
-        return buildExport(db.raidID, playerName(), db.startedAt, time(), db.history)
+        raid = raid or db
+        if not raid.raidID then return nil end
+        return buildExport(raid.raidID, raid == db and playerName() or raid.recorder or playerName(), raid.startedAt,
+            time(), raid.history)
     end,
 }
 
@@ -2253,7 +2441,8 @@ local HELP = {
     L["/ledger raid <id> - set the website raid ID"],
     L["/ledger export - show the website export"],
     L["/ledger sync - ask the group's other ledgers for this raid's awards"],
-    L["/ledger newraid (or CLEAR) - empty the award ledger for the next raid; add confirm to skip the question"],
+    L["/ledger newraid (or CLEAR) - start the next raid, the last one is kept under HISTORY; add confirm to skip the question"],
+    L["/ledger keep <number> - how many finished raids HISTORY keeps"],
     L["/ledger clear - drop all active rolls;  /ledger reset - the window back to the middle, normal size and scale"],
 }
 
@@ -2368,6 +2557,9 @@ SlashCmdList["RAIDLEDGER"] = function(message)
         end
     elseif command == "export" then
         ui.show("export")
+    elseif command == "keep" then
+        if saved.setKeep(rest) then say(string.format(L["HISTORY keeps the last %d raids."], saved.keep()))
+        else say(L["usage: /ledger keep <number> (at least 1)"]) end
     elseif command == "newraid" then
         if string.lower(rest) == "confirm" then startNewRaid() else StaticPopup_Show("RAIDLEDGER_NEW_RAID") end
     elseif command == "" or command == "toggle" then

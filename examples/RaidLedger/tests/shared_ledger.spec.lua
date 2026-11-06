@@ -84,9 +84,9 @@ test("a correction is shared with a higher revision", function()
 end)
 
 test("another raid's ledger is not merged into one with its own awards", function()
-    receive("A;Alice-99;Alice;1;1;1281052900;21281;;Bob;given;1;os;12;1;99;Bob;1;;12:01")
+    receive("A;Cara-98;Cara;1;1;1281052900;21281;;Bob;given;1;os;12;1;99;Bob;1;;12:01", "Cara")
     expect(#db().history).toBe(1)
-    expect(forge.chat()).toContain("RaidLedger: Alice shares another raid's ledger; yours has its own awards, so it is not merged. /ledger sync offers to switch to theirs.")
+    expect(forge.chat()).toContain("RaidLedger: Cara's ledger holds another raid; it is kept under HISTORY. Yours stays the current raid.")
 end)
 
 test("an empty ledger follows the master looter's raid and shows its awards", function()
@@ -199,7 +199,7 @@ end)
 local function warnings()
     local n = 0
     for _, line in ipairs(forge.chat()) do
-        if string.find(line, "Alice shares another raid's ledger", 1, true) then n = n + 1 end
+        if string.find(line, "Alice's ledger holds another raid", 1, true) then n = n + 1 end
     end
     return n
 end
@@ -216,11 +216,12 @@ test("FR-RL-022 a sync explains another raid every time and offers to switch", f
     award(20513, { { "Bob", 40 } })
     forge.advance(3, 0.25)
     local popups, base = #forge.popups(), warnings()
-    -- An answer to the automatic sync after login warns once and never asks.
+    -- Without a sync of our own: told and asked once (FR-RL-026).
     receive(MONDAY)
     receive(MONDAY)
     expect(warnings()).toBe(base + 1)
-    expect(#forge.popups()).toBe(popups)
+    expect(#forge.popups()).toBe(popups + 1)
+    popups = popups + 1
 
     forge.slash("/ledger sync")
     receive(MONDAY)
@@ -229,7 +230,7 @@ test("FR-RL-022 a sync explains another raid every time and offers to switch", f
     expect(#forge.popups()).toBe(popups + 1)
     expect(lastPopup().which).toBe("RAIDLEDGER_FOLLOW_RAID")
     expect(lastPopup().text1).toBe("Alice")
-    expect(#db().history).toBe(1)                    -- NO (or no answer) changes nothing
+    expect(#db().history).toBe(1)                    -- NO (or no answer) keeps our raid current
 
     if not RaidLedgerFrame:IsShown() then forge.slash("/ledger") end
     forge.click("RaidLedgerSettingsButton")
@@ -239,9 +240,11 @@ test("FR-RL-022 a sync explains another raid every time and offers to switch", f
     expect(#forge.popups()).toBe(popups + 2)
 
     local before = #forge.addonMessages()
+    local ours = db().session
     StaticPopupDialogs["RAIDLEDGER_FOLLOW_RAID"].OnAccept(nil, lastPopup().data)
-    expect(#db().history).toBe(0)
     expect(db().session).toBe("Alice-77")
+    expect(db().raids[1].session).toBe(ours)          -- ours is kept under HISTORY
+    expect(#db().raids[1].history).toBe(1)
     forge.advance(0.5, 0.25)
     local asked = false
     for _, m in ipairs(sentSince(before)) do
