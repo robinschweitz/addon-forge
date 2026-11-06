@@ -21,6 +21,7 @@ local TOKEN_NAMES = { "Weiheabzeichen" }
 local prompt                -- the open roll prompt { key, entry, endsAt }
 local pendingRoll           -- an automatic roll waiting for its delay
 local rolled = {}           -- rollKey:round -> true, so every roll happens once
+local chatLines = 0         -- counts chat reminders, one roll key per line
 local syncAt
 local shareAt               -- when to send this wishlist to the group
 local helloAt               -- when to tell the ledgers this addon's version (HW)
@@ -1585,8 +1586,11 @@ local function onChatReminder(message, sender)
     for id in string.gmatch(message, "|Hitem:(%d+):") do
         local entry = findWish(tonumber(id))
         if entry then
-            local key = "chat:" .. lower(sender) .. ":" .. id .. ":" .. lower(message)
-            if rolled[key] then return end
+            -- Every line is a new roll (user decision 2026-11-06): a master
+            -- looter repeats "t [item] 2" for each copy. A repeat while the
+            -- prompt is open replaces it, which restarts its timer.
+            chatLines = chatLines + 1
+            local key = "chat:" .. lower(sender) .. ":" .. id .. ":" .. chatLines
             if not Wishlist:IsShown() then
                 refresh()
                 lists.show("wish")

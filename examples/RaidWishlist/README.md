@@ -130,7 +130,9 @@ with `/wish remind on`. Once on, RaidWishlist reacts when the master looter
 posts an item from your wishlist in party chat, raid chat or a raid warning. No
 keyword is needed by default; enter keywords (for example `roll, würfel`) to
 react only to lines that contain one of them, and clear the field to need none
-again. The restriction to the master looter is configurable too. Keywords count
+again. Every such line is a new roll: when the master looter posts the same
+line again (for example `t [item] 2` for each copy), the prompt opens again,
+or auto-roll rolls again. The restriction to the master looter is configurable too. Keywords count
 only outside item links, so `[Trollbane]` never counts as `roll`. RaidLedger's own
 `[Loot]` announcements are ignored: RaidLedger starts its rolls directly.
 

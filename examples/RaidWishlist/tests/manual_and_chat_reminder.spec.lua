@@ -53,7 +53,8 @@ test("chat reminders require a matching keyword and follow sender settings", fun
     expect("RaidWishlistPrompt").toBeShown()
     forge.click("RaidWishlistSkip")
     forge.chatEvent("CHAT_MSG_RAID", "Abyssal Crest " .. CREST, "Lead")
-    expect("RaidWishlistPrompt").toBeHidden()           -- the same line once only
+    expect("RaidWishlistPrompt").toBeShown()            -- a repeat is a new roll
+    forge.click("RaidWishlistSkip")
 
     forge.click("RaidWishlistSettingsOpen")
     forge.frame("RaidWishlistReminderKeywords"):SetText("roll")

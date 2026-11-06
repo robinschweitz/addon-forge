@@ -135,3 +135,36 @@ test("a saved old default 'roll,würfel' becomes no keyword after /reload", func
     forge.sketch("settings-no-keywords", RaidWishlistSettingsPanel)
     forge.click("RaidWishlistReminderCancel")
 end)
+
+-- Raid log 2026-11-06: the master looter posted "t [item] 2" several times
+-- and only the first line opened a prompt. Every line is a new roll.
+test("a repeated line reminds again, also after rolling; auto-roll rolls each time", function()
+    local repeats = {}
+    forge.stub("RandomRoll", function(low, high) table.insert(repeats, { low, high }) end)
+    local char = forge.saved("RaidWishlistDB").chars.Tester
+    expect(char.reminderOn).toBe(true)
+    expect(char.reminderKeywords).toBeNil()
+    forge.raid({ "Lead", "Alice" })
+    forge.stub("GetLootMethod", function() return "master", nil, 1 end)   -- Lead is master looter
+    forge.chatEvent("CHAT_MSG_RAID", "t " .. CREST .. " 2", "Lead")
+    expect("RaidWishlistPrompt").toBeShown()
+    forge.click("RaidWishlistRoll")
+    expect(#repeats).toBe(1)
+    forge.chatEvent("CHAT_MSG_RAID", "t " .. CREST .. " 2", "Lead")
+    expect("RaidWishlistPrompt").toBeShown()
+    -- A repeat while the prompt is open restarts its 30 seconds.
+    forge.advance(20, 0.25)
+    forge.chatEvent("CHAT_MSG_RAID", "t " .. CREST .. " 2", "Lead")
+    forge.advance(20, 0.25)
+    expect("RaidWishlistPrompt").toBeShown()
+    forge.click("RaidWishlistSkip")
+    expect(#repeats).toBe(1)
+
+    forge.slash("/wish auto on")
+    forge.chatEvent("CHAT_MSG_RAID", "t " .. CREST .. " 2", "Lead")
+    forge.advance(2, 0.25)
+    forge.chatEvent("CHAT_MSG_RAID", "t " .. CREST .. " 2", "Lead")
+    forge.advance(2, 0.25)
+    expect(#repeats).toBe(3)
+    forge.slash("/wish auto off")
+end)
