@@ -90,11 +90,11 @@
 - **Evidence:** `examples/RaidWishlist/tests/next_raid.spec.lua::FR-RW-009 /wish sync offers to show an older raid's loot`. Offline only.
 
 ### FR-RW-010 - Past raids in the wishlist
-- **Status:** Not Implemented
+- **Status:** Implemented (offline)
 - **Source:** User question 2026-11-06 (raid history); follows RaidLedger FR-RL-023.
 - **Statement:** RaidWishlist MUST keep the awards of earlier raids it saw (decided 2026-11-06, OQ-RW-1), as many as the player chooses in its settings (like RaidLedger, FR-RL-023), and let the player pick which raid THIS RAID shows. Received marks, the tally in the header and the roll prompts MUST use only the raid RaidWishlist follows (the newest, or the one chosen with FR-RW-009), never a merely displayed older one.
 - **Acceptance criteria:** Given awards of Monday's and today's raid, when the player picks Monday's raid, then THIS RAID lists Monday's awards, and a roll start today still uses today's received marks.
-- **Evidence:** None yet.
+- **Evidence:** `examples/RaidWishlist/tests/past_raids.spec.lua` (5 tests: a newer raid keeps the last one, corrections reach a kept raid, < / > on THIS RAID with the tally hidden and today's received marks, following a ledger that continues an older raid (`R` message, asked first), the keep setting); sketch `past-raid`. 20 raids are kept by default (`ASSUMPTION`, as RaidLedger NFR-RL-001). Offline only.
 
 ## Non-Functional Requirements
 

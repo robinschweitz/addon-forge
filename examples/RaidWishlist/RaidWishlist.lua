@@ -93,6 +93,7 @@ local function ensureDatabase()
     db.chars = db.chars or {}
     db.raid = db.raid or { awards = {} }
     db.raid.awards = db.raid.awards or {}
+    db.pastRaids = db.pastRaids or {}   -- earlier raids, newest first (FR-RW-010)
     local me = playerName()
     db.chars[me] = db.chars[me] or { items = {} }
     -- Once per character: settings saved before 2.4.0 stored the old default.
@@ -216,10 +217,10 @@ local function isOpenAward(award)
     return award.state == "parked" or (award.state == "held" and not award.spec and not award.winner)
 end
 
-local function sortedAwards()
+local function sortedAwards(raid)
     local db = ensureDatabase()
     local list = {}
-    for _, award in pairs(db.raid.awards) do table.insert(list, award) end
+    for _, award in pairs((raid or db.raid).awards) do table.insert(list, award) end
     table.sort(list, function(a, b)
         if (a.at or 0) ~= (b.at or 0) then return (a.at or 0) > (b.at or 0) end
         return a.key < b.key
@@ -263,10 +264,57 @@ local function followSession(session)
     if session == "" then return false end
     if session ~= db.raid.session then
         if db.raid.session and sessionTime(session) < sessionTime(db.raid.session) then return false end
+        manualSync.archive()
         db.raid = { session = session, awards = {}, corpse = {} }
     end
     db.raid.corpse = db.raid.corpse or {}
     return true
+end
+
+-- Past raids (FR-RW-010): the raids this wishlist followed before, kept with
+-- their awards, at most as many as the player chooses (SETTINGS).
+manualSync.DEFAULT_KEEP = 20
+function manualSync.keep() return ensureDatabase().keepRaids or manualSync.DEFAULT_KEEP end
+
+function manualSync.findPast(session)
+    for index, raid in ipairs(ensureDatabase().pastRaids) do
+        if raid.session == session then return raid, index end
+    end
+end
+
+function manualSync.trim()
+    local past = ensureDatabase().pastRaids
+    while table.getn(past) > manualSync.keep() do table.remove(past) end
+end
+
+-- manualSync.archive keeps the followed raid, when it has awards, as a past raid.
+function manualSync.archive()
+    local db = ensureDatabase()
+    if not db.raid.session or not next(db.raid.awards) then return end
+    local _, index = manualSync.findPast(db.raid.session)
+    if index then table.remove(db.pastRaids, index) end
+    table.insert(db.pastRaids, 1, { session = db.raid.session, awards = db.raid.awards })
+    manualSync.trim()
+end
+
+-- manualSync.shownRaid is the raid THIS RAID shows: the followed one, or the
+-- past raid number `manualSync.shown` (only for looking back).
+function manualSync.shownRaid()
+    local db = ensureDatabase()
+    local index = manualSync.shown or 0
+    if index > table.getn(db.pastRaids) then index = 0 end
+    manualSync.shown = index
+    return index > 0 and db.pastRaids[index] or db.raid
+end
+
+-- manualSync.offerReopened answers a ledger that continues an older raid
+-- ("R;session;origin"): say so and ask once whether to follow it.
+function manualSync.offerReopened(f)
+    local session = f[2] or ""
+    if session == "" or session == ensureDatabase().raid.session or manualSync.offered[session] then return end
+    manualSync.offered[session] = true
+    say(string.format(L["%s continues an older raid."], f[3] or "?"))
+    StaticPopup_Show("RAIDWISHLIST_FOLLOW_RAID", f[3] or "?", nil, { session = session })
 end
 
 -- manualSync.offerOlderRaid answers a /wish sync that brought an older raid (FR-RW-009):
@@ -301,10 +349,18 @@ end
 local function applyAward(f)
     local id, rev = tonumber(f[4]), tonumber(f[5])
     if not id or not rev or f[3] == "" or table.getn(f) < 19 then return false end
-    if not followSession(f[2]) then manualSync.offerOlderRaid(f[2], f[3]) return false end
     local db = ensureDatabase()
+    local raid
+    if followSession(f[2]) then
+        raid = db.raid   -- after followSession: a new raid is a new table
+    else
+        manualSync.offerOlderRaid(f[2], f[3])
+        -- A raid kept from before gets its corrections; others are ignored.
+        raid = manualSync.findPast(f[2])
+        if not raid then return false end
+    end
     local key = lower(f[3]) .. ":" .. id
-    local award = db.raid.awards[key]
+    local award = raid.awards[key]
     if award and award.rev >= rev then return false end
     local itemID = tonumber(f[7])
     award = award or { key = key }
@@ -314,7 +370,8 @@ local function applyAward(f)
     award.spec = (f[12] == "ms" or f[12] == "os") and f[12] or nil
     award.roll, award.winner = tonumber(f[13]), f[16] ~= "" and f[16] or nil
     award.token = f[18] == "1" or isToken(award.item) or nil
-    db.raid.awards[key] = award
+    raid.awards[key] = award
+    if raid ~= db.raid then return true end
     -- An enhanced win of mine costs X until the next export brings the new balance.
     local _, char = ensureDatabase()
     local low, high = tonumber(f[14]), tonumber(f[15])
@@ -589,6 +646,7 @@ local function addList(id, name, caption, columns, emptyText)
     local list = { id = id, pane = pane, rows = {}, pool = {}, offset = 0, count = 0, caption = caption }
     list.heading = label(pane, "GameFontNormal", 11, {1.00, 0.82, 0.32})
     list.heading:SetPoint("TOPLEFT", pane, "TOPLEFT", 12, -10)
+    pane.heading = list.heading
     list.empty = label(pane, "GameFontNormalSmall", 11, "dim")
     list.empty:SetPoint("CENTER", pane, "CENTER", 0, -8)
     list.empty:SetJustifyH("CENTER")
@@ -657,6 +715,11 @@ end
 function lists.show(id)
     local _, char = ensureDatabase()
     currentList = lists[id] or lists.wish
+    -- Leaving THIS RAID goes back to the followed raid (FR-RW-010).
+    if currentList.id ~= "raid" and (manualSync.shown or 0) > 0 then
+        manualSync.shown = 0
+        if lists.redraw then lists.redraw() end
+    end
     char.tab = currentList.id
     for _, list in ipairs(listOrder) do
         if list == currentList then list.pane:Show() else list.pane:Hide() end
@@ -679,8 +742,13 @@ local raidList = addList("raid", "RaidWishlistRaid", counted(L["THIS RAID"]),
     L["Nothing handed out yet.\nAwards appear here when the raid lead uses RaidLedger."])
 local wishRows, openRows, raidRows = wishList.rows, openList.rows, raidList.rows
 
-local tallyText = label(raidList.pane, "GameFontNormalSmall", 9, "faint")
-tallyText:SetPoint("TOPRIGHT", raidList.pane, "TOPRIGHT", -12, -11)
+-- < and > step through the raids kept from before (FR-RW-010).
+raidList.newer = flatButton(raidList.pane, "RaidWishlistRaidNewer", ">", 22, 18)
+raidList.newer:SetPoint("TOPRIGHT", raidList.pane, "TOPRIGHT", -10, -6)
+raidList.older = flatButton(raidList.pane, "RaidWishlistRaidOlder", "<", 22, 18)
+raidList.older:SetPoint("RIGHT", raidList.newer, "LEFT", -4, 0)
+local tallyText = label(raidList.pane, "GameFontNormalSmall", 9, "faint", "RaidWishlistRaidTally")
+tallyText:SetPoint("RIGHT", raidList.older, "LEFT", -10, 0)
 tallyText:SetJustifyH("RIGHT")
 
 local status = label(Wishlist, "GameFontNormalSmall", 10, "faint")
@@ -1066,12 +1134,25 @@ end
 
 local function updateRaid()
     local awards = {}
-    for _, award in ipairs(sortedAwards()) do
+    local shown = manualSync.shownRaid()
+    for _, award in ipairs(sortedAwards(shown)) do
         if not isOpenAward(award) then table.insert(awards, award) end   -- open ones are in their own tab
     end
     local list = raidList
     local count = table.getn(awards)
-    list.heading:SetText(count > 0 and string.format(L["THIS RAID (%d)"], count) or L["THIS RAID"])
+    local past = manualSync.shown > 0
+    if past then
+        list.heading:SetText(string.format(L["RAID OF %s (%d)"], date("%d.%m.", sessionTime(shown.session)), count))
+    else
+        list.heading:SetText(count > 0 and string.format(L["THIS RAID (%d)"], count) or L["THIS RAID"])
+    end
+    local older = manualSync.shown < table.getn(ensureDatabase().pastRaids)
+    if older then list.older:Enable() else list.older:Disable() end
+    list.older:SetAlpha(older and 1 or 0.4)
+    if past then list.newer:Enable() else list.newer:Disable() end
+    list.newer:SetAlpha(past and 1 or 0.4)
+    -- The tally belongs to the followed raid only.
+    if past then tallyText:Hide() else tallyText:Show() end
     place(list, count)
     local items, tokens = myTally()
     tallyText:SetText(string.format(L["YOU: ITEMS %d MS / %d OS  |  TOKENS %d MS / %d OS"],
@@ -1141,6 +1222,18 @@ local function refresh()
     if currentList then drawTabs() else lists.show(select(2, ensureDatabase()).tab) end
 end
 windowSize.redraw = refresh
+lists.redraw = refresh
+
+raidList.older:SetScript("OnClick", function()
+    manualSync.shown = math.min((manualSync.shown or 0) + 1, table.getn(ensureDatabase().pastRaids))
+    raidList.offset = 0
+    refresh()
+end)
+raidList.newer:SetScript("OnClick", function()
+    manualSync.shown = math.max((manualSync.shown or 0) - 1, 0)
+    raidList.offset = 0
+    refresh()
+end)
 
 local function closeOverlay(panel)
     panel:Hide()
@@ -1311,6 +1404,35 @@ end
 -- that stores the points alone.
 local settings = { draft = {} }
 
+-- How many past raids THIS RAID keeps (FR-RW-010), beside the points.
+do
+    local box = CreateFrame("EditBox", "RaidWishlistKeepRaids", settingsPanel, "InputBoxTemplate")
+    box:SetAutoFocus(false)
+    box:SetNumeric(true)
+    box:SetMaxLetters(4)
+    box:SetWidth(48)
+    box:SetHeight(22)
+    box:SetPoint("TOPRIGHT", settingsPanel, "TOPRIGHT", -12, -64)
+    local heading = label(settingsPanel, "GameFontNormal", 12, {1.00, 0.82, 0.32})
+    heading:SetPoint("TOPRIGHT", settingsPanel, "TOPRIGHT", -12, -42)
+    heading:SetJustifyH("RIGHT")
+    heading:SetText(L["PAST RAIDS"])
+    local caption = label(settingsPanel, "GameFontNormalSmall", 10, "soft")
+    caption:SetPoint("RIGHT", box, "LEFT", -10, 0)
+    caption:SetText(L["Keep"])
+    settings.keepBox = box
+end
+
+-- settings.typedKeep reads the past-raids field: a whole number of at least 1.
+function settings.typedKeep()
+    local keep = tonumber(trim(settings.keepBox:GetText()))
+    if not keep or keep < 1 or keep ~= math.floor(keep) then
+        settingsStatus:SetText(L["Keep at least 1 past raid."])
+        return nil
+    end
+    return keep
+end
+
 -- typedPoints reads the points field: a whole number from 0 to 999999, or nil
 -- after naming the problem.
 function settings.typedPoints()
@@ -1380,6 +1502,7 @@ function settings.show()
     settings.draft.reminderOn = char.reminderOn
     editorPoints:SetText(settings.draft.points)
     reminderKeywordsBox:SetText(reminderKeywords(char))
+    settings.keepBox:SetText(tostring(manualSync.keep()))
     settingsStatus:SetText("")
     settings.updateReminderButton()
     Wishlist:Show()
@@ -1393,12 +1516,18 @@ end
 function settings.close()
     editorPoints:ClearFocus()
     reminderKeywordsBox:ClearFocus()
+    settings.keepBox:ClearFocus()
     closeOverlay(settingsPanel)
 end
 
 function settings.save()
     local points = settings.typedPoints()
     if not points then return end
+    local keep = settings.typedKeep()
+    if not keep then return end
+    local db = ensureDatabase()
+    db.keepRaids = keep ~= manualSync.DEFAULT_KEEP and keep or nil
+    manualSync.trim()
     local words = {}
     -- Stored as typed and lowered only to compare: lowering can mangle
     -- "ü" (playbook), so a stored "würfel" would never match again.
@@ -1593,7 +1722,12 @@ StaticPopupDialogs["RAIDWISHLIST_FOLLOW_RAID"] = {
     button2 = NO,
     OnAccept = function(_, data)
         if not data or not data.session then return end
-        ensureDatabase().raid = { session = data.session, awards = {}, corpse = {} }
+        local db = ensureDatabase()
+        local past, index = manualSync.findPast(data.session)
+        if past then table.remove(db.pastRaids, index) end
+        manualSync.archive()
+        db.raid = { session = data.session, awards = past and past.awards or {}, corpse = {} }
+        manualSync.shown = nil
         refresh()
         requestSync()
     end,
@@ -1612,6 +1746,8 @@ local function onAddonMessage(prefix, message, channel, sender)
         if applyAward(f) then refresh() end
     elseif f[1] == "O" then
         if applyOpenItems(f) then refresh() end
+    elseif f[1] == "R" then
+        manualSync.offerReopened(f)
     elseif f[1] == "WQ" then
         shareAt = shareAt or (GetTime() + answerDelay())
     elseif f[1] == "HQ" then

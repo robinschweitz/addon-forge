@@ -33,7 +33,7 @@ entries, and the window remembers the last tab:
 | --- | --- |
 | **WUNSCHLISTE** | Your wishlist in rank order: item, note, roll range (or `ERHALTEN`) |
 | **OFFEN** | Loot still waiting to be rolled, where it is and its status |
-| **DIESER RAID** | Who got what this raid (item, recipient, spec) and your items so far |
+| **DIESER RAID** | Who got what this raid (item, recipient, spec) and your items so far; **<** / **>** show earlier raids |
 
 A roll on a wishlisted item opens the window on **OFFEN**. Every header button
 and tab has a tooltip.
@@ -163,6 +163,16 @@ After a login or `/reload` the addon asks the group for this raid's awards
 `/wish sync` brings an older raid (for example last Monday's, held by another
 raider's ledger), chat says so and a question offers to show that raid's loot
 instead; a newer raid replaces it again later.
+
+**Past raids** (2.5.0): a raid that a newer one replaces is kept with its
+awards. **<** and **>** at the top of DIESER RAID step back to earlier raids
+(the heading names the raid's date) and forward again; leaving the tab goes
+back to this raid. Only this raid decides **RECEIVED**, the tally in the
+header (hidden while an earlier raid is shown) and roll prompts. When the raid
+lead's RaidLedger continues an older raid, a question asks whether to follow
+it. **SETTINGS** > **PAST RAIDS** > **Keep** sets how many raids stay (20 by
+default, at least 1).
+
 Disenchanted and guild-bank items show **DE** and **BANK**; they count for
 nobody.
 
