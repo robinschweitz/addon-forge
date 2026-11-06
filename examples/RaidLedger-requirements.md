@@ -203,8 +203,8 @@ them here is open work (REQUIREMENTS.md FR-14.5).
 ### FR-RL-028 - Delete a saved raid
 - **Status:** Not implemented
 - **Source:** User decision 2026-11-06 (OQ-RL-6).
-- **Statement:** The player MUST be able to delete a saved raid by hand, after a confirmation that names the raid. The current raid cannot be deleted this way (NEW RAID closes it). Whether a deletion also reaches other players' ledgers is `TO BE DECIDED` (OQ-RL-7).
-- **Acceptance criteria:** Given three saved raids, when the player deletes the middle one and confirms, then two remain and the current raid is unchanged. Given the player cancels, then all three remain.
+- **Statement:** The player MUST be able to delete a saved raid by hand, after a confirmation that names the raid. The current raid cannot be deleted this way (NEW RAID closes it). A deletion MUST remove the raid only from the player's own ledger; nothing is sent to the group, and other players keep their copy (decided 2026-11-06, OQ-RL-7). A later sync MAY bring that raid back as a stored raid, which the player is told about (FR-RL-026).
+- **Acceptance criteria:** Given three saved raids, when the player deletes the middle one and confirms, then two remain and the current raid is unchanged. Given the player cancels, then all three remain. Given a deletion, then no addon message is sent.
 - **Evidence:** None yet.
 
 ## Non-Functional Requirements
@@ -222,4 +222,4 @@ them here is open work (REQUIREMENTS.md FR-14.5).
 - **OQ-RL-4** Answered 2026-11-06: always tell the player and let them decide (FR-RL-026).
 - **OQ-RL-5** Answered 2026-11-06: yes, and the correction is shared (FR-RL-027).
 - **OQ-RL-6** Answered 2026-11-06: yes (FR-RL-028).
-- **OQ-RL-7** When a player deletes a saved raid, is it deleted only in their own ledger, or in the group's ledgers too?
+- **OQ-RL-7** Answered 2026-11-06: only in the player's own ledger (FR-RL-028).
