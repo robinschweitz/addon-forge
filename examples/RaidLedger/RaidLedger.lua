@@ -565,7 +565,7 @@ local stateLabels = { given = L["GIVEN"], held = L["HELD BY YOU"], manual = L["M
     parked = L["OPEN"], disenchanted = L["DISENCHANT"], bank = L["GUILD BANK"] }
 
 -- The core's functions that do not fit in the main chunk's 200 locals.
-local roster = {}
+local roster = { offeredRaids = {} }
 
 -- roster.denied stops a change by someone who is not an editor (Access.lua)
 -- and says why, in the window and in chat.
@@ -937,9 +937,17 @@ local function acceptSession(session, sender)
     if session == db.session then return true end
     for _, record in ipairs(db.history) do
         if lower(record.origin or playerName()) == lower(playerName()) then
-            if warnedSession ~= session then
+            -- FR-RL-022: a sync the player asked for says why every time and
+            -- asks once per raid whether to switch; the automatic one warns once.
+            local manual = roster.syncAskedAt and GetTime() - roster.syncAskedAt < 60
+            if manual and not roster.offeredRaids[session] then
+                roster.offeredRaids[session] = true
                 warnedSession = session
-                say(string.format(L["%s shares another raid's ledger; yours has its own awards, so it is not merged. Use CLEAR to follow theirs."], sender))
+                say(string.format(L["%s shares another raid's ledger; yours has its own awards, so it is not merged. /ledger sync offers to switch to theirs."], sender))
+                StaticPopup_Show("RAIDLEDGER_FOLLOW_RAID", sender, nil, { session = session, sender = sender })
+            elseif warnedSession ~= session then
+                warnedSession = session
+                say(string.format(L["%s shares another raid's ledger; yours has its own awards, so it is not merged. /ledger sync offers to switch to theirs."], sender))
             end
             return false
         end
@@ -1163,6 +1171,26 @@ local function startNewRaid()
     say(L["new raid: the award ledger is empty."])
     ui.refresh()
 end
+
+-- roster.followRaid replaces this ledger with another ledger's raid (FR-RL-022)
+-- and asks the group again, so that raid's awards arrive.
+function roster.followRaid(data)
+    if not data or not data.session then return end
+    startNewRaid()
+    ensureDatabase().session = data.session
+    say(string.format(L["now following %s's raid; asked the group for its awards."], data.sender or "?"))
+    requestSync()
+end
+
+StaticPopupDialogs["RAIDLEDGER_FOLLOW_RAID"] = {
+    text = L["%s's ledger holds another raid. Replace your ledger with it? Your own awards are removed; export them first."],
+    button1 = YES,
+    button2 = NO,
+    OnAccept = function(_, data) roster.followRaid(data) end,
+    timeout = 0,
+    whileDead = 1,
+    hideOnEscape = 1,
+}
 
 StaticPopupDialogs["RAIDLEDGER_NEW_RAID"] = {
     text = L["Clear all recorded loot and start a new raid? Export it first."],
@@ -2197,6 +2225,7 @@ ns.core = {
             say(L["not in a group: nothing to sync."])
             return
         end
+        roster.syncAskedAt, roster.offeredRaids = GetTime(), {}
         requestSync()
         say(L["asked the group's ledgers for this raid's awards."])
     end,
@@ -2305,12 +2334,7 @@ SlashCmdList["RAIDLEDGER"] = function(message)
             ui.refresh()
         end
     elseif command == "sync" then
-        if groupChannel() then
-            requestSync()
-            say(L["asked the group's ledgers for this raid's awards."])
-        else
-            say(L["not in a group: nothing to sync."])
-        end
+        ns.core.sync()
     elseif command == "tally" then
         -- Two separate lists: items, then tokens.
         for _, tokens in ipairs({ false, true }) do

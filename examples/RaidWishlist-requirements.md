@@ -80,6 +80,15 @@
 - **Acceptance criteria:** Given a wishlist that follows today's raid from the raid lead's ledger, when another raider's ledger with an older raid starts a roll on a wishlisted item, then the prompt appears and the wishlist still follows today's raid. Given a roll start from a newer raid, then the wishlist switches to that raid (unchanged).
 - **Evidence:** `examples/RaidWishlist/tests/next_raid.spec.lua::a roll from an older raid still prompts and keeps the newer raid`, `::an assistant's bag roll from a ledger with an older raid prompts under group loot`. Offline only.
 
+### FR-RW-009 - Show an older raid's loot on request
+- **Status:** Verified Offline
+- **Source:** User question 2026-11-06 (how to show Monday's raid loot on a character that follows a newer raid) and user decision 2026-11-06: say why, and offer to switch.
+- **Statement:** When `/wish sync` brings awards of a raid older than the one RaidWishlist shows, it MUST say so in chat, naming the ledger, and MUST ask once per sync and raid whether to show that raid's loot instead. YES MUST replace THIS RAID, OPEN and the received marks with that raid and ask the group again, so its awards arrive. NO MUST change nothing. A newer raid still replaces the lists automatically afterwards. The automatic sync after login never asks.
+- **Rationale:** A raid can span several days; a character may need last Monday's awards while another ledger in the group holds a newer raid.
+- **Security:** The messages come only from group members' ledgers (unchanged) and create no wishlist entries (SC-019). Switching needs the player's click.
+- **Acceptance criteria:** Given a wishlist that shows today's raid, when `/wish sync` brings an award of an older raid, then chat names that ledger and a question appears. Given YES, then the wishlist shows that raid and the awards sent next appear in THIS RAID. Given NO, then today's raid stays. Given the automatic sync after login, then no question appears.
+- **Evidence:** `examples/RaidWishlist/tests/next_raid.spec.lua::FR-RW-009 /wish sync offers to show an older raid's loot`. Offline only.
+
 ## Non-Functional Requirements
 
 ### NFR-RW-001 - Compatibility and layout

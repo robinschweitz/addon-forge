@@ -22,6 +22,7 @@ local prompt                -- the open roll prompt { key, entry, endsAt }
 local pendingRoll           -- an automatic roll waiting for its delay
 local rolled = {}           -- rollKey:round -> true, so every roll happens once
 local chatLines = 0         -- counts chat reminders, one roll key per line
+local manualSync = { offered = {} }   -- /wish sync: when, and the older raids already offered
 local syncAt
 local shareAt               -- when to send this wishlist to the group
 local helloAt               -- when to tell the ledgers this addon's version (HW)
@@ -268,11 +269,23 @@ local function followSession(session)
     return true
 end
 
+-- manualSync.offerOlderRaid answers a /wish sync that brought an older raid (FR-RW-009):
+-- say so, and ask once per sync and raid whether to show that raid instead.
+-- Older raids that arrive without a sync of the player's own stay silent.
+function manualSync.offerOlderRaid(session, origin)
+    if session == "" or not manualSync.at or GetTime() - manualSync.at > 60 then return end
+    if manualSync.offered[session] then return end
+    manualSync.offered[session] = true
+    say(string.format(L["%s's ledger holds an older raid than the one shown."], origin))
+    StaticPopup_Show("RAIDWISHLIST_FOLLOW_RAID", origin, nil, { session = session })
+end
+
 -- applyOpenItems stores a ledger's list of loot still waiting in its roll list:
 -- "itemID:status:source:winner,...", status o/r/w, source c (corpse) or
 -- a<award id> (an open award being rolled later).
 local function applyOpenItems(f)
-    if f[3] == "" or not followSession(f[2]) then return false end
+    if f[3] == "" then return false end
+    if not followSession(f[2]) then manualSync.offerOlderRaid(f[2] or "", f[3]) return false end
     local list = {}
     for item in string.gmatch(f[4] or "", "[^,]+") do
         local itemID, itemStatus, source, winner = string.match(item, "^(%d+):(%a):(%w+):(.*)$")
@@ -288,7 +301,7 @@ end
 local function applyAward(f)
     local id, rev = tonumber(f[4]), tonumber(f[5])
     if not id or not rev or f[3] == "" or table.getn(f) < 19 then return false end
-    if not followSession(f[2]) then return false end
+    if not followSession(f[2]) then manualSync.offerOlderRaid(f[2], f[3]) return false end
     local db = ensureDatabase()
     local key = lower(f[3]) .. ":" .. id
     local award = db.raid.awards[key]
@@ -1516,10 +1529,10 @@ local function isMasterLooter(name)
     return master and lower(master) == lower(name)
 end
 
--- mayAnnounceRolls is who counts in "only the master looter" mode: the master
+-- settings.mayAnnounceRolls is who counts in "only the master looter" mode: the master
 -- looter, or without master loot (group loot for trash) the raid lead and the
 -- assistants, in a party its leader (user decision 2026-11-06).
-local function mayAnnounceRolls(name)
+function settings.mayAnnounceRolls(name)
     if GetLootMethod() == "master" then return isMasterLooter(name) end
     local key = lower(name)
     if GetNumRaidMembers() and GetNumRaidMembers() > 0 then
@@ -1574,6 +1587,21 @@ local function requestSync()
     return false
 end
 
+StaticPopupDialogs["RAIDWISHLIST_FOLLOW_RAID"] = {
+    text = L["Show the loot of %s's older raid instead of this raid's?"],
+    button1 = YES,
+    button2 = NO,
+    OnAccept = function(_, data)
+        if not data or not data.session then return end
+        ensureDatabase().raid = { session = data.session, awards = {}, corpse = {} }
+        refresh()
+        requestSync()
+    end,
+    timeout = 0,
+    whileDead = 1,
+    hideOnEscape = 1,
+}
+
 local function onAddonMessage(prefix, message, channel, sender)
     if prefix ~= PREFIX or type(message) ~= "string" or not sender then return end
     if (channel ~= "RAID" and channel ~= "PARTY") or not inGroup(sender) then return end
@@ -1601,7 +1629,7 @@ local function onChatReminder(message, sender)
     if string.find(message, "^%[Loot%]") then return end
     local _, char = ensureDatabase()
     if not char.reminderOn or not matchingReminderKeyword(message, char) then return end
-    if not char.reminderAll and not mayAnnounceRolls(sender) then return end
+    if not char.reminderAll and not settings.mayAnnounceRolls(sender) then return end
     for id in string.gmatch(message, "|Hitem:(%d+):") do
         local entry = findWish(tonumber(id))
         if entry then
@@ -2111,6 +2139,7 @@ SlashCmdList["RAIDWISHLIST"] = function(message)
         windowSize.reset()
         Wishlist:Show()
     elseif command == "sync" then
+        manualSync.at, manualSync.offered = GetTime(), {}
         if requestSync() then say(L["asked the raid lead's ledger for this raid's awards."]) else say(L["not in a group."]) end
     else
         for _, line in ipairs(HELP) do say(line) end

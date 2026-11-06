@@ -58,3 +58,37 @@ test("an assistant's bag roll from a ledger with an older raid prompts under gro
     expect(forge.saved("RaidWishlistDB").raid.awards["roller:1"]).toBeNil()
     forge.click("RaidWishlistSkip")
 end)
+
+-- FR-RW-009 (user question 2026-11-06): show last Monday's loot on a
+-- character whose wishlist follows a newer raid.
+local OLD_AWARD = "A;Roller-1792131000;Roller;2;1;1792131100;20513;;Tester;given;1;ms;50;1;100;Tester;1;;21:02"
+
+test("FR-RW-009 /wish sync offers to show an older raid's loot", function()
+    local db = forge.saved("RaidWishlistDB")
+    local popups = #forge.popups()
+    -- Without a sync of the player's own, an older raid is dropped silently.
+    receive(OLD_AWARD, "Roller")
+    expect(#forge.popups()).toBe(popups)
+    expect(db.raid.session).toBe("Lead-1792735000")
+
+    forge.slash("/wish sync")
+    receive(OLD_AWARD, "Roller")
+    receive(OLD_AWARD, "Roller")                     -- one question per sync and raid
+    expect(forge.chat()).toContain("RaidWishlist: Roller's ledger holds an older raid than the one shown.")
+    expect(#forge.popups()).toBe(popups + 1)
+    local popup = forge.popups()[#forge.popups()]
+    expect(popup.which).toBe("RAIDWISHLIST_FOLLOW_RAID")
+    expect(popup.text1).toBe("Roller")
+    expect(db.raid.session).toBe("Lead-1792735000")  -- NO changes nothing
+
+    local before = #forge.addonMessages()
+    StaticPopupDialogs["RAIDWISHLIST_FOLLOW_RAID"].OnAccept(nil, popup.data)
+    expect(db.raid.session).toBe("Roller-1792131000")
+    expect(forge.addonMessages()[before + 1].message).toBe("Q;Roller-1792131000;Tester")
+    receive(OLD_AWARD, "Roller")
+    expect(db.raid.awards["roller:2"]).toBeTruthy()
+    if not RaidWishlistFrame:IsShown() then forge.slash("/wish") end
+    forge.click("RaidWishlistTabraid")
+    expect(forge.findText("THIS RAID (1)") or forge.findText("DIESER RAID (1)")).toBeTruthy()
+    expect(forge.layoutIssues("RaidWishlistFrame")).toEqual({})
+end)

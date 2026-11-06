@@ -278,6 +278,13 @@ plus the asker's, which restores it. Messages are only accepted from group
 members, at most four are sent per second, and the newest revision of an award
 wins.
 
+A ledger with awards of its own never merges another raid's awards. When your
+own sync (`/ledger sync` or **SYNC AWARDS**) meets another raid, chat says
+whose it is, and a question offers to replace your ledger with that raid, for
+example when a raid continues on another day with another character. **YES**
+empties your ledger like **NEW RAID** (export it first), follows that raid and
+asks the group again.
+
 ## Roll log
 
 Every award keeps what was rolled for it, and the log is saved with the ledger.

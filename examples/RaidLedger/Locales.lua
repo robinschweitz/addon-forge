@@ -147,8 +147,11 @@ L["Clear all recorded loot and start a new raid? Export it first."] = "Alle erfa
 -- Chat
 L["no award #%s."] = "keine Vergabe #%s."
 L["give a name or target the recipient."] = "Namen angeben oder den Empfänger anvisieren."
-L["%s shares another raid's ledger; yours has its own awards, so it is not merged. Use CLEAR to follow theirs."] =
-    "%s teilt das Buch eines anderen Raids; deins hat eigene Vergaben und wird nicht zusammengeführt. Mit LEEREN folgst du dem anderen."
+L["%s shares another raid's ledger; yours has its own awards, so it is not merged. /ledger sync offers to switch to theirs."] =
+    "%s teilt das Buch eines anderen Raids; deins hat eigene Vergaben und wird nicht zusammengeführt. /ledger sync bietet an, zu dessen Raid zu wechseln."
+L["%s's ledger holds another raid. Replace your ledger with it? Your own awards are removed; export them first."] =
+    "Das Buch von %s gehört zu einem anderen Raid. Dein Buch dadurch ersetzen? Deine eigenen Vergaben werden entfernt; exportiere sie vorher."
+L["now following %s's raid; asked the group for its awards."] = "folgt jetzt dem Raid von %s; die Gruppe wurde nach dessen Vergaben gefragt."
 L["new raid: the award ledger is empty."] = "neuer Raid: das Buch ist leer."
 L["usage: /ledger set <#> [name]"] = "Aufruf: /ledger set <#> [Name]"
 L["usage: /ledger del <#>"] = "Aufruf: /ledger del <#>"

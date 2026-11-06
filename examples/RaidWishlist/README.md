@@ -159,7 +159,10 @@ and off spec each), which decides close rolls. An item the master looter holds f
 counts as yours, and its wishlist entry shows **RECEIVED**.
 
 After a login or `/reload` the addon asks the group for this raid's awards
-(`/wish sync` asks again). A newer raid replaces the list automatically.
+(`/wish sync` asks again). A newer raid replaces the list automatically. When
+`/wish sync` brings an older raid (for example last Monday's, held by another
+raider's ledger), chat says so and a question offers to show that raid's loot
+instead; a newer raid replaces it again later.
 Disenchanted and guild-bank items show **DE** and **BANK**; they count for
 nobody.
 
