@@ -174,21 +174,21 @@ them here is open work (REQUIREMENTS.md FR-14.5).
 ### FR-RL-024 - A list of past raids
 - **Status:** Not implemented
 - **Source:** User question 2026-11-06.
-- **Statement:** RaidLedger MUST show the saved raids newest first, each with its date and start time, who recorded it, its website raid ID when set, and its number of awards. Selecting one MUST show its awards, roll logs and tallies, and its RS2 export, the same way as for the current raid. Where the list lives is `TO BE DECIDED` (OQ-RL-2). A saved raid is read-only unless OQ-RL-3 or OQ-RL-5 decide otherwise.
+- **Statement:** RaidLedger MUST show the saved raids newest first, each with its date and start time, who recorded it, its website raid ID when set, and its number of awards. Selecting one MUST show its awards, roll logs and tallies, and its RS2 export, the same way as for the current raid. The list MUST be on its own new tab (decided 2026-11-06, OQ-RL-2). A saved raid can be reopened (FR-RL-025), corrected by editors (FR-RL-027) and deleted (FR-RL-028).
 - **Acceptance criteria:** Given three saved raids, when the player opens the list, then they appear newest first with date, recorder and award count. Given a selected raid, then its awards, roll logs and tallies are shown and its export matches the export that raid produced before it was closed. Given a German client and 25 raiders with long names, then `forge.layoutIssues` finds nothing.
 - **Evidence:** None yet.
 
 ### FR-RL-025 - Reopen a past raid
-- **Status:** Not implemented; whether it is wanted is `TO BE DECIDED` (OQ-RL-3).
-- **Source:** User report 2026-11-06 (a raid that continues on another day); proposed, not yet decided.
-- **Statement:** If OQ-RL-3 says yes: the player MUST be able to make a saved raid the current raid again, after a confirmation. The current raid is then kept as a saved raid. Rolls, tallies and new awards then belong to the reopened raid, and the group's ledgers and wishlists follow it like any shared raid.
+- **Status:** Not implemented
+- **Source:** User report 2026-11-06 (a raid that continues on another day); wanted, decided 2026-11-06 (OQ-RL-3).
+- **Statement:** The player MUST be able to make a saved raid the current raid again, after a confirmation. The current raid is then kept as a saved raid. Rolls, tallies and new awards then belong to the reopened raid, and the group's ledgers and wishlists follow it like any shared raid.
 - **Acceptance criteria:** Given a saved raid from Monday and a current raid from today, when the player reopens Monday's raid and confirms, then Monday's raid is current, today's is saved, and the next award joins Monday's raid with the next free award number.
 - **Evidence:** None yet.
 
 ### FR-RL-026 - A sync from another raid is kept as a saved raid
 - **Status:** Not implemented
 - **Source:** User decisions 2026-11-06 (FR-RL-022) and the raid-history question.
-- **Statement:** When a sync brings awards of another raid, RaidLedger MUST store them as a saved raid of that raid's recorder, instead of only offering to replace the current raid (FR-RL-022). The current raid stays as it is. Whether the player is still asked to make that raid current is `TO BE DECIDED` (OQ-RL-4). A sync MUST keep sharing only the current raid, so the traffic stays the same as today.
+- **Statement:** When a sync brings awards of another raid, RaidLedger MUST store them as a saved raid of that raid's recorder, instead of only offering to replace the current raid (FR-RL-022). The current raid stays as it is. RaidLedger MUST tell the player that it stored that raid and from whom, and offer to make it the current raid; nothing switches without the player's yes (decided 2026-11-06, OQ-RL-4: the player is always told and decides). A sync MUST keep sharing only the current raid, so the traffic stays the same as today.
 - **Security:** Only group members' ledgers are stored, and with an editor list only editors' (unchanged). Per sync at most one raid per sender is stored, within the raid and award caps (SC-019).
 - **Acceptance criteria:** Given a ledger with today's raid, when the player syncs and Admin's ledger answers with Monday's raid, then Monday's raid appears in the saved raids with Admin as recorder and all its awards, and today's raid is unchanged. Given the same sync again, then Monday's raid is updated, not stored twice.
 - **Evidence:** None yet.
@@ -196,8 +196,15 @@ them here is open work (REQUIREMENTS.md FR-14.5).
 ### FR-RL-027 - Tallies belong to their raid
 - **Status:** Not implemented
 - **Source:** Follows from FR-RL-023.
-- **Statement:** Roll rankings and the SPIELER tally MUST count only the current raid's awards and corrections, as today. A saved raid's tallies MUST be computed from its own awards and corrections. Whether editors may correct awards of a saved raid is `TO BE DECIDED` (OQ-RL-5).
+- **Statement:** Roll rankings and the SPIELER tally MUST count only the current raid's awards and corrections, as today. A saved raid's tallies MUST be computed from its own awards and corrections. Editors MAY correct awards of a saved raid (decided 2026-11-06, OQ-RL-5). The correction MUST be shared with the group like a correction in the current raid, and every ledger that holds that raid applies it; ledgers without it ignore it. The editor-list rule is the same as for the current raid (SC-019).
 - **Acceptance criteria:** Given Bob won an item in a saved raid, when a roll starts in the current raid, then Bob's tally is 0. Given the saved raid is selected in the list, then Bob shows 1 item there.
+- **Evidence:** None yet.
+
+### FR-RL-028 - Delete a saved raid
+- **Status:** Not implemented
+- **Source:** User decision 2026-11-06 (OQ-RL-6).
+- **Statement:** The player MUST be able to delete a saved raid by hand, after a confirmation that names the raid. The current raid cannot be deleted this way (NEW RAID closes it). Whether a deletion also reaches other players' ledgers is `TO BE DECIDED` (OQ-RL-7).
+- **Acceptance criteria:** Given three saved raids, when the player deletes the middle one and confirms, then two remain and the current raid is unchanged. Given the player cancels, then all three remain.
 - **Evidence:** None yet.
 
 ## Non-Functional Requirements
@@ -210,8 +217,9 @@ them here is open work (REQUIREMENTS.md FR-14.5).
 ## Open Questions
 
 - **OQ-RL-1** Answered 2026-11-06: the player chooses how many raids to keep, with no fixed upper limit (FR-RL-023).
-- **OQ-RL-2** Where should the list of past raids be: a new tab, or a raid picker on VERGABEN?
-- **OQ-RL-3** May a past raid be reopened as the current raid (FR-RL-025)?
-- **OQ-RL-4** When a sync brings another raid, should RaidLedger still ask whether to make it the current raid, or only store it?
-- **OQ-RL-5** May editors correct awards in a saved raid, and should such a correction be shared with the group?
-- **OQ-RL-6** Should the player be able to delete a saved raid by hand?
+- **OQ-RL-2** Answered 2026-11-06: a new tab (FR-RL-024).
+- **OQ-RL-3** Answered 2026-11-06: yes (FR-RL-025).
+- **OQ-RL-4** Answered 2026-11-06: always tell the player and let them decide (FR-RL-026).
+- **OQ-RL-5** Answered 2026-11-06: yes, and the correction is shared (FR-RL-027).
+- **OQ-RL-6** Answered 2026-11-06: yes (FR-RL-028).
+- **OQ-RL-7** When a player deletes a saved raid, is it deleted only in their own ledger, or in the group's ledgers too?

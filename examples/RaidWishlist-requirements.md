@@ -92,7 +92,7 @@
 ### FR-RW-010 - Past raids in the wishlist
 - **Status:** Not Implemented
 - **Source:** User question 2026-11-06 (raid history); follows RaidLedger FR-RL-023.
-- **Statement:** Whether RaidWishlist keeps past raids is `TO BE DECIDED` (OQ-RW-1). If yes: it MUST keep the awards of earlier raids it saw, at most as many as RaidLedger keeps (OQ-RL-1), and let the player pick which raid THIS RAID shows. Received marks, the tally in the header and the roll prompts MUST use only the raid RaidWishlist follows (the newest, or the one chosen with FR-RW-009), never a merely displayed older one.
+- **Statement:** RaidWishlist MUST keep the awards of earlier raids it saw (decided 2026-11-06, OQ-RW-1), as many as the player chooses in its settings (like RaidLedger, FR-RL-023), and let the player pick which raid THIS RAID shows. Received marks, the tally in the header and the roll prompts MUST use only the raid RaidWishlist follows (the newest, or the one chosen with FR-RW-009), never a merely displayed older one.
 - **Acceptance criteria:** Given awards of Monday's and today's raid, when the player picks Monday's raid, then THIS RAID lists Monday's awards, and a roll start today still uses today's received marks.
 - **Evidence:** None yet.
 
@@ -105,4 +105,4 @@
 
 ## Open Questions
 
-- **OQ-RW-1** Should RaidWishlist keep past raids too (FR-RW-010), or only show the raid it follows, with the switch of FR-RW-009?
+- **OQ-RW-1** Answered 2026-11-06: yes, RaidWishlist keeps past raids too (FR-RW-010).
