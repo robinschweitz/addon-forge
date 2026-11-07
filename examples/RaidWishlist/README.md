@@ -170,8 +170,9 @@ awards. **<** and **>** at the top of DIESER RAID step back to earlier raids
 back to this raid. Only this raid decides **RECEIVED**, the tally in the
 header (hidden while an earlier raid is shown) and roll prompts. When the raid
 lead's RaidLedger continues an older raid, a question asks whether to follow
-it. **SETTINGS** > **PAST RAIDS** > **Keep** sets how many raids stay (20 by
-default, at least 1).
+it. A raid that a RaidLedger shares from its VERLAUF is kept as a past raid
+too, and chat says who shared it. **SETTINGS** > **PAST RAIDS** > **Keep** sets
+how many raids stay (20 by default, at least 1).
 
 Disenchanted and guild-bank items show **DE** and **BANK**; they count for
 nobody.

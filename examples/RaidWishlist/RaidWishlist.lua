@@ -297,6 +297,27 @@ function manualSync.archive()
     manualSync.trim()
 end
 
+-- manualSync.addShared keeps a raid another ledger shared from its history as
+-- a past raid, in date order (FR-RW-011), and says so once.
+manualSync.told = {}
+function manualSync.addShared(session, sender)
+    local past = ensureDatabase().pastRaids
+    local raid = { session = session, awards = {} }
+    local position = table.getn(past) + 1
+    for i, other in ipairs(past) do
+        if sessionTime(other.session) < sessionTime(session) then position = i break end
+    end
+    table.insert(past, position, raid)
+    manualSync.trim()
+    if not manualSync.findPast(session) then return nil end   -- older than every raid kept
+    if not manualSync.told[session] then
+        manualSync.told[session] = true
+        say(string.format(L["%s shared the raid of %s; < on THIS RAID shows it."], sender or "?",
+            date("%d.%m.", sessionTime(session))))
+    end
+    return raid
+end
+
 -- manualSync.shownRaid is the raid THIS RAID shows: the followed one, or the
 -- past raid number `manualSync.shown` (only for looking back).
 function manualSync.shownRaid()
@@ -346,12 +367,18 @@ local function applyOpenItems(f)
     return true
 end
 
-local function applyAward(f)
+local function applyAward(f, sender)
     local id, rev = tonumber(f[4]), tonumber(f[5])
     if not id or not rev or f[3] == "" or table.getn(f) < 19 then return false end
     local db = ensureDatabase()
     local raid
-    if followSession(f[2]) then
+    if f[20] == "1" or f[20] == "2" then
+        -- A finished raid's award (a correction, or shared from VERLAUF,
+        -- FR-RW-011) never changes the raid this wishlist follows.
+        if f[2] == db.raid.session then raid = db.raid
+        else raid = manualSync.findPast(f[2]) or (f[20] == "2" and manualSync.addShared(f[2], sender)) end
+        if not raid then return false end
+    elseif followSession(f[2]) then
         raid = db.raid   -- after followSession: a new raid is a new table
     else
         manualSync.offerOlderRaid(f[2], f[3])
@@ -1743,7 +1770,7 @@ local function onAddonMessage(prefix, message, channel, sender)
     if f[1] == "S" then
         onRollStart(f)
     elseif f[1] == "A" then
-        if applyAward(f) then refresh() end
+        if applyAward(f, sender) then refresh() end
     elseif f[1] == "O" then
         if applyOpenItems(f) then refresh() end
     elseif f[1] == "R" then

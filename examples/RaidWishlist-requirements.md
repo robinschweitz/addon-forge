@@ -96,6 +96,13 @@
 - **Acceptance criteria:** Given awards of Monday's and today's raid, when the player picks Monday's raid, then THIS RAID lists Monday's awards, and a roll start today still uses today's received marks.
 - **Evidence:** `examples/RaidWishlist/tests/past_raids.spec.lua` (5 tests: a newer raid keeps the last one, corrections reach a kept raid, < / > on THIS RAID with the tally hidden and today's received marks, following a ledger that continues an older raid (`R` message, asked first), the keep setting); sketch `past-raid`. 20 raids are kept by default (`ASSUMPTION`, as RaidLedger NFR-RL-001). Offline only.
 
+### FR-RW-011 - Raids shared from RaidLedger's HISTORY are kept
+- **Status:** Implemented (offline)
+- **Source:** User report 2026-11-07 (Monday's raid was empty in RaidWishlist) and decision "Yes, build both"; follows RaidLedger FR-RL-030.
+- **Statement:** An award marked as part of a finished raid (`A` line field 20 = `1` or `2`) MUST NOT change the raid RaidWishlist follows. When it belongs to the followed raid it joins it; when it belongs to a kept past raid it joins that one; a shared one (`2`) of a raid not kept yet starts a new past raid in date order, and chat says once who shared it. Received marks, the tally and prompts stay on the followed raid (FR-RW-010).
+- **Acceptance criteria:** Given RaidWishlist follows today's raid, when Monday's raid is shared, then today's raid stays followed, < on THIS RAID shows Monday with its awards, and Monday's items do not count as received.
+- **Evidence:** `examples/RaidWishlist/tests/shared_raids.spec.lua::FR-RW-011 a shared older raid becomes a past raid and today stays followed`, `::FR-RW-011 a shared newer raid does not take over either`. Offline only.
+
 ## Non-Functional Requirements
 
 ### NFR-RW-001 - Compatibility and layout
