@@ -207,6 +207,22 @@ them here is open work (REQUIREMENTS.md FR-14.5).
 - **Acceptance criteria:** Given three saved raids, when the player deletes the middle one and confirms, then two remain and the current raid is unchanged. Given the player cancels, then all three remain. Given a deletion, then no addon message is sent.
 - **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-028 deleting a saved raid asks, removes it only here and sends nothing`. Offline only.
 
+### FR-RL-029 - A sync passes on the loot of ledgers that are not there
+- **Status:** Implemented (offline)
+- **Source:** User report 2026-11-07 (Kleinbutoho's `/ledger sync` brought only one parked item: Kühlesauge had recorded all 37 Monday awards and was not online, and Kleinermagus's ledger answered only with its own awards). Saved data read once with the user's permission.
+- **Statement:** A ledger that answers a sync MUST send, besides its own awards and the asker's, every award of the current raid whose recording ledger (its origin) is not in the group. Awards of ledgers that are in the group are still sent only by those ledgers, so the traffic stays the same when everyone is there.
+- **Security:** Unchanged: receivers accept them only from group members, and with an editor list only from editors (SC-019).
+- **Acceptance criteria:** Given a ledger holding Kühlesauge's awards while Kühlesauge is not in the group, when Kleinbutoho asks, then those awards are sent. Given Kühlesauge is in the group, then they are not sent by this ledger.
+- **Evidence:** `examples/RaidLedger/tests/share_raid.spec.lua::FR-RL-029 a sync answer passes on the awards of a ledger that is not in the group`, `::FR-RL-029 with Kühlesauge in the group, Kühlesauge's ledger answers for its awards`. Offline only.
+
+### FR-RL-030 - Share a finished raid with the group
+- **Status:** Implemented (offline)
+- **Source:** User decision 2026-11-07 ("Yes, build both"): Monday's raid was already under HISTORY, which a sync does not send.
+- **Statement:** The HISTORY tab MUST have a SHARE button that sends the selected saved raid's awards and roll logs to the group, marked as a finished raid (`A` line field 20 = `2`). A receiving ledger MUST store them: in its current raid when that is the same raid, in its saved raid of that raid, or as a new saved raid in date order. It MUST say once per raid who shared which raid and where it is kept, and MUST NOT switch raids or ask to. Each sender may add at most 5 such raids per login. Without a group, SHARE says so and sends nothing.
+- **Security:** Same acceptance rules as any award (group members, editor list; SC-019). The per-sender limit keeps a ledger from pushing saved raids out.
+- **Acceptance criteria:** Given a saved raid with 3 awards, when the player presses SHARE in a group, then 3 awards with their logs are sent with the mark. Given a ledger with its own current raid receives them, then the raid appears under HISTORY with all awards, the current raid is unchanged, chat says who shared it, and no question appears. Given a ledger whose current raid is that raid, then the awards join it. Given no group, then nothing is sent.
+- **Evidence:** `examples/RaidLedger/tests/share_raid.spec.lua::FR-RL-030 SHARE without a group sends nothing and says so`, `::FR-RL-030 SHARE sends the saved raid's awards and logs, marked as finished`, `::FR-RL-030 a shared raid is kept under VERLAUF in date order, told once, never offered`, `::FR-RL-030 a shared raid that is our current raid joins it`, `::FR-RL-030 one sender adds at most 5 shared raids per login`; sketch `history-share`. Offline only.
+
 ## Non-Functional Requirements
 
 ### NFR-RL-001 - Saved data stays small enough

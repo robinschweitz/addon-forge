@@ -27,7 +27,7 @@ none is needed.
 | **BEUTE** (loot) | The loot list (this corpse's drops, then the open items held until they are rolled), the raid's **disenchanter** below it, and the selected item in two steps: **1 ROLL** (**ROLL**, free BoE roll for BoE items, every roll with what the roller has **so far**) and **2 HAND OUT** (name box, **ALL**, **GIVE TO name**, **DISENCHANT**, **GUILD BANK**). The button for the next step is green. The compact master-loot popup has **ASSIGN**, **ROLL** and **LATER ROLL**. |
 | **VERGABEN** (awards) | Every award; the selected one is only corrected: **COUNTS AS** main spec / off spec / nothing, change or restore its recipient, **BACK TO LOOT**, **REMOVE**, its roll log; **EXPORT** and **NEW RAID** |
 | **SPIELER** (players' tally) | Every raid member with items and tokens per spec, the numbers the fewest-items rule ranks by; - / + corrections per player, and their awards |
-| **VERLAUF** (history, 2.10.0) | The finished raids, newest first, with date, recorder, raid ID and award count; the selected raid's tally, and **SHOW AWARDS**, **CONTINUE**, **DELETE**; **KEEP** sets how many raids stay |
+| **VERLAUF** (history, 2.10.0) | The finished raids, newest first, with date, recorder, raid ID and award count; the selected raid's tally, and **SHOW AWARDS**, **SHARE**, **CONTINUE**, **DELETE**; **KEEP** sets how many raids stay |
 | **RAID** | Invites, raid groups, attendance, calendar event |
 | **EINSTELLUNGEN** (settings) | Editors, who runs which addon, roll lengths, minimap button, window scale and reset, sync |
 
@@ -275,7 +275,9 @@ roll, for items on their wishlist.
 
 After a crash the master looter's client may have lost the ledger: on login (or
 with `/ledger sync`) it asks the group, and the others send their own awards
-plus the asker's, which restores it. Messages are only accepted from group
+plus the asker's, which restores it. Since 2.10.0 a ledger also passes on
+the awards of ledgers that are not in the group (for example the master
+looter of a raid that continues on another day). Messages are only accepted from group
 members, at most four are sent per second, and the newest revision of an award
 wins.
 
@@ -374,7 +376,11 @@ ledgers that hold that raid apply it. **EXPORT** there builds that raid's
 website export. **CONTINUE** asks, then makes the raid the current one again
 (a raid that goes on another evening); the current raid moves to VERLAUF, and
 RaidWishlist users are asked whether to follow it. **DELETE** asks, then
-removes the raid from your ledger only; the others keep their copy. **KEEP**
+removes the raid from your ledger only; the others keep their copy. **SHARE**
+sends the raid's awards and roll logs to the group (four messages a second, so
+a big raid takes a while): their ledgers keep it under VERLAUF, or add it to
+their current raid when it is that raid, and say who shared it; they never
+switch raids. RaidWishlist keeps it as a past raid. **KEEP**
 (or `/ledger keep <number>`) sets how many finished raids stay (20 by default,
 no upper limit); the oldest go first. Rolls and the SPIELER tally count only
 the current raid.

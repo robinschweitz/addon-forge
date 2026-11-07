@@ -213,7 +213,7 @@ end
 ---------------------------------------------------------------------------
 -- storedBy: the one other raid each sender may store per login (FR-RL-026),
 -- so a ledger cannot push our saved raids out with made-up raids.
-local saved = { DEFAULT_KEEP = 20, storedBy = {} }
+local saved = { DEFAULT_KEEP = 20, storedBy = {}, sharedBy = {}, toldShared = {} }
 
 function saved.keep() return ensureDatabase().keepRaids or saved.DEFAULT_KEEP end
 
@@ -240,6 +240,21 @@ function saved.raidOf(record)
         end
     end
     return db
+end
+
+-- saved.time: when a raid started, from its first award or its key.
+function saved.time(raid)
+    return raid.startedAt or tonumber(string.match(raid.session or "", "%-(%d+)$")) or 0
+end
+
+-- saved.insert adds a raid in date order, newest first.
+function saved.insert(raid)
+    local raids = ensureDatabase().raids
+    local position = table.getn(raids) + 1
+    for i, other in ipairs(raids) do
+        if saved.time(other) < saved.time(raid) then position = i break end
+    end
+    table.insert(raids, position, raid)
 end
 
 -- saved.trim drops the oldest raids beyond the number the player keeps.
@@ -467,12 +482,13 @@ end
 
 -- currentSession names this raid's ledger; it changes with every new raid.
 -- A correction of a saved raid carries that raid's key and a 20th field "1",
--- so ledgers that do not hold that raid ignore it (FR-RL-027).
-local function encodeRecord(r, session, closed)
+-- so ledgers that do not hold that raid ignore it (FR-RL-027); a shared
+-- finished raid (FR-RL-030) has "2", which receivers keep.
+local function encodeRecord(r, session, mark)
     return table.concat({ "A", session or currentSession(), field(r.origin or playerName()), r.id, r.rev or 1, r.at or 0,
         r.itemID or "", r.npc or "", field(r.recipient), r.state or "manual", r.confirmed and 1 or 0,
         r.spec or "", r.roll or "", r.low or "", r.high or "", field(r.winner or ""), r.rolls or 0,
-        r.token and 1 or "", r.time or "" }, ";") .. (closed and ";1" or "")
+        r.token and 1 or "", r.time or "" }, ";") .. (mark and (";" .. mark) or "")
 end
 
 -- encodeLog splits a roll log into messages of at most ~200 characters.
@@ -508,7 +524,7 @@ local function publish(record, withLog)
     record.rev = (record.rev or 0) + 1
     local raid = saved.raidOf(record)
     local session = raid ~= ensureDatabase() and raid.session or nil
-    queue(encodeRecord(record, session, session ~= nil))
+    queue(encodeRecord(record, session, session and "1" or nil))
     if withLog then
         for _, message in ipairs(encodeLog(record, session)) do queue(message) end
     end
@@ -1006,12 +1022,35 @@ end
 -- its own awards keeps its raid and stores the other one beside it
 -- (FR-RL-026). `closed` marks a correction of a finished raid, which only
 -- ledgers holding that raid apply (FR-RL-027).
-local function acceptSession(session, sender, closed)
+local function acceptSession(session, sender, mark)
     local db = ensureDatabase()
     if session == "" then return nil end
     if session == db.session then return db end
     local raid = saved.find(session)
-    if closed then return raid end
+    if mark == "1" then return raid end
+    if mark == "2" then
+        -- A finished raid shared from VERLAUF (FR-RL-030): keep it, say so
+        -- once, never switch to it.
+        if not raid then
+            local key = lower(sender)
+            saved.sharedBy[key] = saved.sharedBy[key] or {}
+            local mine = saved.sharedBy[key]
+            if not mine[session] then
+                if (mine.n or 0) >= 5 then return nil end
+                mine[session], mine.n = true, (mine.n or 0) + 1
+            end
+            raid = { session = session, recorder = saved.recorderOf(session) or field(sender), history = {},
+                tallyAdjust = {} }
+            saved.insert(raid)
+            saved.trim()
+            if not saved.find(session) then return nil end   -- older than every raid kept
+        end
+        if not saved.toldShared[session] then
+            saved.toldShared[session] = true
+            say(string.format(L["%s shared the raid of %s; it is kept under HISTORY."], sender, saved.label(raid)))
+        end
+        return raid
+    end
     local own = false
     for _, record in ipairs(db.history) do
         if lower(record.origin or playerName()) == lower(playerName()) then own = true break end
@@ -1042,7 +1081,7 @@ local function applyRecord(f, sender)
     -- With an editor list, only editors' ledgers change ours.
     if ns.trusts and not ns.trusts(sender) then return end
     if not id or not rev or f[3] == "" or table.getn(f) < 19 then return end
-    local raid = acceptSession(f[2], sender, f[20] == "1")
+    local raid = acceptSession(f[2], sender, (f[20] == "1" or f[20] == "2") and f[20] or nil)
     if not raid then return end
     local db = ensureDatabase()
     local record = findShared(f[3], id, raid)
@@ -1082,7 +1121,8 @@ local function applyLog(f, sender)
     local id, part, total = tonumber(f[4]), tonumber(f[5]), tonumber(f[6])
     if ns.trusts and not ns.trusts(sender) then return end
     if not (id and part and total) or total > 40 then return end
-    local raid = acceptSession(f[2], sender)
+    -- A log of a saved raid (shared or corrected) joins it without a question.
+    local raid = (f[2] ~= ensureDatabase().session and saved.find(f[2])) or acceptSession(f[2], sender)
     local record = raid and findShared(f[3], id, raid)
     if not record then return end
     record.logParts = record.logParts or {}
@@ -1136,14 +1176,15 @@ local function shareOpenItems(force)
 end
 
 -- answerSync sends our own awards, and the asker's (their backup), so a
--- master looter whose client crashed gets the ledger back.
+-- master looter whose client crashed gets the ledger back, and the awards of
+-- ledgers that are not in the group, which cannot answer (FR-RL-029).
 local function answerSync(asker)
     shareOpenItems(true)
     for _, fix in pairs(ensureDatabase().tallyAdjust or {}) do queue(roster.encodeAdjust(fix)) end
     for i = table.getn(ensureDatabase().history), 1, -1 do
         local record = ensureDatabase().history[i]
         local origin = lower(record.origin or playerName())
-        if origin == lower(playerName()) or origin == lower(asker) then
+        if origin == lower(playerName()) or origin == lower(asker) or not inGroup(record.origin or playerName()) then
             record.origin = record.origin or playerName()
             queue(encodeRecord(record))
             for _, message in ipairs(encodeLog(record)) do queue(message) end
@@ -2397,6 +2438,24 @@ ns.core = {
         StaticPopup_Show("RAIDLEDGER_REOPEN_RAID", saved.label(raid), nil, raid)
     end,
     askDelete = function(raid) StaticPopup_Show("RAIDLEDGER_DELETE_RAID", saved.label(raid), nil, raid) end,
+    -- shareRaid sends a saved raid's awards and logs, marked "2" (FR-RL-030).
+    shareRaid = function(raid)
+        if not groupChannel() then
+            say(L["not in a group: nothing to share."])
+            return 0
+        end
+        local count = 0
+        for i = table.getn(raid.history), 1, -1 do
+            local record = raid.history[i]
+            record.origin = record.origin or playerName()
+            queue(encodeRecord(record, raid.session, "2"))
+            for _, message in ipairs(encodeLog(record, raid.session)) do queue(message) end
+            count = count + 1
+        end
+        say(string.format(L["sharing the raid of %s: %d awards, about %d seconds."], saved.label(raid), count,
+            math.ceil(table.getn(outbox) / 4)))
+        return count
+    end,
     -- Shared awards of items this client had not cached yet (item 50667 in the
     -- raid of 2026-10-19) get their link once the item is known.
     refreshLinks = function()

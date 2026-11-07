@@ -7,7 +7,7 @@ local _, ns = ...
 local L = ns.L
 local core, ui = ns.core, ns.ui
 local LEFT_WIDTH = 420
-local TALLY_TOP = 132
+local TALLY_TOP = 162
 
 local panel = CreateFrame("Frame", "RaidLedgerHistoryTab")
 local raidOffset, tallyOffset, selectedRaid = 0, 0, nil
@@ -66,16 +66,19 @@ infoLine:SetHeight(14)
 infoLine:SetJustifyH("LEFT")
 infoLine:SetWordWrap(false)
 
+-- Two rows: look at it (SHOW AWARDS, SHARE), change it (CONTINUE, DELETE).
 local showButton = ns.flatButton(detail, L["SHOW AWARDS"], 100, "RaidLedgerRaidShow")
 showButton:SetPoint("TOPLEFT", detail, "TOPLEFT", 12, -72)
+local shareButton = ns.flatButton(detail, L["SHARE"], 100, "RaidLedgerRaidShare")
+shareButton:SetPoint("LEFT", showButton, "RIGHT", 6, 0)
 local reopenButton = ns.flatButton(detail, L["CONTINUE"], 100, "RaidLedgerRaidReopen")
-reopenButton:SetPoint("LEFT", showButton, "RIGHT", 6, 0)
+reopenButton:SetPoint("TOPLEFT", showButton, "BOTTOMLEFT", 0, -6)
 local deleteButton = ns.flatButton(detail, L["DELETE"], 80, "RaidLedgerRaidDelete")
 deleteButton:SetPoint("LEFT", reopenButton, "RIGHT", 6, 0)
 ns.makeBackdrop(deleteButton, 0.28, 0.10, 0.10, 0.98)
 
 local tallyHeading = ns.label(detail, "GameFontNormal", 10, {1.00, 0.80, 0.32})
-tallyHeading:SetPoint("TOPLEFT", detail, "TOPLEFT", 12, -110)
+tallyHeading:SetPoint("TOPLEFT", detail, "TOPLEFT", 12, -140)
 local tallyRows = ns.rowList(function(i)
     local row = ns.listRow(detail, 0, { 64, 92 }, "RaidLedgerRaidTally" .. i)
     row:SetPoint("TOPLEFT", detail, "TOPLEFT", 10, -TALLY_TOP - (i - 1) * ns.ROW_HEIGHT)
@@ -83,13 +86,15 @@ local tallyRows = ns.rowList(function(i)
     return row
 end)
 
--- A wider window: SHOW AWARDS (the longest caption) takes the extra width.
+-- Each row shares the detail pane's width.
 ns.onResize(function(width, height)
     local listWidth = LEFT_WIDTH + math.floor((width - ns.CONTENT_WIDTH) * 0.4)
     local inner = width - listWidth - 12 - 24
-    reopenButton:SetWidth(86)
-    deleteButton:SetWidth(70)
-    showButton:SetWidth(inner - 86 - 70 - 12)
+    local half = math.floor((inner - 6) / 2)
+    showButton:SetWidth(half)
+    shareButton:SetWidth(inner - half - 6)
+    reopenButton:SetWidth(half)
+    deleteButton:SetWidth(inner - half - 6)
     contentHeight = height
 end)
 
@@ -160,6 +165,7 @@ local function drawDetail()
     local raid = selectedRaid
     local mayEdit = not ns.mayEdit or ns.mayEdit()
     ns.setEnabled(showButton, raid ~= nil)
+    ns.setEnabled(shareButton, raid ~= nil)
     ns.setEnabled(reopenButton, raid ~= nil and mayEdit)
     ns.setEnabled(deleteButton, raid ~= nil)
     if not raid then
@@ -214,6 +220,7 @@ showButton:SetScript("OnClick", function()
 end)
 reopenButton:SetScript("OnClick", function() if selectedRaid then core.askReopen(selectedRaid) end end)
 deleteButton:SetScript("OnClick", function() if selectedRaid then core.askDelete(selectedRaid) end end)
+shareButton:SetScript("OnClick", function() if selectedRaid then core.shareRaid(selectedRaid) end end)
 
 local function saveKeep(self)
     if not core.setKeepRaids(self:GetText()) then
@@ -231,6 +238,7 @@ ns.tip(keepBox, L["How many finished raids are kept; the oldest go first. Press 
 ns.tip(showButton, L["Open this raid's awards in AWARDS: correct them there or build its export"])
 ns.tip(reopenButton, L["Continue this raid (e.g. on a second evening): it becomes the current raid, the current one is kept here"])
 ns.tip(deleteButton, L["Delete this raid from your ledger only; other players keep theirs"])
+ns.tip(shareButton, L["Send this raid's awards to the group: their ledgers and wishlists keep it under their history"])
 
 -- Closing the window goes back to the current raid's awards.
 ns.Ledger:HookScript("OnHide", function() core.showRaid(nil) end)
