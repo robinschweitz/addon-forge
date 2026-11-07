@@ -163,20 +163,20 @@ them here is open work (REQUIREMENTS.md FR-14.5).
 - **Evidence:** `examples/RaidLedger/tests/shared_ledger.spec.lua::FR-RL-022 a sync explains another raid every time and offers to switch`. Offline only.
 
 ### FR-RL-023 - Finished raids are kept, not deleted
-- **Status:** Implemented (offline)
+- **Status:** Implemented (offline; NEW RAID keeping the raid verified live)
 - **Source:** User question 2026-11-06 ("store multiple raids so in the end we might even be able to have a history of them in the addon").
 - **Statement:** NEW RAID MUST close the current raid and keep it as a saved raid instead of deleting it: its awards with their roll logs, its tally corrections, its raid key (`session`), start time, website raid ID and disenchanter. The new raid starts empty, as today. How many saved raids RaidLedger keeps MUST be a setting the player chooses, with no fixed upper limit (decided 2026-11-06, OQ-RL-1). Beyond that number it drops the oldest. Each raid keeps the current award cap of 250. A ledger saved before this feature MUST keep its awards as the current raid.
 - **Rationale:** Raids span several days, and raid leads want to look back at earlier raids without an export.
 - **Security:** Saved raids are local data. Their size stays bounded by the raid and award caps (SC-019).
 - **Acceptance criteria:** Given a current raid with awards, when the player confirms NEW RAID, then the ledger is empty and the old raid is listed as a saved raid with all its awards. Given a ledger saved by RaidLedger 2.9.0, when the new version loads it, then its awards are the current raid. Given more saved raids than the limit, then the oldest one is dropped.
-- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-023 NEW RAID keeps the finished raid with all its awards`, `::FR-RL-023 the player chooses how many raids to keep`; `tests/migration.spec.lua::old awards get IDs oldest first and appear in the export` (a 2.9.0 ledger). The default of 20 kept raids is an `ASSUMPTION` until NFR-RL-001's live check. Offline only.
+- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-023 NEW RAID keeps the finished raid with all its awards`, `::FR-RL-023 the player chooses how many raids to keep`; `tests/migration.spec.lua::old awards get IDs oldest first and appear in the export` (a 2.9.0 ledger). The default of 20 kept raids is an `ASSUMPTION` until NFR-RL-001's live check. Live: plan `RaidLedger-history-acceptance.json`, session `39e6f3124f56` (bridge run `0f451cf0f6ce`, screenshots `step-history_tab`, `step-history_awards`) and again in the 2.10.0 release (run `8679e12f91be`), 2026-11-07.
 
 ### FR-RL-024 - A list of past raids
-- **Status:** Implemented (offline)
+- **Status:** Verified Live
 - **Source:** User question 2026-11-06.
 - **Statement:** RaidLedger MUST show the saved raids newest first, each with its date and start time, who recorded it, its website raid ID when set, and its number of awards. Selecting one MUST show its awards, roll logs and tallies, and its RS2 export, the same way as for the current raid. The list MUST be on its own new tab (decided 2026-11-06, OQ-RL-2). A saved raid can be reopened (FR-RL-025), corrected by editors (FR-RL-027) and deleted (FR-RL-028).
 - **Acceptance criteria:** Given three saved raids, when the player opens the list, then they appear newest first with date, recorder and award count. Given a selected raid, then its awards, roll logs and tallies are shown and its export matches the export that raid produced before it was closed. Given a German client and 25 raiders with long names, then `forge.layoutIssues` finds nothing.
-- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-024 the VERLAUF tab lists the saved raids newest first`, `::FR-RL-024 a selected raid shows its tallies and its export`; `tests/history_layout.spec.lua::VERLAUF fits 30 saved raids with 25 raiders each` (deDE, sketches `history-list`, `history-raid`, `history-awards`). Awards and roll logs show in VERGABEN, whose heading names the raid. Offline only.
+- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-024 the VERLAUF tab lists the saved raids newest first`, `::FR-RL-024 a selected raid shows its tallies and its export`; `tests/history_layout.spec.lua::VERLAUF fits 30 saved raids with 25 raiders each` (deDE, sketches `history-list`, `history-raid`, `history-awards`). Awards and roll logs show in VERGABEN, whose heading names the raid. Live: plan `RaidLedger-history-acceptance.json`, session `39e6f3124f56` (bridge run `0f451cf0f6ce`, screenshots `step-history_tab`, `step-history_awards`) and again in the 2.10.0 release (run `8679e12f91be`), 2026-11-07.
 
 ### FR-RL-025 - Reopen a past raid
 - **Status:** Implemented (offline)
