@@ -156,7 +156,8 @@ local function drawList()
         row.raid = raid
         if raid then
             row:SetText(core.raidLabel(raid))
-            row.columns[1]:SetText(string.format(L["%d awards"], awardCount(raid)))
+            local n = awardCount(raid)
+            row.columns[1]:SetText(n == 1 and L["1 award"] or string.format(L["%d awards"], n))
             row.columns[2]:SetText(raid.raidID and ("#" .. raid.raidID) or "")
             ns.highlight(row, raid == selectedRaid and "selected" or nil)
             row:Show()

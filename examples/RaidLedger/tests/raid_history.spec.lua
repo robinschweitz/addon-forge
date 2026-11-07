@@ -88,7 +88,7 @@ test("FR-RL-024 the VERLAUF tab lists the saved raids newest first", function()
     expect(forge.text("RaidLedgerRaidRow1")).toContain("Tester")
     expect(forge.text("RaidLedgerRaidRow2")).toContain("Tester")
     expect(forge.text("RaidLedgerRaidRow2Count")).toContain("2")
-    expect(forge.text("RaidLedgerRaidRow1Count")).toContain("1")
+    expect(forge.text("RaidLedgerRaidRow1Count")).toBe("1 award")   -- one award, not "1 awards"
     expect(forge.text("RaidLedgerRaidRow2Raid")).toContain("41")
 end)
 

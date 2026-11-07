@@ -34,7 +34,7 @@
     { "type": "global_equals", "path": "RaidLedgerDB.raids.1.history.1.recipient", "value": "Test" },
     { "type": "global_equals", "path": "RaidLedgerDB.raids.1.history.1.confirmed", "value": true },
     { "type": "frame_text_contains", "frame": "RaidLedgerRaidRow1Raid", "value": "#77" },
-    { "type": "frame_text_contains", "frame": "RaidLedgerRaidRow1Count", "value": "1 Vergaben" },
+    { "type": "frame_text_contains", "frame": "RaidLedgerRaidRow1Count", "value": "1 Vergabe" },
     { "type": "frame_visible", "value": "RaidLedgerShowCurrent" },
     { "type": "frame_text_contains", "frame": "RaidLedgerHistory1", "value": "item:20513" },
     { "type": "frame_text_contains", "frame": "RaidLedgerHistory1Recipient", "value": "Test" },

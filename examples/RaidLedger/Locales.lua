@@ -359,6 +359,7 @@ L["%s shared the raid of %s; it is kept under HISTORY."] = "%s hat den Raid vom 
 L["FINISHED RAIDS (%d)"] = "BEENDETE RAIDS (%d)"
 L["FINISHED RAIDS (%d, SCROLL)"] = "BEENDETE RAIDS (%d, SCROLLEN)"
 L["%d awards"] = "%d Vergaben"
+L["1 award"] = "1 Vergabe"
 L["Select a raid on the left"] = "Links einen Raid auswählen"
 L["Show its awards and export, continue it, or delete it."] = "Vergaben und Export zeigen, fortsetzen oder löschen."
 L["recorded by %s  |  %d awards  |  raid ID %s"] = "erfasst von %s  |  %d Vergaben  |  Raid-ID %s"
