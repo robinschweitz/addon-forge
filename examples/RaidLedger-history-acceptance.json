@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    { "type": "slash", "value": "/ledger newraid confirm" },
+    { "type": "slash", "value": "/ledger start" },
+    { "type": "wait", "value": 1 },
+    { "type": "roll", "value": [1, 100] },
+    { "type": "wait", "value": 33 },
+    { "type": "click", "value": "RaidLedgerAward" },
+    { "type": "wait", "value": 3 },
+    { "type": "slash", "value": "/ledger raid 77" },
+    { "type": "slash", "value": "/ledger newraid confirm" },
+    { "type": "wait", "value": 1 },
+    { "type": "click", "value": "RaidLedgerTabhistory" },
+    { "type": "wait", "value": 1 },
+    { "type": "click", "value": "RaidLedgerRaidRow1" },
+    { "type": "wait", "value": 1 },
+    { "type": "screenshot", "value": "history_tab" },
+    { "type": "click", "value": "RaidLedgerRaidShow" },
+    { "type": "wait", "value": 1 },
+    { "type": "screenshot", "value": "history_awards" }
+  ],
+  "checks": [
+    { "type": "player_in_world", "value": true },
+    { "type": "chat_contains", "value": "der letzte Raid bleibt unter VERLAUF erhalten" },
+    { "type": "global_equals", "path": "RaidLedgerDB.raids.1.raidID", "value": 77 },
+    { "type": "global_equals", "path": "RaidLedgerDB.raids.1.recorder", "value": "Test" },
+    { "type": "global_equals", "path": "RaidLedgerDB.raids.1.history.1.recipient", "value": "Test" },
+    { "type": "global_equals", "path": "RaidLedgerDB.raids.1.history.1.confirmed", "value": true },
+    { "type": "frame_text_contains", "frame": "RaidLedgerRaidRow1Raid", "value": "#77" },
+    { "type": "frame_text_contains", "frame": "RaidLedgerRaidRow1Count", "value": "1 Vergaben" },
+    { "type": "frame_visible", "value": "RaidLedgerShowCurrent" },
+    { "type": "frame_text_contains", "frame": "RaidLedgerHistory1", "value": "item:20513" },
+    { "type": "frame_text_contains", "frame": "RaidLedgerHistory1Recipient", "value": "Test" },
+    { "type": "no_lua_errors", "value": true }
+  ]
+}

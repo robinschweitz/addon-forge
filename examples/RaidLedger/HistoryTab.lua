@@ -39,6 +39,12 @@ local raidRows = ns.rowList(function(i)
     -- Named columns for the live plans and specs.
     _G["RaidLedgerRaidRow" .. i .. "Count"] = row.columns[1]
     _G["RaidLedgerRaidRow" .. i .. "Raid"] = row.columns[2]
+    -- Rows are made when the tab is first drawn: register them for live plans then.
+    if i <= 3 and ForgeTestBridge and ForgeTestBridge.RegisterFrame then
+        ForgeTestBridge:RegisterFrame("RaidLedgerRaidRow" .. i, row)
+        ForgeTestBridge:RegisterFrame("RaidLedgerRaidRow" .. i .. "Count", row.columns[1])
+        ForgeTestBridge:RegisterFrame("RaidLedgerRaidRow" .. i .. "Raid", row.columns[2])
+    end
     row:SetScript("OnClick", function(self)
         if not self.raid then return end
         selectedRaid, tallyOffset = self.raid, 0
@@ -248,6 +254,7 @@ events:RegisterEvent("PLAYER_LOGIN")
 events:SetScript("OnEvent", function()
     if ForgeTestBridge and ForgeTestBridge.RegisterFrame then
         ForgeTestBridge:RegisterFrame("RaidLedgerRaidShow", showButton)
+        ForgeTestBridge:RegisterFrame("RaidLedgerRaidShare", shareButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerRaidReopen", reopenButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerRaidDelete", deleteButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerKeepRaids", keepBox)

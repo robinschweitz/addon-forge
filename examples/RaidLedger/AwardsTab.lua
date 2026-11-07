@@ -519,6 +519,7 @@ events:SetScript("OnEvent", function()
     if ForgeTestBridge and ForgeTestBridge.RegisterFrame then
         ForgeTestBridge:RegisterFrame("RaidLedgerHistory1", awardRows[1])
         ForgeTestBridge:RegisterFrame("RaidLedgerExportButton", exportButton)
+        ForgeTestBridge:RegisterFrame("RaidLedgerShowCurrent", currentButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerExportText", exportText)
         ForgeTestBridge:RegisterFrame("RaidLedgerAwardRecipient", recipientBox)
         ForgeTestBridge:RegisterFrame("RaidLedgerChangeRecipient", changeButton)
