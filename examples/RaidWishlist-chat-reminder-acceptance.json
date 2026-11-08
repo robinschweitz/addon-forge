@@ -39,9 +39,24 @@
       "value": "/wish remind all"
     },
     {
+      "type": "click",
+      "value": "RaidWishlistSettingsOpen"
+    },
+    {
+      "type": "paste",
+      "value": [
+        "RaidWishlistReminderKeywords",
+        " "
+      ]
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistReminderSave"
+    },
+    {
       "type": "peer_say",
       "value": [
-        "roll",
+        "here it is",
         40347
       ]
     },
@@ -52,6 +67,25 @@
     {
       "type": "screenshot",
       "value": "chat_prompt"
+    },
+    {
+      "type": "click",
+      "value": "RaidWishlistSkip"
+    },
+    {
+      "type": "peer_say",
+      "value": [
+        "here it is",
+        40347
+      ]
+    },
+    {
+      "type": "wait",
+      "value": 2
+    },
+    {
+      "type": "screenshot",
+      "value": "chat_prompt_repeat"
     }
   ],
   "checks": [

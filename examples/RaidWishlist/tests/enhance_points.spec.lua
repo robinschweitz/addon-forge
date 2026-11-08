@@ -81,5 +81,5 @@ test("an invalid value on the settings page saves nothing", function()
     expect("RaidWishlistSettingsPanel").toBeShown()
     expect(forge.findText("Enter a whole number from 0 to 999999.")).toBeTruthy()
     expect(db().chars.Tester.balance).toBe(12)
-    expect(db().chars.Tester.reminderKeywords).toBe("roll,würfel")
+    expect(db().chars.Tester.reminderKeywords).toBeNil()   -- no keyword: the default
 end)

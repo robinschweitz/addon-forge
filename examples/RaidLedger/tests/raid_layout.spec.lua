@@ -42,6 +42,7 @@ test("a full invite list fills the tab; its bottom lines up with the attendance 
     -- 18 of the 25 fit at the default size; the wheel scrolls the rest.
     expect(forge.frame("RaidLedgerRaidMember18"):IsVisible()).toBe(true)
     expect(forge.frame("RaidLedgerRaidMember19")).toBeNil()
+    expect(forge.text("RaidLedgerWhisperInvites")).toBe("FLÜSTER-EINLADUNG: AUS")   -- FR-RL-020
     forge.sketch("raid-tab", "RaidLedgerFrame")
     expect(forge.layoutIssues("RaidLedgerFrame")).toEqual({})
 end)

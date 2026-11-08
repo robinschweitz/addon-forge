@@ -17,6 +17,9 @@ end)
 
 test("old awards get IDs oldest first and appear in the export", function()
     local db = forge.saved("RaidLedgerDB")
+    -- FR-RL-023: a ledger from before the raid history keeps its awards as the current raid.
+    expect(#db.history).toBe(2)
+    expect(#db.raids).toBe(0)
     expect(db.history[2].id).toBe(1)
     expect(db.history[1].id).toBe(2)
     expect(db.history[1].itemID).toBe(20513)

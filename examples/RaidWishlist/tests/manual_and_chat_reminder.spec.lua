@@ -1,5 +1,6 @@
--- Wishlist entries can be maintained without the website. Chat reminders are
--- deliberately strict: an item link and one configured keyword are both needed.
+-- Wishlist entries can be maintained without the website. A chat reminder
+-- needs a wishlisted item link, and a keyword once the player sets any (by
+-- default none, user decision 2026-11-06).
 local CREST = "|cffa335ee|Hitem:20513:0:0:0:0:0:0:0:80|h[Abyssal Crest]|h|r"
 
 before_load(function()
@@ -45,9 +46,20 @@ test("chat reminders require a matching keyword and follow sender settings", fun
     forge.stub("GetLootMethod", function() return "master", nil, 1 end)
     forge.slash("/wish remind on")
 
+    -- Default: no keyword needed, but only the master looter counts.
     forge.chatEvent("CHAT_MSG_RAID", "roll " .. CREST, "Alice")
     expect("RaidWishlistPrompt").toBeHidden()
     forge.chatEvent("CHAT_MSG_RAID", "Abyssal Crest " .. CREST, "Lead")
+    expect("RaidWishlistPrompt").toBeShown()
+    forge.click("RaidWishlistSkip")
+    forge.chatEvent("CHAT_MSG_RAID", "Abyssal Crest " .. CREST, "Lead")
+    expect("RaidWishlistPrompt").toBeShown()            -- a repeat is a new roll
+    forge.click("RaidWishlistSkip")
+
+    forge.click("RaidWishlistSettingsOpen")
+    forge.frame("RaidWishlistReminderKeywords"):SetText("roll")
+    forge.click("RaidWishlistReminderSave")
+    forge.chatEvent("CHAT_MSG_RAID", "Abyssal Crest now " .. CREST, "Lead")
     expect("RaidWishlistPrompt").toBeHidden()
     forge.chatEvent("CHAT_MSG_RAID", "roll " .. CREST, "Lead")
     expect("RaidWishlistPrompt").toBeShown()

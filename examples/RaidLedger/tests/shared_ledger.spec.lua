@@ -84,9 +84,9 @@ test("a correction is shared with a higher revision", function()
 end)
 
 test("another raid's ledger is not merged into one with its own awards", function()
-    receive("A;Alice-99;Alice;1;1;1281052900;21281;;Bob;given;1;os;12;1;99;Bob;1;;12:01")
+    receive("A;Cara-98;Cara;1;1;1281052900;21281;;Bob;given;1;os;12;1;99;Bob;1;;12:01", "Cara")
     expect(#db().history).toBe(1)
-    expect(forge.chat()).toContain("RaidLedger: Alice shares another raid's ledger; yours has its own awards, so it is not merged. Use CLEAR to follow theirs.")
+    expect(forge.chat()).toContain("RaidLedger: Cara's ledger holds another raid; it is kept under HISTORY. Yours stays the current raid.")
 end)
 
 test("an empty ledger follows the master looter's raid and shows its awards", function()
@@ -191,4 +191,68 @@ test("a roll start goes to the group first, and a tie-break names the tied playe
     expect(tie).toBeTruthy()
     expect(string.match(tie, ";2;(.*)$")).toBe("Alice,Cara")
     forge.closeLoot()
+end)
+
+-- FR-RL-022 (user report 2026-11-06): a character that was not in Monday's
+-- raid synced, got nothing and no reason. A sync the player asks for says why
+-- every time and offers to switch to the other raid.
+local function warnings()
+    local n = 0
+    for _, line in ipairs(forge.chat()) do
+        if string.find(line, "Alice's ledger holds another raid", 1, true) then n = n + 1 end
+    end
+    return n
+end
+
+local function lastPopup()
+    local popups = forge.popups()
+    return popups[#popups]
+end
+
+local MONDAY = "A;Alice-77;Alice;7;1;1281052900;21281;;Bob;given;1;os;12;1;99;Bob;1;;12:01"
+
+test("FR-RL-022 a sync explains another raid every time and offers to switch", function()
+    forge.slash("/ledger newraid confirm")
+    award(20513, { { "Bob", 40 } })
+    forge.advance(3, 0.25)
+    local popups, base = #forge.popups(), warnings()
+    -- Without a sync of our own: told and asked once (FR-RL-026).
+    receive(MONDAY)
+    receive(MONDAY)
+    expect(warnings()).toBe(base + 1)
+    expect(#forge.popups()).toBe(popups + 1)
+    popups = popups + 1
+
+    forge.slash("/ledger sync")
+    receive(MONDAY)
+    receive(MONDAY)                                  -- one question per sync and raid
+    expect(warnings()).toBe(base + 2)
+    expect(#forge.popups()).toBe(popups + 1)
+    expect(lastPopup().which).toBe("RAIDLEDGER_FOLLOW_RAID")
+    expect(lastPopup().text1).toBe("Alice")
+    expect(#db().history).toBe(1)                    -- NO (or no answer) keeps our raid current
+
+    if not RaidLedgerFrame:IsShown() then forge.slash("/ledger") end
+    forge.click("RaidLedgerSettingsButton")
+    forge.click("RaidLedgerSync")                    -- the SETTINGS button asks again
+    receive(MONDAY)
+    expect(warnings()).toBe(base + 3)
+    expect(#forge.popups()).toBe(popups + 2)
+
+    local before = #forge.addonMessages()
+    local ours = db().session
+    StaticPopupDialogs["RAIDLEDGER_FOLLOW_RAID"].OnAccept(nil, lastPopup().data)
+    expect(db().session).toBe("Alice-77")
+    expect(db().raids[1].session).toBe(ours)          -- ours is kept under HISTORY
+    expect(#db().raids[1].history).toBe(1)
+    forge.advance(0.5, 0.25)
+    local asked = false
+    for _, m in ipairs(sentSince(before)) do
+        if string.sub(m.message, 1, 2) == "Q;" then asked = true end
+    end
+    expect(asked).toBe(true)
+    receive(MONDAY)
+    expect(#db().history).toBe(1)
+    expect(db().history[1].origin).toBe("Alice")
+    expect(db().history[1].recipient).toBe("Bob")
 end)

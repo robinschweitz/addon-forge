@@ -119,3 +119,123 @@ them here is open work (REQUIREMENTS.md FR-14.5).
 - **Statement:** Open copies of the same token MUST appear as one `Nx <item>` row under OPEN ITEMS, even when they were handed to holders separately. Starting its roll MUST announce the `Nx <item>` bundle and decide all copies together: the highest N valid rollers each receive one copy. The ledger records those winners at once; each record keeps its original holder so the winner knows who has the physical token. A bundle nobody rolled on MUST go back to OPEN ITEMS as one row with no award changed, ready for another roll.
 - **Acceptance criteria:** Given five open copies of one token, then BEUTE shows exactly one `5x <item>` row. Given six valid rollers, when its roll starts, then the raid announcement names the `5x <item>` bundle. When its roll ends, then the best five each receive one token and the sixth stays without one. Given no rolls on an open bundle, when its roll ends, then the raid hears that nobody wanted it, the bundle's hand-out buttons stay disabled, its copies stay `parked` with their holders, and ROLL can start again.
 - **Evidence:** `examples/RaidLedger/tests/token_bundles.spec.lua::one roll: the best three win a token each, announced together`; `::FR-RL-016 open copies of one token roll together for the best five`, `::FR-RL-016 an open token bundle nobody rolled on goes back to OPEN ITEMS`. Offline only.
+
+### FR-RL-017 - Boss fights use automatic master loot
+- **Status:** Removed
+- **Source:** User decision, 2026-11-01: replaced by the loot method button (FR-RL-019). A visible reminder and one click are better than a switch that depends on detecting the pull.
+- **Statement:** Removed. RaidLedger MUST NOT change the loot method on its own.
+- **Evidence:** `examples/RaidLedger/tests/loot_method_button.spec.lua::FR-RL-017 a boss fight never changes the loot method`. Live run `62c8ab7d3742` (2026-10-27) showed that `SetLootMethod("master", "player")` does not work; the second argument is a player name.
+
+### FR-RL-018 - SETTINGS controls automatic master loot
+- **Status:** Removed
+- **Source:** User decision, 2026-11-01: removed with FR-RL-017.
+- **Statement:** Removed. SETTINGS has no master-loot control and `/ledger automaster` is gone.
+- **Evidence:** `examples/RaidLedger/tests/loot_method_button.spec.lua::FR-RL-018 SETTINGS and the slash command no longer offer automatic master loot`.
+
+### FR-RL-019 - A loot method button appears when the loot method does not fit the boss fight
+- **Status:** Implemented (offline; click and text verified live, appearing when needed offline only)
+- **Source:** User decisions, 2026-11-01: a reminder with one click instead of an automatic switch; then shown only when needed; then based only on boss-fight detection, to try out.
+- **Statement:** Inside an instance, the leader of a party or raid MUST get a small, movable on-screen button, independent of the main window, when the loot method does not fit: in a boss fight without master loot, and outside a boss fight with master loot. A boss fight starts when a `boss1`-`boss4` unit exists, or when the player is in combat and the player's target or a group member's target has classification `worldboss`. It lasts until the player leaves combat and no boss unit exists. What the player targets otherwise does not matter. The button MUST hide once the method fits, and for anyone else. Its text names the current method and the change, starts with `!` and it is red (`! BEUTE: GRUPPE > PLÜNDERMEISTER`). The method comes from the client (`GetLootMethod`): the text and the hiding change only when the client reports it (`PARTY_LOOT_METHOD_CHANGED`), never on the click alone. A click MUST switch master loot to group loot, and any other method to master loot with the player as master looter (by name, not by unit). The loot threshold is not changed.
+- **Acceptance criteria:** Given a raid led by Tester on group loot inside an instance, when a boss fight starts, then the button shows `! BEUTE: GRUPPE > PLÜNDERMEISTER`; a click calls `SetLootMethod("master", "Tester")`, and it stays until the client reports the change, then hides. Given master loot, when the fight ends, then it shows `! BEUTE: PLÜNDERMEISTER > GRUPPE` and a click calls `SetLootMethod("group")`. Given a fight with a boss that a raid member targets, when the player's target changes to an add, then it is still a boss fight. Given master loot in a fight with trash only, then the button shows. Given group loot outside a boss fight, master loot in a boss fight, master loot outside an instance, or a player who leads no group, then it is hidden. Given a German client and a long name, then `forge.layoutIssues` finds nothing. Given a drag, then the button moves.
+- **Evidence:** `examples/RaidLedger/tests/loot_method_button.spec.lua`. Live plan `examples/RaidLedger-loot-method-acceptance.json`, bridge run `3ea78443b3b0` (2026-11-01, party led by Test, before the button hid itself): two clicks changed the method to group loot and back, the client confirmed both (`Plündern in "Plündern als Gruppe" geändert.`, `Plündern in "Plündermeister" geändert.`, `Test ist jetzt der Plündermeister.`), the button text followed in the screenshots, no Lua errors. This also shows that `SetLootMethod("master", <name>)` works live. The user tried the boss-fight version in the test client on 2026-11-01 and reported that it works (manual test, no run ID or recorded evidence). No automated live run covers appearing and hiding by boss fight (no fixture reaches an instance), a raid (the fixture forms a party), or dragging. ASSUMPTION: every raid boss the guild fights is classified `worldboss` or has a `boss1` unit. Known effect, accepted to try it: right after a kill the fight is over, so with master loot still on the button asks for group loot before the corpse is looted.
+
+### FR-RL-020 - Listed players can whisper for an invite
+- **Status:** Implemented (offline)
+- **Source:** User decisions, 2026-11-01, after comparing Method Raid Tools; limited to the invite list. The word can be chosen.
+- **Statement:** RAID MUST have a switch for whisper invites, off by default and saved, and a box for the word, default `inv`, at most 20 letters and saved; an empty box means `inv`. While the switch is on and the player may invite, a whisper of exactly that word (any case, spaces around it ignored) MUST invite its sender when the sender (taken from the event, SC-019) is on the invite list, not in the group and not already invited. Bench players count only with BENCH: YES. Any other whisper, and any sender not on the list, MUST be ignored without an answer. The invite goes through the same queue as INVITE ALL, so a party still turns into a raid.
+- **Acceptance criteria:** Given the switch on and Tank on the list, when Tank whispers ` INV `, then Tank is invited once, also when Tank whispers again. Given the word `Komm`, when Healer whispers `komm`, then Healer is invited, and `inv` no longer invites. Given an emptied box, then `inv` works again. Given a stranger, a bench player without BENCH: YES, a whisper of `inv please`, the switch off, or a raid member without rights, then nobody is invited and no whisper is sent. Given a German client with a full list, then `forge.layoutIssues` finds nothing.
+- **Evidence:** `examples/RaidLedger/tests/whisper_invites.spec.lua`; `examples/RaidLedger/tests/raid_layout.spec.lua::a full invite list fills the tab; its bottom lines up with the attendance field`. Offline only: no plan step can whisper the client.
+
+### FR-RL-021 - The loot method button can be switched off
+- **Status:** Implemented (offline)
+- **Source:** User decision, 2026-11-01.
+- **Statement:** SETTINGS MUST have an on/off control for the loot method button, on when nothing is saved, saved in `RaidLedgerDB`. While it is off the button never shows. `/ledger lootbutton on|off` MUST do the same. `/ledger lootbutton show` MUST show the button to a group's leader until the next `on`, `off` or `/reload`, whatever the method, in plain colors, for an unusual fight and for live plans, which cannot reach an instance.
+- **Acceptance criteria:** Given nothing saved, then SETTINGS shows it as on. Given a click, then it shows off, `RaidLedgerDB.lootButtonHidden` is true, and a boss target shows no button. Given another click, then it works again. Given `/ledger lootbutton show`, then the leader sees the button with the current method and a click still switches.
+- **Evidence:** `examples/RaidLedger/tests/loot_method_button.spec.lua`. Live: bridge run `af1ef1e6cd73` (2026-11-01): the plan's first step `/ledger lootbutton show` brought the button up outside an instance, two clicks switched to group loot and back with the client's confirmation, no Lua errors. The SETTINGS control and hiding are offline only.
+
+### FR-RL-022 - Sync says why another raid is not merged and offers to switch
+- **Status:** Implemented (offline)
+- **Source:** User report 2026-11-06 (a character that was not in Monday's raid ran `/ledger sync`; nothing arrived and nothing said why) and user decision 2026-11-06: say why every time, and offer to switch.
+- **Statement:** When a sync the player asked for (`/ledger sync` or SYNC AWARDS) brings awards of another raid while this ledger has awards of its own, RaidLedger MUST say so in chat every time, naming the sender, and MUST ask once per sync and raid whether to replace this ledger with that raid. YES MUST keep this ledger's raid under HISTORY (FR-RL-023), make that raid the current one and ask the group again, so its awards arrive. NO MUST change nothing. Since 2.10.0 the other raid is also kept under HISTORY, and outside a sync of the player's own the question comes once per raid (FR-RL-026: the player is always told and decides). An empty ledger keeps following the sender's raid without a question (unchanged).
+- **Rationale:** Players switch characters between raid days, and a ledger that silently keeps its own raid looks broken.
+- **Security:** Only group members' ledgers are asked; with an editor list, only editors' ledgers count (unchanged). The question names the sender from the event (SC-019). Replacing the ledger needs the player's click.
+- **Acceptance criteria:** Given a ledger with its own awards, when the player syncs and another raid's ledger answers, then chat names that ledger and a question appears; a second sync says it again. Given YES, then this ledger's raid is kept under HISTORY, that raid is current, and the awards sent next are stored. Given NO, then the current raid stays. Given awards of another raid without a sync of the player's own, then the question appears once.
+- **Evidence:** `examples/RaidLedger/tests/shared_ledger.spec.lua::FR-RL-022 a sync explains another raid every time and offers to switch`. Offline only.
+
+### FR-RL-023 - Finished raids are kept, not deleted
+- **Status:** Implemented (offline; NEW RAID keeping the raid verified live)
+- **Source:** User question 2026-11-06 ("store multiple raids so in the end we might even be able to have a history of them in the addon").
+- **Statement:** NEW RAID MUST close the current raid and keep it as a saved raid instead of deleting it: its awards with their roll logs, its tally corrections, its raid key (`session`), start time, website raid ID and disenchanter. The new raid starts empty, as today. How many saved raids RaidLedger keeps MUST be a setting the player chooses, with no fixed upper limit (decided 2026-11-06, OQ-RL-1). Beyond that number it drops the oldest. Each raid keeps the current award cap of 250. A ledger saved before this feature MUST keep its awards as the current raid.
+- **Rationale:** Raids span several days, and raid leads want to look back at earlier raids without an export.
+- **Security:** Saved raids are local data. Their size stays bounded by the raid and award caps (SC-019).
+- **Acceptance criteria:** Given a current raid with awards, when the player confirms NEW RAID, then the ledger is empty and the old raid is listed as a saved raid with all its awards. Given a ledger saved by RaidLedger 2.9.0, when the new version loads it, then its awards are the current raid. Given more saved raids than the limit, then the oldest one is dropped.
+- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-023 NEW RAID keeps the finished raid with all its awards`, `::FR-RL-023 the player chooses how many raids to keep`; `tests/migration.spec.lua::old awards get IDs oldest first and appear in the export` (a 2.9.0 ledger). The default of 20 kept raids is an `ASSUMPTION` until NFR-RL-001's live check. Live: plan `RaidLedger-history-acceptance.json`, session `39e6f3124f56` (bridge run `0f451cf0f6ce`, screenshots `step-history_tab`, `step-history_awards`) and again in the 2.10.0 release (run `8679e12f91be`), 2026-11-07.
+
+### FR-RL-024 - A list of past raids
+- **Status:** Verified Live
+- **Source:** User question 2026-11-06.
+- **Statement:** RaidLedger MUST show the saved raids newest first, each with its date and start time, who recorded it, its website raid ID when set, and its number of awards. Selecting one MUST show its awards, roll logs and tallies, and its RS2 export, the same way as for the current raid. The list MUST be on its own new tab (decided 2026-11-06, OQ-RL-2). A saved raid can be reopened (FR-RL-025), corrected by editors (FR-RL-027) and deleted (FR-RL-028).
+- **Acceptance criteria:** Given three saved raids, when the player opens the list, then they appear newest first with date, recorder and award count. Given a selected raid, then its awards, roll logs and tallies are shown and its export matches the export that raid produced before it was closed. Given a German client and 25 raiders with long names, then `forge.layoutIssues` finds nothing.
+- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-024 the VERLAUF tab lists the saved raids newest first`, `::FR-RL-024 a selected raid shows its tallies and its export`; `tests/history_layout.spec.lua::VERLAUF fits 30 saved raids with 25 raiders each` (deDE, sketches `history-list`, `history-raid`, `history-awards`). Awards and roll logs show in VERGABEN, whose heading names the raid. Live: plan `RaidLedger-history-acceptance.json`, session `39e6f3124f56` (bridge run `0f451cf0f6ce`, screenshots `step-history_tab`, `step-history_awards`) and again in the 2.10.0 release (run `8679e12f91be`), 2026-11-07.
+
+### FR-RL-025 - Reopen a past raid
+- **Status:** Implemented (offline)
+- **Source:** User report 2026-11-06 (a raid that continues on another day); wanted, decided 2026-11-06 (OQ-RL-3).
+- **Statement:** The player MUST be able to make a saved raid the current raid again, after a confirmation. The current raid is then kept as a saved raid. Rolls, tallies and new awards then belong to the reopened raid, and the group's ledgers and wishlists follow it like any shared raid.
+- **Acceptance criteria:** Given a saved raid from Monday and a current raid from today, when the player reopens Monday's raid and confirms, then Monday's raid is current, today's is saved, and the next award joins Monday's raid with the next free award number.
+- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-025 a saved raid is reopened after a confirmation`. Group ledgers follow on their next message as for any shared raid; RaidWishlist only follows newer raids by itself, so the ledger sends `R;session;origin` and the wishlist asks (FR-RW-010). Offline only.
+
+### FR-RL-026 - A sync from another raid is kept as a saved raid
+- **Status:** Implemented (offline)
+- **Source:** User decisions 2026-11-06 (FR-RL-022) and the raid-history question.
+- **Statement:** When a sync brings awards of another raid, RaidLedger MUST store them as a saved raid of that raid's recorder, instead of only offering to replace the current raid (FR-RL-022). The current raid stays as it is. RaidLedger MUST tell the player that it stored that raid and from whom, and offer to make it the current raid; nothing switches without the player's yes (decided 2026-11-06, OQ-RL-4: the player is always told and decides). A sync MUST keep sharing only the current raid, so the traffic stays the same as today.
+- **Security:** Only group members' ledgers are stored, and with an editor list only editors' (unchanged). Per sync at most one raid per sender is stored, within the raid and award caps (SC-019).
+- **Acceptance criteria:** Given a ledger with today's raid, when the player syncs and Admin's ledger answers with Monday's raid, then Monday's raid appears in the saved raids with Admin as recorder and all its awards, and today's raid is unchanged. Given the same sync again, then Monday's raid is updated, not stored twice.
+- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-026 a sync from another raid is stored beside ours and offered`; `tests/shared_ledger.spec.lua::FR-RL-022 a sync explains another raid every time and offers to switch`. Each sender may store one other raid per login, so a ledger cannot push saved raids out with made-up raids. Offline only.
+
+### FR-RL-027 - Tallies belong to their raid
+- **Status:** Implemented (offline)
+- **Source:** Follows from FR-RL-023.
+- **Statement:** Roll rankings and the SPIELER tally MUST count only the current raid's awards and corrections, as today. A saved raid's tallies MUST be computed from its own awards and corrections. Editors MAY correct awards of a saved raid (decided 2026-11-06, OQ-RL-5). The correction MUST be shared with the group like a correction in the current raid, and every ledger that holds that raid applies it; ledgers without it ignore it. The editor-list rule is the same as for the current raid (SC-019).
+- **Acceptance criteria:** Given Bob won an item in a saved raid, when a roll starts in the current raid, then Bob's tally is 0. Given the saved raid is selected in the list, then Bob shows 1 item there.
+- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-027 a saved raid's awards no longer count in the current raid's rolls`, `::FR-RL-027 an editor corrects a saved raid and the group gets it`, `::FR-RL-027 a correction of a raid we do not hold is ignored`. A correction of a saved raid is an `A` line with that raid's key and a 20th field `1`. Offline only.
+
+### FR-RL-028 - Delete a saved raid
+- **Status:** Implemented (offline)
+- **Source:** User decision 2026-11-06 (OQ-RL-6).
+- **Statement:** The player MUST be able to delete a saved raid by hand, after a confirmation that names the raid. The current raid cannot be deleted this way (NEW RAID closes it). A deletion MUST remove the raid only from the player's own ledger; nothing is sent to the group, and other players keep their copy (decided 2026-11-06, OQ-RL-7). A later sync MAY bring that raid back as a stored raid, which the player is told about (FR-RL-026).
+- **Acceptance criteria:** Given three saved raids, when the player deletes the middle one and confirms, then two remain and the current raid is unchanged. Given the player cancels, then all three remain. Given a deletion, then no addon message is sent.
+- **Evidence:** `examples/RaidLedger/tests/raid_history.spec.lua::FR-RL-028 deleting a saved raid asks, removes it only here and sends nothing`. Offline only.
+
+### FR-RL-029 - A sync passes on the loot of ledgers that are not there
+- **Status:** Implemented (offline)
+- **Source:** User report 2026-11-07 (Kleinbutoho's `/ledger sync` brought only one parked item: Kühlesauge had recorded all 37 Monday awards and was not online, and Kleinermagus's ledger answered only with its own awards). Saved data read once with the user's permission.
+- **Statement:** A ledger that answers a sync MUST send, besides its own awards and the asker's, every award of the current raid whose recording ledger (its origin) is not in the group. Awards of ledgers that are in the group are still sent only by those ledgers, so the traffic stays the same when everyone is there.
+- **Security:** Unchanged: receivers accept them only from group members, and with an editor list only from editors (SC-019).
+- **Acceptance criteria:** Given a ledger holding Kühlesauge's awards while Kühlesauge is not in the group, when Kleinbutoho asks, then those awards are sent. Given Kühlesauge is in the group, then they are not sent by this ledger.
+- **Evidence:** `examples/RaidLedger/tests/share_raid.spec.lua::FR-RL-029 a sync answer passes on the awards of a ledger that is not in the group`, `::FR-RL-029 with Kühlesauge in the group, Kühlesauge's ledger answers for its awards`. The user reported it working in the game on 2026-11-07 (Monday's raid shared from Kleinermagus to Kleinbutoho); no Forge live run yet.
+
+### FR-RL-030 - Share a finished raid with the group
+- **Status:** Implemented (offline)
+- **Source:** User decision 2026-11-07 ("Yes, build both"): Monday's raid was already under HISTORY, which a sync does not send.
+- **Statement:** The HISTORY tab MUST have a SHARE button that sends the selected saved raid's awards and roll logs to the group, marked as a finished raid (`A` line field 20 = `2`). A receiving ledger MUST store them: in its current raid when that is the same raid, in its saved raid of that raid, or as a new saved raid in date order. It MUST say once per raid who shared which raid and where it is kept, and MUST NOT switch raids or ask to. Each sender may add at most 5 such raids per login. Without a group, SHARE says so and sends nothing.
+- **Security:** Same acceptance rules as any award (group members, editor list; SC-019). The per-sender limit keeps a ledger from pushing saved raids out.
+- **Acceptance criteria:** Given a saved raid with 3 awards, when the player presses SHARE in a group, then 3 awards with their logs are sent with the mark. Given a ledger with its own current raid receives them, then the raid appears under HISTORY with all awards, the current raid is unchanged, chat says who shared it, and no question appears. Given a ledger whose current raid is that raid, then the awards join it. Given no group, then nothing is sent.
+- **Evidence:** `examples/RaidLedger/tests/share_raid.spec.lua::FR-RL-030 SHARE without a group sends nothing and says so`, `::FR-RL-030 SHARE sends the saved raid's awards and logs, marked as finished`, `::FR-RL-030 a shared raid is kept under VERLAUF in date order, told once, never offered`, `::FR-RL-030 a shared raid that is our current raid joins it`, `::FR-RL-030 one sender adds at most 5 shared raids per login`; sketch `history-share`. The user reported it working in the game on 2026-11-07 (Monday's raid shared from Kleinermagus to Kleinbutoho); no Forge live run yet.
+
+## Non-Functional Requirements
+
+### NFR-RL-001 - Saved data stays small enough
+- **Status:** Not implemented
+- **Statement:** The saved raids MUST NOT slow down login or `/reload` noticeably. The size the 3.3.5a client handles comfortably in one SavedVariables file is `UNKNOWN`; since the player picks the number of raids (OQ-RL-1), a live check with a large ledger (25 raiders, many saved raids, 250 awards each) MUST find a default and the point where the settings show a warning about slow loading.
+- **Evidence:** None yet. The live check with a large ledger and the slow-loading warning are still to do.
+
+## Open Questions
+
+- **OQ-RL-1** Answered 2026-11-06: the player chooses how many raids to keep, with no fixed upper limit (FR-RL-023).
+- **OQ-RL-2** Answered 2026-11-06: a new tab (FR-RL-024).
+- **OQ-RL-3** Answered 2026-11-06: yes (FR-RL-025).
+- **OQ-RL-4** Answered 2026-11-06: always tell the player and let them decide (FR-RL-026).
+- **OQ-RL-5** Answered 2026-11-06: yes, and the correction is shared (FR-RL-027).
+- **OQ-RL-6** Answered 2026-11-06: yes (FR-RL-028).
+- **OQ-RL-7** Answered 2026-11-06: only in the player's own ledger (FR-RL-028).
