@@ -38,11 +38,12 @@ def make_repo(tmp: Path, name: str, files: dict[str, str]) -> Path:
     origin = tmp / f"{name}-origin.git"
     seed = tmp / f"{name}-seed"
     subprocess.run(["git", "init", "-q", "-b", "main", str(seed)], check=True)
+    git(seed, "config", "core.autocrlf", "false")
     git(seed, "config", "user.email", "t@example.com")
     git(seed, "config", "user.name", "T")
     for path, text in files.items():
         (seed / path).parent.mkdir(parents=True, exist_ok=True)
-        (seed / path).write_text(text, encoding="utf-8")
+        (seed / path).write_text(text, encoding="utf-8", newline="\n")   # stored with LF, as on GitHub
     git(seed, "add", "-A")
     git(seed, "commit", "-q", "-m", "seed")
     subprocess.run(["git", "clone", "-q", "--bare", str(seed), str(origin)], check=True)
@@ -256,3 +257,57 @@ def test_the_website_sync_may_change_only_the_released_addon(tmp_path):
         release.release(cfg(tmp_path, addons, website), addon, approve=True, session=Sessions(), sync=sync)
     assert "release/Demo-2.0.0" not in git(addons, "branch", "-a")      # no half release
     assert "addons/Demo-2.0.0" not in git(website, "branch", "-a")
+
+
+def stored(repo, rev_path):
+    """The bytes Git stores for `rev:path`, without any line-ending conversion."""
+    return subprocess.run(["git", "-C", str(repo), "cat-file", "-p", rev_path], check=True,
+                          capture_output=True).stdout
+
+
+def test_autocrlf_in_the_addons_checkout_does_not_change_another_bundle(tmp_path):
+    # FR-15.1/FR-15.5: F:/wow-addons has core.autocrlf=true; the RaidWishlist 2.3.0 release
+    # (2026-10-26) checked its worktree out with CRLF, and the sync made RaidLedger look changed.
+    addon = make_addon(tmp_path / "examples")
+    other = {"Other/Other.toc": "## Interface: 30300\n## Version: 1.4.0\nOther.lua\n", "Other/Other.lua": "-- other\n"}
+    addons = make_repo(tmp_path, "wow-addons", {**OLD_ADDON, **other})
+    website = make_repo(tmp_path, "raid-website", {
+        "internal/addons/bundle/Demo/Demo.toc": "## Version: 1.0.0\n",
+        **{f"internal/addons/bundle/{path}": text for path, text in other.items()}, "README.md": "# site\n"})
+    git(addons, "config", "core.autocrlf", "true")
+    git(website, "config", "core.autocrlf", "false")
+    seen = {}
+    def sync(site, tree):
+        # Like cmd/sync-addons: every bundled addon is copied byte for byte from the release tree.
+        for folder in ("Demo", "Other"):
+            bundle = site / "internal" / "addons" / "bundle" / folder
+            bundle.mkdir(parents=True, exist_ok=True)
+            for source in (tree / folder).iterdir():
+                seen[f"{folder}/{source.name}"] = source.read_bytes()
+                if source.name != "README.md":
+                    shutil.copy(source, bundle / source.name)
+        return "synced"
+    result = release.release(cfg(tmp_path, addons, website), addon, approve=True, session=Sessions(), sync=sync)
+    assert result["status"] == "released", result
+    assert [name for name, data in seen.items() if b"\r" in data] == []
+    changed = git(website, "diff", "--name-only", "origin/main", "addons/Demo-2.0.0").split()
+    assert changed == ["internal/addons/bundle/Demo/Core.lua", "internal/addons/bundle/Demo/Demo.toc"]
+
+
+def test_released_files_carry_no_carriage_return(tmp_path):
+    # FR-15.1: the addon's working copy may be CRLF (Windows checkout); the release stores LF.
+    addon, addons, website = setup(tmp_path)
+    git(addons, "config", "core.autocrlf", "false")
+    for name in ("Demo.toc", "Core.lua", "README.md"):
+        path = addon / name
+        path.write_bytes(path.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+    seen = {}
+    def sync(site, tree):
+        seen.update({name: (tree / "Demo" / name).read_bytes() for name in ("Demo.toc", "Core.lua", "README.md")})
+        return website_sync([])(site, tree)
+    result = release.release(cfg(tmp_path, addons, website), addon, approve=True, session=Sessions(), sync=sync)
+    assert result["status"] == "released", result
+    for name in ("Demo.toc", "Core.lua", "README.md"):
+        assert b"\r" not in stored(addons, f"release/Demo-2.0.0:Demo/{name}"), name
+        assert b"\r" not in seen[name], name
+    assert b"\r" not in stored(website, "addons/Demo-2.0.0:internal/addons/bundle/Demo/Core.lua")

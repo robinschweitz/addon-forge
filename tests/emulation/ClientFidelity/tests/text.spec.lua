@@ -66,3 +66,21 @@ test("EditBox:SetText(nil) is an error, numbers are text", function()
     box:SetText(42)
     expect(box:GetText()).toBe("42")
 end)
+
+-- CSimpleFontString starts with style flags 0x212 (CENTER | MIDDLE);
+-- Script_GetJustifyH/V return JustifyToString of the masked flags and
+-- Script_SetJustifyH/V match names case-insensitively (StringToJustify).
+test("justification reads back, defaults to CENTER and MIDDLE", function()
+    local fs = label()
+    expect(fs:GetJustifyH()).toBe("CENTER")
+    expect(fs:GetJustifyV()).toBe("MIDDLE")
+    fs:SetJustifyH("left")
+    fs:SetJustifyV("TOP")
+    expect(fs:GetJustifyH()).toBe("LEFT")
+    expect(fs:GetJustifyV()).toBe("TOP")
+    local named = UIParent:CreateFontString("ClientFidelityJustify", "OVERLAY", "GameFontNormal")
+    local ok, err = pcall(named.SetJustifyH, named, "SIDEWAYS")
+    expect(ok).toBeFalsy()
+    expect(err).toContain('Usage: ClientFidelityJustify:SetJustifyH("justify")')
+    expect(named:GetJustifyH()).toBe("CENTER")
+end)

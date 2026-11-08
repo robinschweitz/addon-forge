@@ -71,7 +71,7 @@ guild (README "Releasing an addon", REQUIREMENTS.md FR-15):
    refused) and merge the addon's PR here first.
 2. Preview: `forge --config forge.local.toml release examples/<Addon>`.
 3. Announce it, then run it with `--approve-fixtures`. It is a series of live
-   sessions on the human's desktop: 5 plans for RaidWishlist, 19 for
+   sessions on the human's desktop: 5 plans for RaidWishlist, 20 for
    RaidLedger. Each session closes the previous one's client (FR-7.6).
 4. On `released`, push the two branches it names, update the website pages
    and the changelog it lists (`web/src/release.ts`, German entry) on the
@@ -86,6 +86,24 @@ guild (README "Releasing an addon", REQUIREMENTS.md FR-15):
 5. Merge both PRs of one release before releasing the other addon: the
    website's `sync-addons` rewrites every bundled addon, and the release
    refuses a sync that would change another addon's bundle.
+6. Line endings are not a change. `F:/wow-addons` has `core.autocrlf=true`,
+   and the RaidWishlist 2.3.0 release (2026-10-26) passed all 9 plans, then
+   stopped at the website sync: its worktree was checked out with CRLF, so
+   `sync-addons` made the RaidLedger bundle look changed (released by hand:
+   robinschweitz/wow-addons#8, robinschweitz/raid-website#198). Forge now
+   runs every git command in its release worktrees with
+   `-c core.autocrlf=false` (not `git config`, which would change the
+   user's repository) and copies the addon's files with LF (FR-15.1).
+7. Never stop a release while a fixture runs. Killing the RaidLedger 2.7.0
+   release mid-fixture on 2026-10-31 left the worldserver unable to invite:
+   every later `master_loot` fixture failed with "Group invite popup did not
+   appear" until `docker restart ac-worldserver`. The database showed no
+   stuck group; the exact state in server memory is unknown.
+8. A plan's `.forge-runs/<run>.json` is the bridge report: its `passed` covers
+   the bridge tests only. The plan verdict is in the session or release
+   output. A leftover RaidLedger editor list in the test client's
+   SavedVariables also denies `Test` every roll; look for
+   `Nur Freigegebene dürfen ändern` in the chat.
 
 ## WoW 3.3.5a client facts (verified live)
 
@@ -98,9 +116,9 @@ guild (README "Releasing an addon", REQUIREMENTS.md FR-15):
 - **`InputBoxTemplate` draws its left border 5 px left of the edit box.** A
   box anchored at a label's x sticks out to the left (RaidWishlist settings
   screenshot, 2026-10-26); place it 5 px further in. A `FontString` anchored
-  on both sides centers its text unless `SetJustifyH("LEFT")`. The offline
-  emulator models neither the template's border textures nor
-  `FontString:GetJustifyH`, so `forge.layoutIssues` cannot see either: look
+  on both sides centers its text unless `SetJustifyH("LEFT")`; a spec can
+  assert that with `GetJustifyH`. The offline emulator does not model the
+  template's border textures, so `forge.layoutIssues` cannot see them: look
   at the live screenshot.
 - **Localized GlobalStrings use positional specifiers.** deDE
   `RANDOM_ROLL_RESULT` is `%1$s würfelt. Ergebnis: %2$d (%3$d-%4$d)`. Strip
@@ -259,6 +277,12 @@ Fixed in the emulator:
   `CreateFontString(nil, "OVERLAY")` with no template or `SetFontObject`). A
   plain `Button` has no font string until its first non-empty `SetText`
   (`GetFontString()` is nil); `EditBox:SetText(nil)` is a usage error.
+- **Justification** (`Script_GetJustifyH`/`V`, `StringToJustify`): a new
+  FontString reads `CENTER`/`MIDDLE` (style flags 0x212); `SetJustifyH("left")`
+  reads back `"LEFT"`; an unknown name is a usage error. A FontString anchored
+  on both sides centers its text unless `SetJustifyH("LEFT")`, so a spec can
+  now assert `fs:GetJustifyH()`. Not modelled: justification inherited from a
+  font object.
 - **Event dispatch** (`FrameScript_SignalEvent`): listeners run in registration
   order; a frame registered during a dispatch waits for the next signal (this
   already matched); a frame **unregistered** during the dispatch is skipped for
