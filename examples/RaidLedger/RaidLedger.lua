@@ -271,7 +271,7 @@ function saved.close()
     local session = db.session or (field(playerName()) .. "-" .. time())
     table.insert(db.raids, 1, { session = session, recorder = saved.recorderOf(session) or playerName(),
         history = db.history, startedAt = db.startedAt, raidID = db.raidID, disenchanter = db.disenchanter,
-        tallyAdjust = db.tallyAdjust or {}, closedAt = time() })
+        tallyAdjust = db.tallyAdjust or {}, trades = db.trades, closedAt = time() })
     saved.trim()
 end
 
@@ -447,7 +447,7 @@ end
 ---------------------------------------------------------------------------
 local SYNC_PREFIX = "FLLedger"
 local outbox = {}
-local NOTE_CODES = { ["re-roll"] = "r", ["not in tie-break"] = "t", passed = "p", ["not counted"] = "n" }
+local NOTE_CODES = { ["re-roll"] = "r", ["not in tie-break"] = "t", passed = "p", ["not counted"] = "n", ["too late"] = "l" }
 
 local function groupChannel()
     if GetNumRaidMembers() and GetNumRaidMembers() > 0 then return "RAID" end
@@ -978,7 +978,7 @@ end
 
 -- Receiving the shared ledger -------------------------------------------------
 local STATES = { given = true, held = true, manual = true, deleted = true, parked = true, disenchanted = true, bank = true }
-local NOTE_NAMES = { r = "re-roll", t = "not in tie-break", p = "passed", n = "not counted" }
+local NOTE_NAMES = { r = "re-roll", t = "not in tie-break", p = "passed", n = "not counted", l = "too late" }
 
 local function split(text)
     local fields = {}
@@ -1218,6 +1218,8 @@ local function onAddonMessage(prefix, message, channel, sender)
         roster.applyAdjust(f, sender)
     elseif f[1] == "D" then
         roster.applyDisenchanter(f, sender)
+    elseif f[1] == "X" and ns.applyTrade then
+        ns.applyTrade(f, sender)   -- a mate's trade (Trades.lua, FR-RL-032)
     end
 end
 
@@ -1296,6 +1298,7 @@ local function startNewRaid(quiet)
     db.raidID = nil
     db.session = nil   -- the next award starts a new shared ledger
     db.disenchanter = nil
+    db.trades = nil
     editing = nil
     ns.resetTallyAdjustments()
     saved.shown = nil
@@ -1315,6 +1318,7 @@ function saved.reopen(raid, follow)
     startNewRaid(true)
     db.history, db.session, db.startedAt = raid.history, raid.session, raid.startedAt
     db.raidID, db.disenchanter, db.tallyAdjust = raid.raidID, raid.disenchanter, raid.tallyAdjust or {}
+    db.trades = raid.trades
     if not follow then queue(table.concat({ "R", raid.session, field(playerName()) }, ";")) end
     ui.refresh()
 end
@@ -1414,10 +1418,10 @@ end
 local function recordRoll(message)
     local name, roll, low, high = string.match(message or "", rollPattern())
     if not name or not roll then return end
-    local entry = rollingEntry()
-    if not entry then return end
     local value, lo, hi = tonumber(roll) or 0, tonumber(low), tonumber(high)
     local kind = rollKind(lo, hi)
+    local entry = rollingEntry()
+    if not entry then return roster.lateRoll(name, value, lo, hi, kind) end
     -- A free BoE roll takes plain /rnd 100 only.
     if entry.free then kind = (lo == 1 and hi == 100) and "boe" or nil end
     -- Ignored rolls are kept in the roll log with the reason, for disputes.
@@ -1466,6 +1470,9 @@ local function startSelectedRoll(free)
     entry.startedAt = GetTime()
     entry.reminders = reminders(seconds)
     entry.rollKey = nil
+    -- Late /rnd lines go to this roll until the next one starts (FR-RL-034);
+    -- not for free, disenchanter or bundle rolls.
+    roster.lastRolled = not (entry.free or entry.disenchanter or (entry.count or 1) > 1) and entry or nil
     if entry.disenchanter then
         announce(string.format(L["[Loot] Disenchanter roll: /rnd 100 now, %d seconds. The winner disenchants this raid's unwanted items."], seconds), true)
         ui.status(string.format(L["%d-second disenchanter roll started."], seconds))
@@ -1573,9 +1580,19 @@ local function finishRoll(entry)
         announce(string.format(L["[Loot] %s - free BoE roll won by %s (%d)."], entry.item, best.name, best.value))
         return
     end
+    -- A same-spec roll as high as the winner's that lost on the item count
+    -- looks like a missed tie-break: say why (FR-RL-036).
+    local beaten
+    for _, roll in ipairs(entry.rolls) do
+        if roll ~= best and roll.kind == best.kind and roll.value >= best.value
+            and (roll.tally or 0) > (best.tally or 0) and (not beaten or roll.value > beaten.value) then
+            beaten = roll
+        end
+    end
     announce(string.format(L["[Loot] %s won by %s (%d) - %s%s, %s so far."], entry.item, best.name, best.value,
         SPEC_NAMES[best.kind], best.low and best.low > 1 and (" " .. best.low .. "-" .. best.high) or "",
-        ns.specCounts(counts, best.name, isToken(entry.item))))
+        ns.specCounts(counts, best.name, isToken(entry.item)))
+        .. (beaten and string.format(L[" %s (%d) has more items this raid."], beaten.name, beaten.value) or ""))
     if entry.later then finishLaterRoll(entry, best.name) end
 end
 
@@ -1647,6 +1664,9 @@ function roster.finishBundle(entry)
                 publish(record, true)
                 announceAward({ item = record.item, recipient = record.winner, spec = record.spec },
                     record.holder and string.format(L["pick it up from %s"], record.holder) or nil)
+            else
+                -- A copy nobody won stays open and says so (FR-RL-031).
+                record.nobody = true
             end
         end
         for index = table.getn(active), 1, -1 do
@@ -1661,6 +1681,42 @@ end
 -- recount changes the logged roll and keeps what was rolled in `was`. Once the
 -- roll has ended the winner is decided again from the latest round that still
 -- has counted rolls (after a tie-break: the tied players, then the earlier rolls).
+-- roster.lateRoll keeps a /rnd that came after the last roll ended in that
+-- roll's log as "too late" (FR-RL-034): on the item while it is still in the
+-- loot list, else on its award. It counts only once it is allowed.
+function roster.lateRoll(name, value, low, high, kind)
+    local entry = roster.lastRolled
+    if not entry or entry.endsAt then return end
+    local log, record
+    if isActive(entry) then
+        entry.rollLog = entry.rollLog or {}
+        log = entry.rollLog
+    elseif entry.record and entry.record.rollLog then
+        record = entry.record
+        log = record.rollLog
+    end
+    if not log then return end
+    local note = kind and "too late" or (low .. "-" .. high)
+    for _, r in ipairs(log) do
+        if string.lower(r.name) == string.lower(name) then note = "re-roll" end
+    end
+    table.insert(log, { name = name, value = value, round = 1, note = note, kind = kind, low = low, high = high })
+    if record then publish(record, true) end
+    if note == "too late" then
+        ui.status(string.format(L["%s rolled too late (%d): right-click the roll to allow it."], name, value))
+    end
+    ui.refresh()
+end
+
+-- roster.late: `name`'s late rolls in a log, which ALLOW counts.
+function roster.late(entry, name)
+    local found = {}
+    for _, r in ipairs(entry.rollLog or {}) do
+        if r.kind and r.note == "too late" and string.lower(r.name) == string.lower(name) then table.insert(found, r) end
+    end
+    return found
+end
+
 function roster.counted(entry, name)
     local found = {}
     for _, r in ipairs(entry.rollLog or {}) do
@@ -1703,6 +1759,11 @@ end
 -- roster.change strikes or recounts a player's logged rolls and announces it.
 function roster.change(item, logs, how, points, free)
     local strike = how == "pass" or how == "none"
+    if how == "allow" then
+        for _, r in ipairs(logs) do r.note = nil end
+        announce(string.format(L["[Loot] %s - %s's late roll counts (%d)."], item, logs[1].name, logs[1].value))
+        return true
+    end
     if free and not strike then
         say(L["a free BoE roll only takes /rnd 100; pass or none only."])
         return false
@@ -1744,9 +1805,10 @@ function roster.apply(name, how, points, record)
     record = record or (editing and ui.tab and ui.tab() == "awards" and editing)
     if record then return roster.applyAward(record, name, how, points) end
     local entry = selectedEntry()
-    local logs = entry and roster.counted(entry, name or "") or {}
+    local logs = entry and (how == "allow" and roster.late or roster.counted)(entry, name or "") or {}
     if not logs[1] then
-        say(string.format(L["%s has no counted roll on the selected item."], name or "?"))
+        say(string.format(how == "allow" and L["%s has no late roll on the selected item."]
+            or L["%s has no counted roll on the selected item."], name or "?"))
         return
     end
     if not roster.change(entry.item, logs, how, points, entry.free) then return end
@@ -1792,9 +1854,10 @@ end
 -- 2026-10-17). If someone else now wins, the award goes to them like a manual
 -- recipient change; with nobody valid left (or a tie) the master looter decides.
 function roster.applyAward(record, name, how, points)
-    local logs = roster.counted(record, name or "")
+    local logs = (how == "allow" and roster.late or roster.counted)(record, name or "")
     if not logs[1] then
-        say(string.format(L["%s has no counted roll on award #%d."], name or "?", record.id))
+        say(string.format(how == "allow" and L["%s has no late roll on award #%d."]
+            or L["%s has no counted roll on award #%d."], name or "?", record.id))
         return
     end
     if record.state ~= "given" and record.state ~= "held" and record.state ~= "manual" then
@@ -1861,7 +1924,7 @@ StaticPopupDialogs["RAIDLEDGER_POINTS"] = {
         if points and points >= 0 and points <= 50 and points == math.floor(points) then
             roster.apply(data.name, "enh", points, data.record)
         else
-            say(L["usage: /ledger count <name> ms|os|none|enh <0-50>"])
+            say(L["usage: /ledger count <name> ms|os|none|allow|enh <0-50>"])
         end
     end,
     EditBoxOnEnterPressed = function(self)
@@ -1979,6 +2042,7 @@ function roster.disenchanter() return ensureDatabase().disenchanter end
 -- item joins the roll list, the roll runs as usual, and its result is written
 -- onto the same award.
 local function startLaterRoll(record)
+    record.nobody = nil
     for _, entry in ipairs(active) do
         if entry.record == record and entry.later then
             selected = entry
@@ -1999,6 +2063,7 @@ end
 -- are already held by raiders, so the winning records change together.
 local function startLaterBundle(records)
     if table.getn(records) < 2 then return startLaterRoll(records[1]) end
+    for _, record in ipairs(records) do record.nobody = nil end
     local first = records[1]
     local entry = { item = first.item, npc = first.npc, rolls = {}, records = records, later = true, count = table.getn(records) }
     table.insert(active, 1, entry)
@@ -2094,7 +2159,7 @@ finishLaterRoll = function(entry, recipient)
     record.roll, record.spec = roll and roll.value, roll and roll.kind
     record.low, record.high = roll and roll.low, roll and roll.high
     record.winner = field(recipient)
-    record.confirmed = true
+    record.confirmed, record.nobody = true, nil
     local how
     record.recipient, record.state = field(recipient), "manual"
     if lower(holder) ~= lower(recipient) then
@@ -2181,7 +2246,7 @@ function roster.handOutRecord(record, state, name)
     record.holder = (holder and lower(holder) ~= lower(name)) and field(holder) or nil
     record.state = (state == "given") and "manual" or state
     record.winner, record.roll, record.spec, record.low, record.high = nil, nil, nil, nil, nil
-    record.confirmed = true
+    record.confirmed, record.nobody = true, nil
     publish(record)
     announceAward(record)
     if state == "parked" then
@@ -2245,6 +2310,36 @@ function roster.parkRecord(record, name)
     record.low, record.high, record.confirmed = nil, nil, true
     publish(record)
     announceAward(record)
+    ui.status(string.format(L["Award #%d is open, held by %s until it is rolled."], record.id, record.recipient))
+    ui.refresh()
+    return true
+end
+
+-- roster.addOpenItem adds raid loot RaidLedger never saw on a corpse (for
+-- example tokens that reached a raider without a master-loot window) as an
+-- open item held by `holder`, one copy per call (FR-RL-033). The text must be
+-- a real item link; the stored link is the client's own when it knows the item.
+function roster.addOpenItem(text, holder)
+    if roster.denied() then return false end
+    text = trim(text or "")
+    local link = string.match(text, "^|c%x%x%x%x%x%x%x%x|Hitem:[%d:%-]+|h%[[^%]|]+%]|h|r$")
+    local itemID = link and itemIDFromLink(link)
+    if not itemID then
+        ui.status(L["Shift-click an item into the item box first."])
+        return false
+    end
+    link = select(2, GetItemInfo(itemID)) or link
+    holder = trim(holder or "")
+    if holder == "" then holder = playerName() end
+    if not isPlayer(holder) and not inGroup(holder) then
+        ui.status(string.format(L["%s is not in the raid."], field(holder)))
+        return false
+    end
+    -- Keep the roster's spelling of a typed name ("bob" is Bob).
+    for _, member in ipairs(roster.members()) do
+        if lower(member.name) == lower(holder) then holder = member.name end
+    end
+    local record = recordAward({ item = link, rolls = {} }, holder, "parked", true)
     ui.status(string.format(L["Award #%d is open, held by %s until it is rolled."], record.id, record.recipient))
     ui.refresh()
     return true
@@ -2502,7 +2597,7 @@ local HELP = {
     L["/ledger del <#> - remove award # (exported as deleted)"],
     L["/ledger spec <#> ms|os|none - set which tally award # counts for"],
     L["/ledger pass <name> - the player passes: the next-best roll wins"],
-    L["/ledger count <name> ms|os|none|enh <0-50> - change how a roll on the selected item counts"],
+    L["/ledger count <name> ms|os|none|allow|enh <0-50> - change how a roll on the selected item counts (allow: a late roll)"],
     L["/ledger tally - items per player this raid (main spec / off spec)"],
     L["/ledger deroll - roll the raid's disenchanter (/rnd 100); DE then gives items to them"],
     L["/ledger de <name> - make <name> the raid's disenchanter without a roll"],
@@ -2539,12 +2634,12 @@ SlashCmdList["RAIDLEDGER"] = function(message)
     elseif command == "count" then
         local name, how, points = rest:match("^(%S+)%s+(%a+)%s*(%d*)$")
         how, points = how and string.lower(how), tonumber(points)
-        if name and (how == "ms" or how == "os" or how == "none") and not points then
+        if name and (how == "ms" or how == "os" or how == "none" or how == "allow") and not points then
             roster.apply(name, how)
         elseif name and how == "enh" and points and points <= 50 then
             roster.apply(name, "enh", points)
         else
-            say(L["usage: /ledger count <name> ms|os|none|enh <0-50>"])
+            say(L["usage: /ledger count <name> ms|os|none|allow|enh <0-50>"])
         end
     elseif command == "timer" then
         -- /ledger timer [roll] [tie], /ledger timer tie <s>, /ledger timer reset.

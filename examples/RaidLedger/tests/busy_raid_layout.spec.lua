@@ -78,3 +78,36 @@ test("a busy evening: many items, open awards, a long roll and award list", func
     forge.sketch("busy-raid", RaidLedgerFrame)
     expect(forge.errors()).toEqual({})
 end)
+
+test("FR-RL-033 the add-item dialog fits over a busy BEUTE tab in German", function()
+    forge.click("RaidLedgerTabButtonLoot")
+    forge.click("RaidLedgerAddItemOpen")
+    forge.type("RaidLedgerAddItemLink", linkOf(50416))
+    forge.type("RaidLedgerAddItemHolder", "Waldläuferin")
+    forge.click("RaidLedgerAddItemAdd")
+    expect(forge.findText("offen", true)).toBeTruthy()
+    -- The dialog is a DIALOG-strata overlay on the selected-item pane: its own
+    -- content must fit, and it must stay inside the ledger window.
+    expect(forge.layoutIssues(RaidLedgerAddItem)).toEqual({})
+    expect(RaidLedgerAddItem:GetRight() <= RaidLedgerFrame:GetRight()).toBe(true)
+    expect(RaidLedgerAddItem:GetBottom() >= RaidLedgerFrame:GetBottom()).toBe(true)
+    forge.sketch("busy-add-item", RaidLedgerFrame)
+    forge.click("RaidLedgerAddItemClose")
+    expect(forge.layoutIssues(RaidLedgerFrame)).toEqual({})
+    expect(forge.errors()).toEqual({})
+end)
+
+
+test("FR-RL-032 the HANDEL tab fits a full raid's trades with long German names", function()
+    local session = forge.saved("RaidLedgerDB").session
+    for i = 2, 25 do
+        local receiver = NAMES[(i % 24) + 2]
+        forge.fire("CHAT_MSG_ADDON", "FLLedger", string.format("X;%s;%s;%d;%d", session, receiver, 50416, 1760000000 + i),
+            "RAID", NAMES[i])
+    end
+    forge.click("RaidLedgerTabButtonTrades")
+    expect(forge.text(RaidLedgerTradePane.heading)).toBe("HANDEL IN DIESEM RAID (24, SCROLLEN)")
+    expect(forge.layoutIssues(RaidLedgerFrame)).toEqual({})
+    forge.sketch("busy-trades", RaidLedgerFrame)
+    expect(forge.errors()).toEqual({})
+end)

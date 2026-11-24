@@ -156,8 +156,16 @@ realm images once they are pinned (NFR-1.12). Preamble: none.
   characters). Key presses for hardware events MUST use a fixed chord that is
   unbound, and MUST restore the previous binding; an unexpected existing
   binding MUST stop the step without a press.
+  Amendment (ACTIVE, decided 2026-11-24, FR-7.8; live: session `c7407a8ae589`): one
+  Enter key press at character select to enter the world, only on the
+  PID-verified test-client window, only while the SDK reports the character
+  select screen and the account lists exactly one character, the plan's. At
+  character select no edit box holds focus, so Enter can only start the world
+  entry; it is never sent in the world or at the login screen (where it would
+  submit a password field).
 - **Enforcement:** `windows_client.validate_chat_command`; `plan_steps`
-  hardware click; `wowcontrol.reset_idle_timer`; `loot_scenario` interact key.
+  hardware click; `wowcontrol.reset_idle_timer`; `loot_scenario` interact key;
+  `wowcontrol.enter_world_with_key` (Enter at character select).
 - **Evidence:** FR-6.8, FR-7.3; TB-3.
 - **Verification:** `test_windows_client.py::test_rejects_unsafe_commands`,
   `::test_rejected_command_never_focuses_or_types`,

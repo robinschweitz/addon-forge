@@ -174,8 +174,27 @@ def wait_for_player_identity(call, character: str, *, timeout: float = 35,
         sleep(interval)
 
 
+def enter_world_with_key(call, character: str, press_enter) -> None:
+    """Enter the world with one real Enter press at character select (FR-7.8).
+
+    The SDK's Lua EnterWorld() got two login answers from the realm and fell
+    back to character select (2026-11-24); a real click did not. Enter is
+    pressed only while the SDK reports character select and the account holds
+    exactly the plan's character, so it can only start that world entry
+    (SC-007): no edit box has focus there, unlike the login screen.
+    """
+    characters = call("client.getCharacters").get("characters", [])
+    names = [c.get("name") for c in characters if isinstance(c, dict)]
+    if names != [character]:
+        raise RuntimeError("Enter needs exactly one character on the test account, the plan's; "
+                           f"found {len(names)}")
+    if call("client.getScreen").get("screen") != "charselect":
+        raise RuntimeError("Enter is pressed only at character select")
+    press_enter()
+
+
 def launch_and_enter(cfg: Config, character: str, *, rpc=request, press_idle=None,
-                     role: str = "main") -> int:
+                     role: str = "main", press_enter=None) -> int:
     """Start an injected test client and enter the world with `character`.
 
     role "main" requires that no test client runs yet. role "member" starts a
@@ -251,13 +270,17 @@ def launch_and_enter(cfg: Config, character: str, *, rpc=request, press_idle=Non
     characters = call("client.getCharacters").get("characters", [])
     if not any(isinstance(c, dict) and c.get("name") == character for c in characters):
         raise RuntimeError("Requested character is absent from realm")
-    if call("client.enterWorld", {"name":character, "wait":True}).get("ok") is not True:
-        raise RuntimeError("SDK world entry failed")
+    enter_world_with_key(call, character, press_enter or _enter_press(cfg, role))
     # Identity first: no lua.evaluate is sent until unit.get confirms the
     # character, because Lua during world entry crashed the pinned SDK build.
     wait_for_player_identity(call, character)
     reset_idle_timer(call, press_idle or _idle_press(cfg, role))
     return pid
+
+
+def _enter_press(cfg: Config, role: str = "main"):
+    from .windows_client import WindowsClientController
+    return WindowsClientController(cfg, role=role).press_enter_key
 
 
 def _idle_press(cfg: Config, role: str = "main"):

@@ -220,6 +220,16 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   *IMPLEMENTED: `headless/wow.lua`; `tests/emulation/ClientFidelity/tests/items.spec.lua`
   (live: RaidWishlist's hidden tooltip fetched never-seen item 20514,
   run `1e0dd41331cf`)*
+- **FR-4.15** The emulation MUST let an addon with the Ace3 libraries load in
+  the load-only smoke run, where no spec can stub anything: `IsLoggedIn` is true
+  from `PLAYER_LOGIN` on, the `realmList` CVar is set, `GetSpellInfo` and
+  `GetSpellLink` answer (`forge.spell(id, name)` names a spell, others read
+  `Spell <id>`), and `ChatEdit_InsertLink` and `JumpOrAscendStart` exist.
+  `geterrorhandler()` MUST give a handler that reports the error (FR-4.6), so
+  errors the libraries catch with `xpcall` are not hidden.
+  *IMPLEMENTED: `headless/wow.lua`; `tests/emulation/ClientFidelity/tests/ace.spec.lua`
+  (run by `test_offline.py::test_emulation_matches_the_audited_client_behaviour`);
+  found porting Comix-WotLK, 2026-10-30*
 - **FR-4.12** `forge spec` MUST run every spec file once in a deDE and once in
   an enUS world, and a spec passes only when it passes in both. Specs MUST NOT
   assert exact locale-specific words; they compare against the addon's own
@@ -377,6 +387,27 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   *NOT IMPLEMENTED: decided 2026-10-20*
 - **FR-7.2** For a two-player plan the session MUST start a second client with
   the `member` credentials, write the member's addon selection when
+- **FR-7.8** The session MUST enter the world with one real Enter key press
+  on the verified test-client window at character select, instead of the
+  SDK's Lua `EnterWorld()`, and only when the SDK reports the character
+  select screen and the account lists exactly one character, the plan's (or
+  the member's). It then MUST verify the world identity as before (FR-7.4);
+  a client still at character select after 35 s MUST end the session as
+  `infrastructure_error`. No other key is pressed at character select.
+  *IMPLEMENTED (live: session `c7407a8ae589`, 2026-11-24 16:12, one login
+  answer in `connection.log` and the character verified in the world;
+  decided 2026-11-24):
+  `wowcontrol.enter_world_with_key`, `WindowsClientController.press_enter_key`;
+  `test_agent_prepare.py::test_enter_key_is_pressed_only_at_character_select_with_the_plan_character_alone`,
+  `::test_enter_key_is_a_single_return_press_on_the_verified_window`,
+  `::test_sdk_login_pins_rpc_to_test_pid_and_never_uses_secret_in_argv`. Found
+  2026-11-24: since about 15:46 every SDK world entry (four sessions from
+  15:49 to 16:03, and three bare SDK logins)
+  got two login answers from the realm (`Logs/connection.log`: two
+  `COP_LOGIN_CHARACTER code=77`) and fell back to character select; a
+  manual click on "Enter World" in the same injected client got one answer
+  and stayed in the world. Neither a clean realm restart, nor selecting like
+  the button, nor silence during loading changed it.*
   `member_addons` is set, and fail as `infrastructure_error` when the member
   does not enter the world.
   *IMPLEMENTED (live, run `a70a09025c67`):
@@ -453,6 +484,21 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   Templar also dropped Essence of Fire (7078) and RaidLedger rolled that.*
 - **FR-10.2** `master_loot` MUST revive the graphical and member characters
   before and after the kill, and confirm that the corpse is gone from the
+- **FR-10.17** `master_loot` (and the fixtures built on it) MUST start from a
+  clean plan character: it dissolves any group the character is still in and
+  brings the character to the fixture bot in the open world (`.summon`),
+  instead of sending the bot to wherever the character stands. An earlier
+  fixture, such as `lord_marrowgar`, MUST NOT leave it stuck in a raid or an
+  instance. Because a summon across maps shows a loading screen that drops a
+  party invite, the bot repeats the invite every 8 s for up to 45 s, and the
+  client waits that long for the invite popup.
+  *IMPLEMENTED (live: session `dcd15b9bda26`, 2026-11-24, brought the
+  character from Icecrown Citadel to Northshire and formed the party; no unit
+  test): `agent_scenarios/loot_roll_test.go`, `loot_scenario.py`. Session `9043864c3f2b` showed the lost invite (loading
+  screen in `loot-invite.png`).
+  Found 2026-11-24: session `21c0ab606090` failed as `infrastructure_error`
+  because the character was still in Icecrown Citadel (map 631) from the
+  Marrowgar sessions and never got the party invite.*
   world.
   *IMPLEMENTED (live): `docs/agent-playbook.md` (Test-environment facts);
   no dedicated test*
@@ -463,7 +509,18 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **FR-10.4** `peer_roll` MUST make the fixture bot roll in the given range,
   and `peer_trade` MUST trade the item from the graphical character to the
   bot, with the bot listening before the trade starts.
-  *IMPLEMENTED (live, runs `b2b299f6e36e`, `b1b2079d8755`):
+  Before it starts the trade, the client MUST close a loot window that is
+  still open and refuse with `too_far` when the bot is out of trade range;
+  when the bot sees no trade, the step MUST report what the client shows
+  (trade window, loot window, distance).
+  *IMPLEMENTED (live, runs `b2b299f6e36e`, `b1b2079d8755`, and session
+  `5d344d8b877e` on 2026-11-24). The failures of 2026-11-24 came from the
+  test character, which was in GM mode (`extra_flags` 0x1; the realm keeps it
+  across logins, `GM.LoginState = 2`): its neutral GM faction made the client
+  refuse the trade ("Ziel ist feindlich gesonnen."). The step now also closes
+  a loot window, refuses when out of range, and reports the client's view
+  (trade window, loot window, distance, the bot's faction group, attackable,
+  the client's error text) and the bot's last trade status:
   `test_agent_workflow.py::test_peer_trade_runs_the_trade_handshake_in_order`,
   `test_loot_scenario.py::test_fixture_peer_waits_until_the_bot_listens`*
 - **FR-10.14** `peer_say` MUST make the fixture bot say the step's text in
@@ -488,6 +545,8 @@ handling, sandbox limits, loopback-only binding, input validation) are in
 - **FR-10.7** `local-realm create-member` MUST create the second test account
   and character and save the credentials in the `member` vault slot without
   showing the password.
+  `::test_peer_trade_checks_distance_and_closes_the_loot_window_first`,
+  `::test_peer_trade_reports_the_client_side_when_the_bot_sees_no_trade`,
   *IMPLEMENTED (live): `test_win_login.py::test_member_account_fixture_gets_the_password_only_by_environment`,
   `::test_failed_member_fixture_saves_nothing_and_redacts`*
 - **FR-10.8** The first combat fixture MUST be a general boss fight

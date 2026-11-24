@@ -314,7 +314,7 @@ def test_peer_trade_runs_the_trade_handshake_in_order():
     assert [e["result"] for e in log] == ["ok", "ok"]
     assert peer.sent == ["roll 1-100", "open_trade", "armed?", "accept_trade"]
     assert "== '20513'" in codes[0]
-    assert 'UnitName(\'party\' .. i) == "Flobot"' in codes[1]
+    assert 'UnitName(u) == "Flobot"' in codes[1]
     assert "PickupContainerItem(0, 3) ClickTradeButton(1)" in codes[3]
     assert codes[4] == "AcceptTrade() return 'ok'"
 
@@ -350,6 +350,33 @@ def test_raid_lead_fixture_extends_master_loot():
     assert ok["fixtures"] == ["master_loot", "raid_lead"]
     with pytest.raises(ValueError, match="raid_lead"):
         validate_plan({**BASE, "fixtures": ["raid_lead"], "checks": [{"type": "player_in_world", "value": True}]})
+
+
+def test_peer_trade_checks_distance_and_closes_the_loot_window_first():
+    # Session dcd15b9bda26: the bot never saw BEGIN_TRADE while the client's
+    # loot window was still open. The client closes it and checks the trade
+    # distance before InitiateTrade, and says so when it cannot trade.
+    from addon_forge.plan_steps import StepFailed, run_steps
+    step = [{"type": "peer_trade", "value": 20513}]
+    rpc, codes = lua_client([("GetContainerNumSlots", "0:3")])
+    run_steps(step, 9, rpc=rpc, sleep=lambda s: None, peer=FakePeer())
+    initiate = next(c for c in codes if "InitiateTrade" in c)
+    assert "CheckInteractDistance(u, 2)" in initiate
+    # The client's own error text is captured before the request (session f1527376db53).
+    assert initiate.index("UI_ERROR_MESSAGE") < initiate.index("InitiateTrade(u)")
+    assert initiate.index("CloseLoot()") < initiate.index("InitiateTrade(u)")
+    rpc, _ = lua_client([("GetContainerNumSlots", "0:3"), ("InitiateTrade", "too_far")])
+    with pytest.raises(StepFailed, match="initiate:too_far"):
+        run_steps(step, 9, rpc=rpc, sleep=lambda s: None, peer=FakePeer())
+
+
+def test_peer_trade_reports_the_client_side_when_the_bot_sees_no_trade():
+    from addon_forge.plan_steps import StepFailed, run_steps
+    rpc, codes = lua_client([("GetContainerNumSlots", "0:3"), ("no_trade", "no_trade,loot,far,Zu weit entfernt")])
+    with pytest.raises(StepFailed, match="bot_open:no_begin_trade:no_trade,loot,far,Zu weit entfernt"):
+        run_steps([{"type": "peer_trade", "value": 20513}], 9, rpc=rpc, sleep=lambda s: None,
+                  peer=FakePeer({"open_trade": "no_begin_trade"}))
+    assert "ForgeStepTradeErrors.last" in next(c for c in codes if "no_trade" in c)
 
 
 def test_boe_loot_fixture_extends_master_loot():

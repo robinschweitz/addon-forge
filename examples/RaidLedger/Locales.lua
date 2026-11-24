@@ -46,14 +46,14 @@ L["[Loot] %s - %s's roll counts as %s (%d)."] = "[Loot] %s - der Wurf von %s zä
 L["%s has no counted roll on the selected item."] = "%s hat keinen gezählten Wurf auf den gewählten Gegenstand."
 L["a free BoE roll only takes /rnd 100; pass or none only."] = "ein freier BoE-Wurf nimmt nur /rnd 100: nur pass oder none."
 L["usage: /ledger pass <name>"] = "Aufruf: /ledger pass <Name>"
-L["usage: /ledger count <name> ms|os|none|enh <0-50>"] = "Aufruf: /ledger count <Name> ms|os|none|enh <0-50>"
+L["usage: /ledger count <name> ms|os|none|allow|enh <0-50>"] = "Aufruf: /ledger count <Name> ms|os|none|allow|enh <0-50>"
 L["Points for %s's enhanced roll (1+X to 100+X, X 0-50; 0 = plain main spec):"] =
     "Punkte für den Enhanced-Wurf von %s (1+X bis 100+X, X 0-50; 0 = normaler Main-Spec):"
 L["  - corrected, rolled %s"] = "  - korrigiert, gewürfelt: %s"
 L["/ledger pass <name> - the player passes: the next-best roll wins"] =
     "/ledger pass <Name> - der Spieler passt: der nächstbeste Wurf gewinnt"
-L["/ledger count <name> ms|os|none|enh <0-50> - change how a roll on the selected item counts"] =
-    "/ledger count <Name> ms|os|none|enh <0-50> - ändern, wie ein Wurf auf den gewählten Gegenstand zählt"
+L["/ledger count <name> ms|os|none|allow|enh <0-50> - change how a roll on the selected item counts (allow: a late roll)"] =
+    "/ledger count <Name> ms|os|none|allow|enh <0-50> - ändern, wie ein Wurf auf den gewählten Gegenstand zählt (allow: ein später Wurf)"
 L["GROUP %d"] = "GRUPPE %d"
 L["RECENT AWARDS"] = "LETZTE VERGABEN"
 L["CLEAR"] = "LEEREN"
@@ -117,6 +117,7 @@ L["%d MS / %d OS items"] = "%d MS / %d OS Items"
 L["%d MS / %d OS tokens"] = "%d MS / %d OS Tokens"
 L["[Loot] %s - tie between %s (%d)! %s: /rnd again, %d seconds."] = "[Loot] %s - Gleichstand zwischen %s (%d)! %s: nochmal /rnd, %d Sekunden."
 L["[Loot] %s won by %s (%d) - %s%s, %s so far."] = "[Loot] %s gewonnen von %s (%d) - %s%s, bisher %s."
+L[" %s (%d) has more items this raid."] = " %s (%d) hat in diesem Raid mehr Items."
 L["[Loot] %s - %d seconds left."] = "[Loot] %s - noch %d Sekunden."
 L["[Loot] %s is parked with %s until it is rolled."] = "[Loot] %s wird bis zum Auswürfeln von %s verwahrt."
 L["[Loot] %s goes to %s%s%s."] = "[Loot] %s geht an %s%s%s."
@@ -582,6 +583,7 @@ L["ROLL IT"] = "AUSWÜRFELN"
 L["DISENCHANTER: %s"] = "ENTZAUBERER: %s"
 L["%s won (%d)."] = "%s hat gewonnen (%d)."
 L["Nobody wanted it."] = "Wollte niemand."
+L["Already rolled: nobody wanted it."] = "Schon gewürfelt: wollte niemand."
 L["Open item, not rolled yet."] = "Offenes Item, noch nicht gewürfelt."
 L["Not rolled yet."] = "Noch nicht gewürfelt."
 L["Open: %s holds it."] = "Offen: %s hat es."
@@ -602,3 +604,35 @@ L["Who keeps it until the roll?"] = "Wer behält es bis zum Würfeln?"
 L["Who disenchants this raid?"] = "Wer entzaubert in diesem Raid?"
 L["Roll it later: pick who keeps it until then. A unique item you already have goes straight from the corpse to them."] =
     "Später würfeln: wählen, wer es bis dahin behält. Ein Unique-Item, das du schon hast, geht direkt aus der Leiche an diese Person."
+
+-- Raid feedback 2026-11-17: add raid loot by hand (FR-RL-033)
+L["ADD ITEM"] = "ITEM HINZUFÜGEN"
+L["ADD"] = "HINZUFÜGEN"
+L["Shift-click the item, then type who has it:"] = "Item mit Shift-Klick einfügen, dann eintragen, wer es hat:"
+L["Shift-click an item into the item box first."] = "Erst ein Item mit Shift-Klick ins Itemfeld einfügen."
+L["%s is not in the raid."] = "%s ist nicht im Raid."
+L["Add an item by hand that RaidLedger did not see on a corpse (for example tokens)"] =
+    "Ein Item von Hand hinzufügen, das RaidLedger an keiner Leiche gesehen hat (zum Beispiel Tokens)"
+L["Shift-click the item here (from your bags or a chat link)"] = "Das Item hier mit Shift-Klick einfügen (aus der Tasche oder einem Chat-Link)"
+L["Who has the item (empty: you)"] = "Wer das Item hat (leer: du)"
+L["Add one open copy held by that player; press again for more copies"] =
+    "Eine offene Kopie bei diesem Spieler hinzufügen; nochmal drücken für weitere Kopien"
+
+-- Raid feedback 2026-11-17: late rolls can be allowed (FR-RL-034)
+L["too late"] = "zu spät"
+L["ALLOW"] = "ZULASSEN"
+L["The roll came too late: count it anyway"] = "Der Wurf kam zu spät: trotzdem zählen"
+L["[Loot] %s - %s's late roll counts (%d)."] = "[Loot] %s - der späte Wurf von %s zählt (%d)."
+L["%s has no late roll on the selected item."] = "%s hat keinen späten Wurf auf den ausgewählten Gegenstand."
+L["%s has no late roll on award #%d."] = "%s hat keinen späten Wurf auf Vergabe #%d."
+L["%s rolled too late (%d): right-click the roll to allow it."] = "%s hat zu spät gewürfelt (%d): Rechtsklick auf den Wurf lässt ihn zu."
+
+-- Raid feedback 2026-11-17: a shared trade log (FR-RL-032)
+L["TRADES (%d)"] = "HANDEL (%d)"
+L["TRADES OF THIS RAID (%d)"] = "HANDEL IN DIESEM RAID (%d)"
+L["TRADES OF THIS RAID (%d, SCROLL)"] = "HANDEL IN DIESEM RAID (%d, SCROLLEN)"
+L["No trades of raid loot yet. Every RaidLedger in the raid shares the trades it makes."] =
+    "Noch kein Handel mit Raid-Beute. Jeder RaidLedger im Raid teilt den Handel, den er macht."
+L["%s gave it to %s at %s."] = "%s hat es an %s gegeben (%s)."
+L["Who traded which raid loot to whom: yours and your raid mates' trades (it changes no award)"] =
+    "Wer welche Raid-Beute an wen gehandelt hat: dein Handel und der deiner Mitspieler (ändert keine Vergabe)"

@@ -326,8 +326,9 @@ def master_loot_fixture(cfg, *, character: str, output: Path, member: str | None
             try:
                 try:
                     invited = _wait_for_status(ready, "invite_sent", proc, timeout=55)
+                    # The bot repeats the invite while a cross-map summon loads (FR-10.17).
                     invite_image = _accept_invite(pid, screenshot=lambda: WindowsClientController(cfg).screenshot(
-                        output / "loot-invite.png"))
+                        output / "loot-invite.png"), timeout=45)
                     if member_pid:
                         _wait_for_status(ready, "member_invite_sent", proc, timeout=55)
                         _accept_invite(member_pid, screenshot=lambda: WindowsClientController(cfg, role="member")

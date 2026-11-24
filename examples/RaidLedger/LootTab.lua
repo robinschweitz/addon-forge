@@ -23,6 +23,10 @@ local itemPane = ns.pane(panel, 0, 0, LEFT_WIDTH, nil, "RaidLedgerRollPane")
 local clearLoot = ns.flatButton(itemPane, L["EMPTY"], 64)
 clearLoot:SetHeight(18)
 clearLoot:SetPoint("TOPRIGHT", itemPane, "TOPRIGHT", -8, -6)
+-- "+" opens the dialog that adds raid loot by hand (FR-RL-033).
+local addOpen = ns.flatButton(itemPane, "+", 22, "RaidLedgerAddItemOpen")
+addOpen:SetHeight(18)
+addOpen:SetPoint("RIGHT", clearLoot, "LEFT", -4, 0)
 local emptyText = ns.label(itemPane, "GameFontNormalSmall", 11, {0.42, 0.61, 0.70})
 emptyText:SetPoint("CENTER", itemPane, "CENTER", 0, 10)
 emptyText:SetWidth(LEFT_WIDTH - 30)
@@ -229,8 +233,8 @@ menu.title:SetWordWrap(false)
 menu.options = {}
 local MENU_TIPS = { pass = L["The player passes: the next-best roll wins"], ms = L["Count it as main spec (1-100)"],
     enh = L["Count it as enhanced main spec: asks for the points"], os = L["Count it as off spec (1-99)"],
-    none = L["The roll does not count"] }
-for _, option in ipairs({ { "Pass", L["PASS"], "pass" }, { "MS", L["MAIN SPEC"], "ms" },
+    none = L["The roll does not count"], allow = L["The roll came too late: count it anyway"] }
+for _, option in ipairs({ { "Allow", L["ALLOW"], "allow" }, { "Pass", L["PASS"], "pass" }, { "MS", L["MAIN SPEC"], "ms" },
         { "Enhanced", L["ENHANCED..."], "enh" }, { "OS", L["OFF SPEC"], "os" },
         { "None", L["DOES NOT COUNT"], "none" } }) do
     local button = ns.flatButton(menu, option[2], 112, "RaidLedgerRollMenu" .. option[1])
@@ -255,9 +259,11 @@ function ns.openRollMenu(row, roll, record)
     menu.name, menu.record = roll.name, record
     menu.title:SetText(string.format("%s (%d)", roll.name, roll.value))
     local free = roll.kind == "boe"
+    local late = roll.note == "too late"
     local y = -26
     for _, option in ipairs(menu.options) do
-        if free and option.how ~= "pass" and option.how ~= "none" then
+        if (late and option.how ~= "allow") or (not late and option.how == "allow")
+            or (free and option.how ~= "pass" and option.how ~= "none") then
             option:Hide()
         else
             option:ClearAllPoints()
@@ -329,6 +335,10 @@ local function lootLines()
                 table.insert(lines, { record = record })
             end
         end
+        -- One open copy is a plain open item, not a "bundle" (FR-RL-031).
+        for _, line in ipairs(lines) do
+            if line.records and table.getn(line.records) == 1 then line.record, line.records = line.records[1], nil end
+        end
     end
     return lines, table.getn(open)
 end
@@ -339,6 +349,12 @@ local function entryStatus(entry)
     if entry.endsAt then return string.format(L["%ds LEFT"], math.max(0, math.ceil(entry.endsAt - GetTime()))), {1.00, 0.79, 0.31} end
     if entry.nobody then return L["NOBODY"], NOBODY_COLOR end
     return string.format(L["%d ROLLS"], core.activeRollCount(entry)), {0.58, 0.72, 0.80}
+end
+
+-- allNobody: every copy of an open bundle was rolled and nobody won it.
+local function allNobody(records)
+    for _, record in ipairs(records or {}) do if not record.nobody then return false end end
+    return records and records[1] and true or false
 end
 
 local function drawItems()
@@ -367,7 +383,9 @@ local function drawItems()
             row.text:SetTextColor(0.82, 0.91, 0.96)
             local text, color
             if line.entry then text, color = entryStatus(line.entry)
+            elseif line.record and line.record.nobody then text, color = L["NOBODY"], NOBODY_COLOR
             elseif line.record then text, color = string.format(L["with %s"], line.record.recipient or "?"), OPEN_COLOR
+            elseif allNobody(line.records) then text, color = L["NOBODY"], NOBODY_COLOR
             else text, color = "", OPEN_COLOR end
             row.columns[1]:SetText(text)
             row.columns[1]:SetTextColor(color[1], color[2], color[3])
@@ -404,7 +422,7 @@ local function drawRolls(entry)
     local itemID = entry and core.itemIDFromLink(entry.item)
     for i, row in ipairs(rollRows) do
         local r = log[i + rollOffset]
-        row.roll = r and r.kind and not r.note and r or nil
+        row.roll = r and r.kind and (not r.note or r.note == "too late") and r or nil
         row.playerName = r and r.name
         if r then
             local isWinner = won(r)
@@ -531,19 +549,23 @@ local function drawDetail()
     elseif openBundle then
         local count = table.getn(openBundle)
         itemTitle:SetText((count > 1 and (count .. "x ") or "") .. openBundle[1].item)
-        stateLine:SetText(L["Open item, not rolled yet."])
-        startButton:SetText(L["ROLL"])
+        local nobody = allNobody(openBundle)
+        stateLine:SetText(nobody and L["Already rolled: nobody wanted it."] or L["Open item, not rolled yet."])
+        startButton:SetText(nobody and L["ROLL AGAIN"] or L["ROLL"])
         ns.setEnabled(startButton, mayEdit)
-        ns.setPrimary(startButton, mayEdit)
-        drawHandOut(false)
+        ns.setPrimary(startButton, mayEdit and not nobody)
+        -- Each hand-out gives one copy without a roll (FR-RL-031).
+        drawHandOut(mayEdit, nobody and "de" or nil)
         drawRolls(nil)
     elseif openRecord then
         itemTitle:SetText(openRecord.item)
-        stateLine:SetText(string.format(L["Open: %s holds it."], openRecord.recipient or "?"))
-        startButton:SetText(L["ROLL"])
+        local nobody = openRecord.nobody
+        stateLine:SetText(nobody and L["Already rolled: nobody wanted it."]
+            or string.format(L["Open: %s holds it."], openRecord.recipient or "?"))
+        startButton:SetText(nobody and L["ROLL AGAIN"] or L["ROLL"])
         ns.setEnabled(startButton, mayEdit)
-        ns.setPrimary(startButton, mayEdit)
-        drawHandOut(mayEdit)
+        ns.setPrimary(startButton, mayEdit and not nobody)
+        drawHandOut(mayEdit, nobody and "de" or nil)
         drawRolls(nil)
     else
         itemTitle:SetText(L["Select an item on the left"])
@@ -689,6 +711,17 @@ local function handOut(state)
         if done then openRecord = nil end
         return done
     end
+    if openBundle then
+        -- One copy per hand-out; the rest of the bundle stays selected.
+        local done = roster.handOutRecord(openBundle[1], state, recipientBox:GetText())
+        if done then
+            table.remove(openBundle, 1)
+            if table.getn(openBundle) == 1 then openRecord, openBundle = openBundle[1], nil
+            elseif table.getn(openBundle) == 0 then openBundle = nil end
+            ui.refresh()
+        end
+        return done
+    end
     if state == "given" then return roster.giveSelected(recipientBox:GetText()) end
     if state == "parked" then return roster.parkSelected(recipientBox:GetText()) end
     return roster.giveAwaySelected(state, recipientBox:GetText())
@@ -749,6 +782,75 @@ end)
 ns.tip(bankButton, L["Guild bank: give it to the name in the box (or keep it); counts for nobody"])
 ns.tip(deRollButton, L["Roll the raid's disenchanter: everyone may /rnd 100, the winner gets every DE item"])
 ns.tip(clearLoot, L["Empty the loot list (the awards stay)"])
+
+---------------------------------------------------------------------------
+-- Add raid loot by hand (FR-RL-033)
+---------------------------------------------------------------------------
+-- Items that reached a raider without a master-loot window (tokens, mostly):
+-- shift-click the item into the first box, type who has it, press ADD. Each
+-- press adds one open copy, so the dialog stays open for the next one.
+local addItem = CreateFrame("Frame", "RaidLedgerAddItem", ns.Ledger)
+addItem:SetWidth(320)
+addItem:SetHeight(112)
+addItem:SetPoint("TOPLEFT", itemPane, "TOPRIGHT", 4, 0)
+addItem:SetFrameStrata("DIALOG")
+addItem:SetToplevel(true)
+addItem:EnableMouse(true)
+ns.makeBackdrop(addItem, 0.018, 0.031, 0.055, 0.98)
+addItem:Hide()
+local addTitle = ns.label(addItem, "GameFontNormal", 12, {1.00, 0.80, 0.32})
+addTitle:SetPoint("TOPLEFT", addItem, "TOPLEFT", 12, -10)
+addTitle:SetText(L["ADD ITEM"])
+local addClose = ns.flatButton(addItem, "X", 22, "RaidLedgerAddItemClose")
+addClose:SetHeight(18)
+addClose:SetPoint("TOPRIGHT", addItem, "TOPRIGHT", -10, -8)
+local addHint = ns.label(addItem, "GameFontNormalSmall", 9, {0.45, 0.60, 0.68})
+addHint:SetPoint("TOPLEFT", addItem, "TOPLEFT", 12, -30)
+addHint:SetPoint("RIGHT", addItem, "RIGHT", -12, 0)
+addHint:SetJustifyH("LEFT")
+addHint:SetWordWrap(false)
+addHint:SetText(L["Shift-click the item, then type who has it:"])
+-- The edit box template draws its border 6 px left of the frame.
+local addLink = CreateFrame("EditBox", "RaidLedgerAddItemLink", addItem, "InputBoxTemplate")
+addLink:SetPoint("TOPLEFT", addItem, "TOPLEFT", 18, -46)
+addLink:SetPoint("RIGHT", addItem, "RIGHT", -12, 0)
+addLink:SetHeight(22)
+addLink:SetAutoFocus(false)
+addLink:SetMaxLetters(200)
+local addHolder = CreateFrame("EditBox", "RaidLedgerAddItemHolder", addItem, "InputBoxTemplate")
+addHolder:SetPoint("TOPLEFT", addItem, "TOPLEFT", 18, -76)
+addHolder:SetWidth(160)
+addHolder:SetHeight(22)
+addHolder:SetAutoFocus(false)
+addHolder:SetMaxLetters(24)
+local addButton = ns.flatButton(addItem, L["ADD"], 120, "RaidLedgerAddItemAdd")
+addButton:SetHeight(22)
+addButton:SetPoint("TOPRIGHT", addItem, "TOPRIGHT", -12, -76)
+
+for _, box in ipairs({ addLink, addHolder }) do
+    box:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+end
+-- A shift-click on an item (bags, chat, loot) calls ChatEdit_InsertLink.
+hooksecurefunc("ChatEdit_InsertLink", function(link)
+    if addItem:IsVisible() and addLink:HasFocus() and type(link) == "string" then addLink:SetText(link) end
+end)
+addOpen:SetScript("OnClick", function()
+    if addItem:IsShown() then addItem:Hide() return end
+    addItem:Show()
+    addLink:SetFocus()
+end)
+addClose:SetScript("OnClick", function() addItem:Hide() end)
+addItem:SetScript("OnHide", function() addLink:ClearFocus() addHolder:ClearFocus() end)
+addButton:SetScript("OnClick", function()
+    addLink:ClearFocus()
+    addHolder:ClearFocus()
+    roster.addOpenItem(addLink:GetText(), addHolder:GetText())
+end)
+ns.tip(addOpen, L["Add an item by hand that RaidLedger did not see on a corpse (for example tokens)"])
+ns.tip(addLink, L["Shift-click the item here (from your bags or a chat link)"])
+ns.tip(addHolder, L["Who has the item (empty: you)"])
+ns.tip(addButton, L["Add one open copy held by that player; press again for more copies"])
 
 ---------------------------------------------------------------------------
 -- Compact master-loot assignment popup (FR-RL-014)
@@ -976,6 +1078,8 @@ events:SetScript("OnEvent", function()
         ForgeTestBridge:RegisterFrame("RaidLedgerRollDetail", stateLine)
         ForgeTestBridge:RegisterFrame("RaidLedgerRollHeading", itemPane.heading)
         ForgeTestBridge:RegisterFrame("RaidLedgerAward", giveButton)
+        ForgeTestBridge:RegisterFrame("RaidLedgerAddItemOpen", addOpen)
+        ForgeTestBridge:RegisterFrame("RaidLedgerAddItem", addItem)
         ForgeTestBridge:RegisterFrame("RaidLedgerRecipient", recipientBox)
         ForgeTestBridge:RegisterFrame("RaidLedgerStart", startButton)
         ForgeTestBridge:RegisterFrame("RaidLedgerFreeRoll", freeButton)

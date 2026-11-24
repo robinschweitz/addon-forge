@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "addon": "RaidLedger",
+  "character": "Test",
+  "peers": 0,
+  "fixtures": [
+    "master_loot"
+  ],
+  "steps": [
+    { "type": "slash", "value": "/ledger newraid confirm" },
+    { "type": "slash", "value": "/ledger timer 10" },
+    { "type": "slash", "value": "/ledger start" },
+    { "type": "wait", "value": 1 },
+    { "type": "peer_roll", "value": [1, 100] },
+    { "type": "wait", "value": 12 },
+    { "type": "roll", "value": [21, 120] },
+    { "type": "wait", "value": 2 },
+    { "type": "screenshot", "value": "late_roll" },
+    { "type": "slash", "value": "/ledger count Test allow" },
+    { "type": "slash", "value": "/ledger count Test enh 5" },
+    { "type": "paste", "value": ["RaidLedgerRecipient", "Test"] },
+    { "type": "click", "value": "RaidLedgerAward" },
+    { "type": "wait", "value": 3 },
+    { "type": "peer_trade", "value": 20513 },
+    { "type": "wait", "value": 3 },
+    { "type": "click", "value": "RaidLedgerAddItemOpen" },
+    { "type": "click", "value": "RaidLedgerTabtrades" },
+    { "type": "screenshot", "value": "trades_and_add_item" },
+    { "type": "slash", "value": "/ledger timer reset" }
+  ],
+  "checks": [
+    { "type": "event_fired", "value": "LOOT_OPENED" },
+    { "type": "chat_contains", "value": " - der späte Wurf von Test zählt (" },
+    { "type": "chat_contains", "value": " - der Wurf von Test zählt als Main-Spec 6-105 (" },
+    { "type": "global_equals", "path": "RaidLedgerDB.history.1.itemID", "value": 20513 },
+    { "type": "global_equals", "path": "RaidLedgerDB.trades.1.giver", "value": "Test" },
+    { "type": "global_equals", "path": "RaidLedgerDB.trades.1.itemID", "value": 20513 },
+    { "type": "frame_text_contains", "frame": "RaidLedgerTradeRow1", "value": "Test -> Flo" },
+    { "type": "frame_visible", "value": "RaidLedgerAddItem" },
+    { "type": "no_lua_errors", "value": true }
+  ]
+}

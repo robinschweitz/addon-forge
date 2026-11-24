@@ -126,8 +126,8 @@ def test_sdk_login_pins_rpc_to_test_pid_and_never_uses_secret_in_argv(tmp_path, 
             return {"status": "ok"}
         if method == "client.getScreen":
             return {"screen": "login" if len([x for x in observed if x[0] == method]) <= 2 else
-                    "charselect" if len([x for x in observed if x[0] == method]) <= 4 else "world",
-                    "inWorld": len([x for x in observed if x[0] == method]) > 4}
+                    "charselect" if len([x for x in observed if x[0] == method]) <= 5 else "world",
+                    "inWorld": len([x for x in observed if x[0] == method]) > 5}
         if method == "client.login":
             return {"ok": True}
         if method == "client.getCharacters":
@@ -139,9 +139,15 @@ def test_sdk_login_pins_rpc_to_test_pid_and_never_uses_secret_in_argv(tmp_path, 
         if method == "unit.get":
             return {"exists": True, "name": "Test"}
         raise AssertionError("Unexpected method")
-    pressed = []
-    assert wowcontrol.launch_and_enter(cfg, "Test", rpc=rpc, press_idle=lambda: pressed.append(1)) == 1422
+    pressed, entered = [], []
+    def press_enter():
+        # FR-7.8: one real Enter press, only after the SDK reported character select.
+        entered.append([m for m, _, _ in observed if m == "client.getScreen"][-1:])
+    assert wowcontrol.launch_and_enter(cfg, "Test", rpc=rpc, press_idle=lambda: pressed.append(1),
+                                       press_enter=press_enter) == 1422
     assert pressed == [1]
+    assert len(entered) == 1
+    assert "client.enterWorld" not in [m for m, _, _ in observed]
     assert slots == ["main"] and clients.pid_of("main") == 1422
     clients.clear()
     assert all(pid == 1422 for _, _, pid in observed)
@@ -153,6 +159,35 @@ def test_sdk_login_pins_rpc_to_test_pid_and_never_uses_secret_in_argv(tmp_path, 
     assert "unit.get" in methods[:first_lua]
     assert [params["code"] for method, params, _ in observed if method == "lua.evaluate"] == \
         [wowcontrol.IDLE_KEY_FREE_CODE, wowcontrol.IDLE_POPUP_CODE]
+
+
+def test_enter_key_is_pressed_only_at_character_select_with_the_plan_character_alone(monkeypatch):
+    # FR-7.8, SC-007: Enter goes to the verified window only while the SDK
+    # reports character select and the account holds exactly the plan's character.
+    from addon_forge import wowcontrol
+    monkeypatch.setattr(wowcontrol.time, "sleep", lambda s: None)
+    def caller(screen, characters):
+        def call(method, params=None):
+            if method == "client.getScreen":
+                return {"screen": screen, "inWorld": False}
+            if method == "client.getCharacters":
+                return {"characters": [{"name": n} for n in characters]}
+            raise AssertionError(method)
+        return call
+    pressed = []
+    wowcontrol.enter_world_with_key(caller("charselect", ["Test"]), "Test", lambda: pressed.append(1))
+    assert pressed == [1]
+    for screen, characters, message in (("charselect", ["Test", "Alt"], "exactly one character"),
+                                        ("charselect", ["Other"], "exactly one character"),
+                                        ("login", ["Test"], "character select")):
+        with pytest.raises(RuntimeError, match=message):
+            wowcontrol.enter_world_with_key(caller(screen, characters), "Test", lambda: pressed.append(2))
+    assert pressed == [1]
+
+
+def test_enter_key_is_a_single_return_press_on_the_verified_window():
+    from addon_forge.windows_client import WindowsClientController
+    assert WindowsClientController.ENTER_VKS == (0x0D,)
 
 
 def test_idle_reset_presses_only_an_unbound_key_and_cancels_camp():

@@ -1012,6 +1012,13 @@ local function api(env)
     E.InCombatLockdown = function() return W.combat and 1 or nil end
     E.PlaySound = function(name) tinsert(W.sounds, tostring(name)) end
     E.PlaySoundFile = function(name) tinsert(W.sounds, tostring(name)) end
+    E.IsLoggedIn = function() return W.loggedIn end
+    E.GetSpellInfo = function(id) return W.spells[id] or ("Spell " .. tostring(id)), "", "" end
+    E.GetSpellLink = function(id)
+        return "|cff71d5ff|Hspell:" .. tostring(id) .. "|h[" .. E.GetSpellInfo(id) .. "]|h|r"
+    end
+    E.ChatEdit_InsertLink = function() return false end
+    E.JumpOrAscendStart = function() end
     E.print = function(...)
         local parts = {}
         for i = 1, select("#", ...) do parts[i] = tostring((select(i, ...))) end
@@ -1481,7 +1488,7 @@ local function api(env)
     end
     E.securecall = function(fn, ...) if type(fn) == "string" then fn = E[fn] end return fn(...) end
     E.issecurevariable = function() return 1, nil end
-    E.geterrorhandler = function() return W.errorHandler end
+    E.geterrorhandler = function() return W.errorHandler or recordError end
     E.seterrorhandler = function(fn) W.errorHandler = fn end
     E.StaticPopup_Show = function(which, a, b, data) tinsert(W.popups, { which = which, text1 = a, text2 = b, data = data }) end
     E.StaticPopup_Hide = function() end
@@ -1595,7 +1602,7 @@ local function newWorld(config, saved)
           money = 0, zone = "Dalaran", realm = "AzerothCore", locale = config.locale or "enUS",
           gameMinutes = 12 * 60, mapX = 0.5, mapY = 0.5, hardware = false, blocked = {}, protectedCalls = {},
           bags = {}, invites = {}, calendar = { events = {}, players = {} },
-          cvars = {}, units = defaultUnits(), addonName = config.addonName, metadata = config.metadata or {},
+          cvars = { realmList = "127.0.0.1" }, spells = {}, units = defaultUnits(), addonName = config.addonName, metadata = config.metadata or {},
           strings = { RANDOM_ROLL_RESULT = "%s rolls %d (%d-%d)", OKAY = "Okay", CANCEL = "Cancel", YES = "Yes",
                       NO = "No", ACCEPT = "Accept", DECLINE = "Decline", CLOSE = "Close", NONE = "None",
                       LOOT_ITEM = "%s receives loot: %s.", LOOT_ITEM_SELF = "You receive loot: %s.",
@@ -2107,6 +2114,7 @@ function forge.combat(on)
     W.combat = on and true or false
     fire(on and "PLAYER_REGEN_DISABLED" or "PLAYER_REGEN_ENABLED")
 end
+function forge.spell(id, name) W.spells[id] = name end
 function forge.keys(mods) W.keys = mods or {} end
 function forge.zone(zone, subzone, x, y) W.zone, W.mapX, W.mapY = zone, x or W.mapX, y or W.mapY; fire("ZONE_CHANGED_NEW_AREA") end
 function forge.gameTime(hour, minute) W.gameMinutes = (hour * 60 + (minute or 0)) - W.time / 60 end
@@ -2200,6 +2208,7 @@ local function loadAddon(saved, reloaded)
     -- world entry; on /reload it is cached and fires before PLAYER_LOGIN
     -- (client LoadAccountVariables, CGGameUI::InitializeFrameXML).
     if reloaded then fire("VARIABLES_LOADED") end
+    W.loggedIn = 1
     fire("PLAYER_LOGIN")
     fire("PLAYER_ENTERING_WORLD")
     if not reloaded then fire("VARIABLES_LOADED") end

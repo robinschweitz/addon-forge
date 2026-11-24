@@ -11,6 +11,7 @@ LootTab.lua
 AwardsTab.lua
 TallyTab.lua
 HistoryTab.lua
+Trades.lua
 Raid.lua
 Access.lua
 Minimap.lua
