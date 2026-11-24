@@ -218,6 +218,16 @@ handling, sandbox limits, loopback-only binding, input validation) are in
   *IMPLEMENTED: `headless/wow.lua`; `tests/emulation/ClientFidelity/tests/items.spec.lua`
   (live: RaidWishlist's hidden tooltip fetched never-seen item 20514,
   run `1e0dd41331cf`)*
+- **FR-4.15** The emulation MUST let an addon with the Ace3 libraries load in
+  the load-only smoke run, where no spec can stub anything: `IsLoggedIn` is true
+  from `PLAYER_LOGIN` on, the `realmList` CVar is set, `GetSpellInfo` and
+  `GetSpellLink` answer (`forge.spell(id, name)` names a spell, others read
+  `Spell <id>`), and `ChatEdit_InsertLink` and `JumpOrAscendStart` exist.
+  `geterrorhandler()` MUST give a handler that reports the error (FR-4.6), so
+  errors the libraries catch with `xpcall` are not hidden.
+  *IMPLEMENTED: `headless/wow.lua`; `tests/emulation/ClientFidelity/tests/ace.spec.lua`
+  (run by `test_offline.py::test_emulation_matches_the_audited_client_behaviour`);
+  found porting Comix-WotLK, 2026-10-30*
 - **FR-4.12** `forge spec` MUST run every spec file once in a deDE and once in
   an enUS world, and a spec passes only when it passes in both. Specs MUST NOT
   assert exact locale-specific words; they compare against the addon's own
