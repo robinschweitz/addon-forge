@@ -24,10 +24,11 @@ none is needed.
 
 | Tab | What it is for |
 | --- | --- |
-| **BEUTE** (loot) | The loot list (this corpse's drops, then the open items held until they are rolled), the raid's **disenchanter** below it, and the selected item in two steps: **1 ROLL** (**ROLL**, free BoE roll for BoE items, every roll with what the roller has **so far**) and **2 HAND OUT** (name box, **ALL**, **GIVE TO name**, **DISENCHANT**, **GUILD BANK**). The button for the next step is green. The compact master-loot popup has **ASSIGN**, **ROLL** and **LATER ROLL**. |
+| **BEUTE** (loot) | The loot list (this corpse's drops, then the open items held until they are rolled), the raid's **disenchanter** below it, and the selected item in two steps: **1 ROLL** (**ROLL**, free BoE roll for BoE items, every roll with what the roller has **so far**) and **2 HAND OUT** (name box, **ALL**, **GIVE TO name**, **DISENCHANT**, **GUILD BANK**). The button for the next step is green. The compact master-loot popup has **ASSIGN**, **ROLL** and **LATER ROLL**. **+** beside EMPTY adds an item by hand. |
 | **VERGABEN** (awards) | Every award; the selected one is only corrected: **COUNTS AS** main spec / off spec / nothing, change or restore its recipient, **BACK TO LOOT**, **REMOVE**, its roll log; **EXPORT** and **NEW RAID** |
 | **SPIELER** (players' tally) | Every raid member with items and tokens per spec, the numbers the fewest-items rule ranks by; - / + corrections per player, and their awards |
 | **VERLAUF** (history, 2.10.0) | The finished raids, newest first, with date, recorder, raid ID and award count; the selected raid's tally, and **SHOW AWARDS**, **SHARE**, **CONTINUE**, **DELETE**; **KEEP** sets how many raids stay |
+| **HANDEL** (trades) | Who traded which raid loot to whom, newest first: your trades and your raid mates' (shared); it changes no award |
 | **RAID** | Invites, raid groups, attendance, calendar event |
 | **EINSTELLUNGEN** (settings) | Editors, who runs which addon, roll lengths, minimap button, window scale and reset, sync |
 
@@ -167,7 +168,15 @@ Only the master looter (or an editor) changes rolls. Right-click a roll in the r
 
 Every change is announced ("[item] - Bob's roll counts as main spec 11-110
 (100)."), and the roll log keeps what was really rolled. The same commands:
-`/ledger pass <name>` and `/ledger count <name> ms|os|none|enh <0-50>`.
+`/ledger pass <name>` and `/ledger count <name> ms|os|none|allow|enh <0-50>`.
+
+A `/rnd` that comes after the roll ended is not lost: it stays in that roll's
+log as **too late** and does not count, until the next roll starts. Right-click
+it and choose **ALLOW** (or `/ledger count <name> allow`) to count it; the
+winner is decided again and announced, and for an item already handed out the
+award moves like any correction. After that, MAIN SPEC, OFF SPEC and
+ENHANCED ... work on it as on any roll. Free BoE, disenchanter and token
+bundle rolls take no late rolls.
 
 The same right-click works in a given-out award's roll log (VERGABEN, select
 the award). If someone else now wins, the award goes to them like a recipient
@@ -298,6 +307,26 @@ round, the winner marked. Rolls that did not count stay listed in grey with the
 reason: `re-roll`, a wrong range such as `1-1000`, or `not in tie-break`. Long
 logs scroll with the mouse wheel. Awards recorded before version 1.1 have no
 roll log.
+
+## Trade log: HANDEL
+
+The **HANDEL** tab lists who traded which raid loot to whom in this raid,
+newest first. Each RaidLedger writes down the items it gives in a completed
+trade with a raid member, and shares the line with everyone in the raid who
+runs RaidLedger, so you also see what a mate traded. Only items in this raid's
+ledger count (no potions, no gold). The log changes no award: awards are still
+corrected in VERGABEN. The items a player receives appear when the giver runs
+RaidLedger. NEW RAID keeps the trades with the raid under VERLAUF.
+
+## Loot added by hand
+
+Raid loot that never was in your master-loot window (tokens a raider got
+another way) is added in BEUTE: **+** beside EMPTY opens **ADD ITEM**.
+Shift-click the item into the first box (from your bags or a chat link), type
+who has it (empty: you) and press **ADD**. Each press adds one open copy held
+by that player, so three presses make one `3x` row that rolls as a bundle.
+Only a real item link counts, the holder must be in the raid, and with an
+editor list only editors can add items.
 
 ## Loot that waits: LATER ROLL
 

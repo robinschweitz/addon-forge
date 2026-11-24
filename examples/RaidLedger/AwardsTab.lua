@@ -267,7 +267,7 @@ local function drawLog(record)
     local winner = log and core.winningRoll(log)
     for i, row in ipairs(logRows) do
         local r = log and log[i + logOffset]
-        row.roll = r and r.kind and not r.note and r or nil
+        row.roll = r and r.kind and (not r.note or r.note == "too late") and r or nil
         row.playerName = r and r.name
         if r then
             -- "Name  (tie-break 1)  - won  (MS 21-120, 1 item)  - corrected, rolled 140 (41-140)  [WL #2]":
