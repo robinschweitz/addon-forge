@@ -120,9 +120,33 @@ def _find_item_code(item_id: int) -> str:
             "return bag .. ':' .. slot end end end return 'missing'")
 
 
+# The client's red error text (UI_ERROR_MESSAGE) around the trade request, so a
+# refused trade says why ("already trading", "too far", ...); session f1527376db53.
+TRADE_ERRORS_CODE = ("if not ForgeStepTradeErrors then ForgeStepTradeErrors = CreateFrame('Frame') "
+                     "ForgeStepTradeErrors:SetScript('OnEvent', function(self, _, msg) "
+                     "self.last = tostring(msg or '') end) end "
+                     "ForgeStepTradeErrors:RegisterEvent('UI_ERROR_MESSAGE') ForgeStepTradeErrors.last = nil ")
+
+
 def _initiate_code(name: str) -> str:
-    return ("for i = 1, 4 do if UnitName('party' .. i) == " + json.dumps(name) + " then "
-            "InitiateTrade('party' .. i) return 'ok' end end return 'no_peer'")
+    # A loot window still open from the fixture's corpse blocked the trade in
+    # session dcd15b9bda26: close it, and say so when the bot is out of range.
+    return (TRADE_ERRORS_CODE + "for i = 1, 4 do local u = 'party' .. i if UnitName(u) == " + json.dumps(name) + " then "
+            "if not CheckInteractDistance(u, 2) then return 'too_far' end "
+            "if LootFrame and LootFrame:IsShown() then CloseLoot() end "
+            "InitiateTrade(u) return 'ok' end end return 'no_peer'")
+
+
+def _trade_state_code(name: str) -> str:
+    """What the client shows when the bot saw no trade: window, loot, distance."""
+    return ("local u for i = 1, 4 do if UnitName('party' .. i) == " + json.dumps(name) + " then u = 'party' .. i end end "
+            "return ((TradeFrame and TradeFrame:IsShown()) and 'trade' or 'no_trade') .. ',' .. "
+            "((LootFrame and LootFrame:IsShown()) and 'loot' or 'no_loot') .. ',' .. "
+            "((u and CheckInteractDistance(u, 2)) and 'near' or 'far') .. ',' .. "
+            "tostring(u and UnitFactionGroup(u)) .. ',' .. "
+            "((u and UnitCanAttack('player', u)) and 'attackable' or 'friendly') .. ',' .. "
+            "string.gsub(string.sub((ForgeStepTradeErrors and ForgeStepTradeErrors.last) or 'no_error', 1, 60), "
+            "'[^%w%s%.%-]', '')")
 
 
 TRADE_OPEN_CODE = "return (TradeFrame and TradeFrame:IsShown()) and 'ok' or 'closed'"
@@ -153,7 +177,7 @@ def _trade_to_peer(item_id: int, peer, lua, sleep) -> str:
         return f"initiate:{started}"
     result = peer.wait(opening, timeout=20)
     if result != "ok":
-        return f"bot_open:{result}"
+        return f"bot_open:{result}:{lua(_trade_state_code(peer.name))}"
     for _ in range(20):
         if lua(TRADE_OPEN_CODE) == "ok":
             break

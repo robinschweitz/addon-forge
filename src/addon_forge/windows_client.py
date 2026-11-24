@@ -404,6 +404,14 @@ class WindowsClientController:
         frame bound to it, for functions that refuse Lua calls (ADDON_ACTION_BLOCKED)."""
         self._press(self.CLICK_VKS)
 
+    # One Enter press at character select enters the world (FR-7.8, SC-007).
+    ENTER_VKS = (0x0D,)  # VK_RETURN
+
+    def press_enter_key(self) -> None:
+        """The world entry: a real Enter on the verified window at character select.
+        wowcontrol.enter_world_with_key checks the screen and the character first."""
+        self._press(self.ENTER_VKS)
+
     def press_idle_key(self) -> None:
         """One real key event so WoW stops treating the SDK client as idle."""
         self._press(self.IDLE_VKS)

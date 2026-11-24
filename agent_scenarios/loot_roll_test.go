@@ -34,14 +34,34 @@ func TestLootRollFixture(t *testing.T) {
 		}
 	}
 	revive()
-	bot.GM(t, ".appear "+target)
-	if err := bot.World.GroupInvite(target); err != nil {
-		t.Fatalf("group invite: %v", err)
+	// Start clean (FR-10.17): an earlier fixture may have left the character
+	// in a raid or an instance (session 21c0ab606090: still in Icecrown
+	// Citadel, and the party invite never arrived). Dissolve its group, then
+	// bring it to the bot in the open world instead of going to it.
+	bot.GM(t, ".group disband "+target)
+	bot.GM(t, ".summon "+target)
+	invite := func() {
+		if err := bot.World.GroupInvite(target); err != nil {
+			t.Fatalf("group invite: %v", err)
+		}
 	}
+	invite()
 	if err := writeStateAtomic(ready, map[string]any{"status": "invite_sent", "bot": bot.Name}); err != nil {
 		t.Fatalf("could not publish invite readiness: %v", err)
 	}
-	group := bot.WaitGroupList(t, true, 2, 45*time.Second)
+	// A summon across maps puts the client on a loading screen, which drops
+	// the invite (session 9043864c3f2b): ask again until the character joins.
+	for deadline, next := time.Now().Add(45*time.Second), time.Now().Add(8*time.Second); time.Now().Before(deadline); {
+		if g := bot.GroupState(); g.InGroup && g.MemberCount >= 2 {
+			break
+		}
+		if time.Now().After(next) {
+			invite()
+			next = time.Now().Add(8 * time.Second)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	group := bot.WaitGroupList(t, true, 2, 2*time.Second)
 	if group.MemberCount < 2 {
 		t.Fatal("graphical character did not join party")
 	}
@@ -331,12 +351,20 @@ func runPeerCommand(bot *e2eharness.ScenarioBot, data []byte, armed func()) stri
 		}
 		return "ok"
 	case "open_trade":
-		// The graphical client initiates; the bot answers BEGIN_TRADE.
+		// The graphical client initiates; the bot answers BEGIN_TRADE. A bot
+		// still in GM mode has a neutral faction, and the client refuses to
+		// trade with it ("Ziel ist feindlich gesonnen.", session fc78aed4ee8b).
+		_ = bot.World.SendGMCommand(".gm off")
+		time.Sleep(500 * time.Millisecond)
 		statuses, cancel := watchTrade(bot.World)
 		defer cancel()
 		armed()
 		if !waitStatus(statuses, client.TradeStatusBeginTrade, 15*time.Second) {
-			return "no_begin_trade"
+			// Say what the server sent instead (session f1527376db53: nothing to go on).
+			if !bot.World.TradeStatusSeen() {
+				return "no_begin_trade:none"
+			}
+			return "no_begin_trade:" + client.TradeStatusName(bot.World.LastTradeStatus().Status)
 		}
 		if err := bot.World.BeginTrade(); err != nil {
 			return "begin_failed"

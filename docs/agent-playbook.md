@@ -216,6 +216,23 @@ guild (README "Releasing an addon", REQUIREMENTS.md FR-15):
 - A session's final screenshot (`RUN_ID.png`) shows the end state; use
   `screenshot` steps for anything in between.
 
+- **The test character must not be in GM mode** (found 2026-11-24). A GM
+  account's character keeps GM mode across logins (`GM.LoginState = 2`); in
+  GM mode it has a neutral faction, so the client refuses to trade with the
+  fixture bot ("Ziel ist feindlich gesonnen.", `peer_trade` ->
+  `bot_open:no_begin_trade:none:...`). Type `.gm off` once as the test
+  character; the character's `extra_flags` bit 0x1 shows it.
+- **World entry uses a real Enter press** (FR-7.8). From 2026-11-24 the SDK's
+  Lua `EnterWorld()` got two login answers from the realm
+  (`Logs/connection.log`: two `COP_LOGIN_CHARACTER code=77`) and fell back to
+  character select; a real click or Enter got one and stayed. The client log
+  `F:\Wow\wow_second\Logs\connection.log` is the first place to look when
+  a session ends at character select.
+- **`master_loot` summons the test character** (FR-10.17) after dissolving
+  its group, so a character left in an instance by another fixture is
+  usable again; a summon across maps drops a party invite on the loading
+  screen, so the bot repeats it.
+
 ## Offline emulation vs. the client (decompiled 12340 client)
 
 `headless/wow.lua` was audited on 2026-10-20 against a C++ decompilation of the
